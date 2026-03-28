@@ -4,6 +4,8 @@
 > Same Supabase as Takeoff. Expo + PowerSync. Offline-first.
 > **Supabase project:** msmpsxalfalzinuorwlg (Notchfield Takeoff — shared)
 > **PowerSync:** 69c72137a112d86b20541618.powersync.journeyapps.com
+> **EAS Project:** 281ade7b-a5d9-4f43-9710-d270ae4c49f4 (@lalas825/notchfield-track)
+> **Repo:** https://github.com/lalas0825/Notchfield-track (13 commits)
 
 ---
 
@@ -12,9 +14,10 @@
 | Phase | What | Tasks | Depends On | Status |
 |-------|------|-------|-----------|--------|
 | **T1 — Foundation + Safety + GPS + Time Tracking + Plans** | Auth, navigation, GPS, safety, work tickets, crew, time entries, drawing viewer | **43** | Nothing (tables exist) | ✅ OPERATIONAL (39/43) |
-| **T2 — Production + Ready Board + Legal + Punch List + AI Agent** | Daily report, checkboxes, Ready Board, gates, NOD/REA, punch list, AI agent + voice | **38** | Takeoff Fase 7B | ⬜ After 7B |
+| **T2 — Production + Ready Board + Legal + Punch List + AI Agent** | Daily report, checkboxes, Ready Board, gates, NOD/REA, punch list, AI agent + voice | **38** | Takeoff Fase 7B | 🟡 S1-S3 DONE (AI Agent deferred) |
 | **T3 — Delivery + Material Flow** | Delivery confirmation, supervisor tracker, material consumption | **10** | Takeoff Fase 9 | ⬜ After Fase 9 |
 | **T4 — Polish + App Store** | Role enforcement, push, performance, store submission | **10** | Takeoff Fase 10 | ⬜ After Fase 10 |
+| **EAS Build** | APK testing on real device | — | — | 🟡 Build #2 (fix: quick-sqlite dep) |
 | **TOTAL** | | **105** | | |
 
 ---

@@ -1,14 +1,16 @@
 # 🏗️ NotchField Track — Factory OS
 > *"Track collects, Web processes. Same database, different doors."*
-> Updated: 2026-03-25 | All phases PLANNED
-> Repo: notchfield-track (separate from notchfield-takeoff)
+> Updated: 2026-03-28 | T1 OPERATIONAL, T2 S1-S3 DONE
+> Repo: https://github.com/lalas0825/Notchfield-track (13 commits)
+> Supabase: msmpsxalfalzinuorwlg | PowerSync: 69c72137a112d86b20541618
+> EAS: @lalas825/notchfield-track (281ade7b-a5d9-4f43-9710-d270ae4c49f4)
 
 ---
 
 ## 🎯 Identidad
 
 **App:** NotchField Track — Native Field Operations App
-**Type:** React Native (Expo) + PowerSync (offline-first)
+**Type:** React Native (Expo SDK 55) + PowerSync (offline-first)
 **Purpose:** Field ops — production reporting, safety, GPS, delivery, crew management
 **Database:** SAME Supabase as Takeoff (shared tables, shared rows, no sync layer)
 **Deploy:** Expo EAS → App Store + Google Play
@@ -26,7 +28,7 @@
 
 | Layer | Tech | Notes |
 |-------|------|-------|
-| Framework | Expo SDK 52+ | Managed workflow |
+| Framework | Expo SDK 55 (canary) | Managed workflow |
 | UI | React Native + NativeWind (Tailwind) | Consistent with web aesthetics |
 | Offline | PowerSync | SQLite local → Supabase sync |
 | Auth | Supabase Auth (shared with Takeoff) | Same user, same session concept |
@@ -1071,6 +1073,46 @@ All 4 skills are created in `.claude/skills/` with implementation code and patte
 | Daily Reports | 3 | T2 |
 | Settings + Profile | 3 | T1 |
 | **TOTAL** | **71** | |
+
+---
+
+---
+
+## 🔧 Build Notes & Lessons Learned
+
+### Critical: Naming conventions (Takeoff Supabase)
+- Table `profiles` NOT `users`
+- Column `organization_id` NOT `org_id`
+- Table `production_areas` NOT `areas`
+- RLS helpers: `user_org_id()` and `user_role()` NOT `get_user_org_id()`
+- Supabase project: `msmpsxalfalzinuorwlg` NOT `errxmhgqksdasxccumtz` (that's ReadyBoard)
+
+### Critical: EAS Build (see EAS_BUILD_GUIDE.md)
+- Node 20 LTS required (Node 25 breaks metro)
+- `eas.json` env block required (EAS ignores .env files)
+- Auth routing: use `<Redirect>` not `router.replace()` in layouts
+- PowerSync needs `@journeyapps/react-native-quick-sqlite` as explicit dep
+- PowerSync sync rules: NO JOINs, NO subqueries, NO aliases in parameters
+- Platform-split files (.web.tsx) for native-only modules (react-native-pdf, PowerSync, maps)
+
+### Critical: PowerSync Sync Rules
+Working pattern (org-scoped, single table per query):
+```yaml
+by_org:
+  parameters:
+    - SELECT organization_id FROM profiles WHERE id = token_parameters.user_id
+  data:
+    - SELECT * FROM table WHERE organization_id = bucket.organization_id
+```
+Does NOT work: JOINs, subqueries in data, aliases in parameters.
+
+### Supabase Migrations Applied (Track-owned tables)
+| Migration | Tables |
+|-----------|--------|
+| create_track_t1_tables | crew_assignments, area_time_entries, gps_checkins, gps_geofences, field_photos |
+| create_track_t2_tables | daily_reports, field_messages, punch_items |
+| add_legal_immutability_trigger | guard_legal_immutability() on legal_documents |
+| powersync publication | `CREATE PUBLICATION powersync FOR ALL TABLES` |
 
 ---
 
