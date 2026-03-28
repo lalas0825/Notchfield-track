@@ -350,6 +350,18 @@ const field_photos = new TableV2({
   created_at: column.text,
 });
 
+const production_block_logs = new TableV2({
+  organization_id: column.text,
+  project_id: column.text,
+  area_id: column.text,
+  blocked_reason: column.text,
+  blocked_at: column.text,
+  resolved_at: column.text,
+  reported_by: column.text,
+  resolved_by: column.text,
+  created_at: column.text,
+});
+
 // ============================================================
 // SCHEMA EXPORT
 // ============================================================
@@ -382,6 +394,7 @@ export const AppSchema = new Schema({
   daily_reports,
   field_messages,
   punch_items,
+  production_block_logs,
 });
 
 export type Database = (typeof AppSchema)['types'];
@@ -400,3 +413,4 @@ export type DailyReportRecord = Database['daily_reports'];
 export type PunchItemRecord = Database['punch_items'];
 export type DrawingRecord = Database['drawings'];
 export type DrawingSetRecord = Database['drawing_sets'];
+export type ProductionBlockLogRecord = Database['production_block_logs'];

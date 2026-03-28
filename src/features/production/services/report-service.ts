@@ -7,6 +7,8 @@
  */
 
 import { supabase } from '@/shared/lib/supabase/client';
+import { localInsert, localUpdate, generateUUID } from '@/shared/lib/powersync/write';
+import { logger } from '@/shared/lib/logger';
 
 export type DailyReportDraft = {
   projectId: string;
@@ -43,32 +45,46 @@ export async function getExistingReport(
  * Uses upsert on the UNIQUE(project_id, foreman_id, report_date) constraint.
  */
 export async function saveDraft(draft: DailyReportDraft): Promise<{ success: boolean; id?: string; error?: string }> {
-  const { data, error } = await supabase
-    .from('daily_reports')
-    .upsert(
-      {
-        project_id: draft.projectId,
-        organization_id: draft.organizationId,
-        foreman_id: draft.foremanId,
-        report_date: draft.reportDate,
-        status: 'draft',
-        areas_worked: draft.areasWorked,
-        progress_summary: draft.progressSummary,
-        total_man_hours: draft.totalManHours,
-        photos_count: draft.photosCount,
-      },
-      { onConflict: 'project_id,foreman_id,report_date' },
-    )
-    .select('id')
-    .single();
+  // PowerSync doesn't support upsert — check if a report already exists, then insert or update
+  const existing = await getExistingReport(draft.projectId, draft.foremanId, draft.reportDate);
 
-  if (error) {
-    console.error('[Report] Save draft failed:', error.message);
-    return { success: false, error: error.message };
+  const reportData = {
+    project_id: draft.projectId,
+    organization_id: draft.organizationId,
+    foreman_id: draft.foremanId,
+    report_date: draft.reportDate,
+    status: 'draft',
+    areas_worked: draft.areasWorked,
+    progress_summary: draft.progressSummary,
+    total_man_hours: draft.totalManHours,
+    photos_count: draft.photosCount,
+  };
+
+  if (existing) {
+    // Update the existing draft
+    const result = await localUpdate('daily_reports', existing.id, reportData);
+    if (!result.success) {
+      console.error('[Report] Save draft failed:', result.error);
+      return { success: false, error: result.error };
+    }
+    logger.info(`[Report] Draft updated: ${draft.reportDate}`);
+    return { success: true, id: existing.id };
   }
 
-  console.log(`[Report] Draft saved: ${draft.reportDate}`);
-  return { success: true, id: data?.id };
+  // Insert new draft
+  const result = await localInsert('daily_reports', {
+    id: generateUUID(),
+    ...reportData,
+    created_at: new Date().toISOString(),
+  });
+
+  if (!result.success) {
+    console.error('[Report] Save draft failed:', result.error);
+    return { success: false, error: result.error };
+  }
+
+  logger.info(`[Report] Draft saved: ${draft.reportDate}`);
+  return { success: true, id: result.id };
 }
 
 /**
@@ -93,19 +109,16 @@ export async function submitReport(reportId: string): Promise<{ success: boolean
   }
 
   // Submit
-  const { error } = await supabase
-    .from('daily_reports')
-    .update({
-      status: 'submitted',
-      submitted_at: new Date().toISOString(),
-    })
-    .eq('id', reportId);
+  const result = await localUpdate('daily_reports', reportId, {
+    status: 'submitted',
+    submitted_at: new Date().toISOString(),
+  });
 
-  if (error) {
-    return { success: false, error: error.message };
+  if (!result.success) {
+    return { success: false, error: result.error };
   }
 
-  console.log(`[Report] Submitted: ${reportId}`);
+  logger.info(`[Report] Submitted: ${reportId}`);
   return { success: true };
 }
 

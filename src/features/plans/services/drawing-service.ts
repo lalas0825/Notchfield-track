@@ -13,6 +13,7 @@
 import * as LegacyFileSystem from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 import { supabase } from '@/shared/lib/supabase/client';
+import { logger } from '@/shared/lib/logger';
 
 const CACHE_DIR = `${LegacyFileSystem.documentDirectory ?? ''}plans/`;
 
@@ -77,7 +78,7 @@ export async function downloadAndCachePdf(
 
     const result = await download.downloadAsync();
     if (result?.uri) {
-      console.log(`[Plans] Cached: ${storagePath}`);
+      logger.info(`[Plans] Cached: ${storagePath}`);
       return result.uri;
     }
     return null;

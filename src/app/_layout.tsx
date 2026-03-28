@@ -8,6 +8,7 @@ import { Redirect, Slot, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { SyncStatusBar } from '@/shared/components/SyncStatusBar';
+import { ErrorBoundary } from '@/shared/components/ErrorBoundary';
 import { startPhotoWorker } from '@/features/photos/services/photo-worker';
 
 /**
@@ -72,7 +73,9 @@ export default function RootLayout() {
       <StatusBar style="light" />
       <SyncStatusBar />
       <AuthGate>
-        <Slot />
+        <ErrorBoundary>
+          <Slot />
+        </ErrorBoundary>
       </AuthGate>
     </PowerSyncProvider>
   );

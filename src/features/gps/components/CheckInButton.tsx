@@ -28,6 +28,8 @@ export function CheckInButton({
       <Pressable
         onPress={onPress}
         disabled={disabled}
+        accessibilityRole="button"
+        accessibilityLabel={isCheckedIn ? 'Check out' : 'Check in'}
         className={`h-[120px] w-[120px] items-center justify-center rounded-full ${
           isCheckedIn
             ? 'bg-danger'         // Red = tap to check out

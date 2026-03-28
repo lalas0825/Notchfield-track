@@ -12,6 +12,8 @@
 import * as LegacyFileSystem from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 import { supabase } from '@/shared/lib/supabase/client';
+import { localInsert, generateUUID } from '@/shared/lib/powersync/write';
+import { logger } from '@/shared/lib/logger';
 
 const PHOTOS_DIR = `${LegacyFileSystem.documentDirectory ?? ''}field-photos/`;
 
@@ -59,7 +61,9 @@ export async function enqueuePhoto(params: {
   });
 
   // Insert into field_photos table (PowerSync syncs this)
-  const { data } = await supabase.from('field_photos').insert({
+  const photoId = generateUUID();
+  const result = await localInsert('field_photos', {
+    id: photoId,
     organization_id: params.organizationId,
     project_id: params.projectId,
     area_id: params.areaId ?? null,
@@ -73,11 +77,12 @@ export async function enqueuePhoto(params: {
     taken_by: params.takenBy,
     taken_at: new Date().toISOString(),
     sync_status: 'pending',
-  }).select('id').single();
+    created_at: new Date().toISOString(),
+  });
 
-  console.log(`[PhotoQueue] Enqueued: ${filename} → ${params.contextType}`);
+  logger.info(`[PhotoQueue] Enqueued: ${filename} → ${params.contextType}`);
 
-  return { localUri, photoId: data?.id ?? null };
+  return { localUri, photoId: result.success ? result.id : null };
 }
 
 /**

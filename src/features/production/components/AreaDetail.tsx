@@ -106,6 +106,8 @@ export function AreaDetail({
                   }
                 }}
                 disabled={isLocked}
+                accessibilityRole="button"
+                accessibilityLabel={`${item.template.name} phase, ${isComplete ? 'complete' : isLocked ? 'locked' : isCurrent ? 'current' : 'pending'}`}
                 className={`mb-1.5 flex-row items-center rounded-xl border px-4 py-3 ${
                   isCurrent
                     ? 'border-brand-orange bg-brand-orange/10'

@@ -2,6 +2,9 @@ import * as Location from 'expo-location';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { supabase } from '@/shared/lib/supabase/client';
+import { localInsert, generateUUID } from '@/shared/lib/powersync/write';
+import { haptic } from '@/shared/lib/haptics';
+import { logger } from '@/shared/lib/logger';
 
 export type GpsPosition = {
   latitude: number;
@@ -118,7 +121,9 @@ export async function recordCheckin(params: {
 }): Promise<{ success: boolean; error?: string }> {
   const { userId, projectId, organizationId, type, position } = params;
 
-  const { error } = await supabase.from('gps_checkins').insert({
+  // FIX 1: Local-first write via PowerSync
+  const result = await localInsert('gps_checkins', {
+    id: generateUUID(),
     user_id: userId,
     project_id: projectId,
     organization_id: organizationId,
@@ -127,14 +132,16 @@ export async function recordCheckin(params: {
     gps_lng: position.longitude,
     accuracy_meters: position.accuracy,
     device_id: Constants.deviceName ?? Platform.OS,
+    created_at: new Date().toISOString(),
   });
 
-  if (error) {
-    console.error('[GPS] Check-in failed:', error.message);
-    return { success: false, error: error.message };
+  if (!result.success) {
+    console.error('[GPS] Check-in failed:', result.error);
+    return { success: false, error: result.error };
   }
 
-  console.log(`[GPS] ${type} recorded: ${position.latitude}, ${position.longitude}`);
+  haptic.heavy();
+  logger.info(`[GPS] ${type} recorded: ${position.latitude}, ${position.longitude}`);
   return { success: true };
 }
 

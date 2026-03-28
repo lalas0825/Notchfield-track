@@ -74,6 +74,8 @@ export default function MoreScreen() {
               router.push(item.route as any);
             }
           }}
+          accessibilityRole="button"
+          accessibilityLabel={item.label}
           className="mb-2 flex-row items-center rounded-xl border border-border bg-card px-4 py-4 active:opacity-80"
         >
           <View

@@ -6,15 +6,44 @@
  *
  * Start once from root layout. Listens to AppState to resume on foreground.
  * Exponential backoff on failures (1s, 2s, 4s, 8s... max 60s).
+ * After 5 failures, marks photo as 'failed'.
  */
 
 import { AppState, Platform } from 'react-native';
 import * as LegacyFileSystem from 'expo-file-system/legacy';
 import { supabase } from '@/shared/lib/supabase/client';
+import { logger } from '@/shared/lib/logger';
 
 const BUCKET = 'field-photos';
+const MAX_RETRIES = 5;
+
 let isProcessing = false;
 let workerStarted = false;
+
+/** Track retry counts per photo ID */
+const retryMap = new Map<string, number>();
+
+function getRetryCount(photoId: string): number {
+  return retryMap.get(photoId) ?? 0;
+}
+
+function incrementRetry(photoId: string): number {
+  const count = getRetryCount(photoId) + 1;
+  retryMap.set(photoId, count);
+  return count;
+}
+
+function clearRetry(photoId: string): void {
+  retryMap.delete(photoId);
+}
+
+function backoffMs(retryCount: number): number {
+  return Math.min(1000 * Math.pow(2, retryCount), 60000);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 /**
  * Start the photo upload worker.
@@ -42,7 +71,7 @@ export function startPhotoWorker(): void {
     }
   }, 30000);
 
-  console.log('[PhotoWorker] Started');
+  logger.info('[PhotoWorker] Started');
 }
 
 /**
@@ -65,7 +94,7 @@ async function processQueue(): Promise<void> {
       return;
     }
 
-    console.log(`[PhotoWorker] Processing ${pending.length} photos`);
+    logger.info(`[PhotoWorker] Processing ${pending.length} photos`);
 
     for (const photo of pending) {
       await uploadPhoto(photo);
@@ -79,6 +108,8 @@ async function processQueue(): Promise<void> {
 
 /**
  * Upload a single photo to Supabase Storage.
+ * Implements exponential backoff: waits min(1000 * 2^retryCount, 60000) ms on failure.
+ * After MAX_RETRIES (5) failures, marks as 'failed'.
  */
 async function uploadPhoto(photo: {
   id: string;
@@ -92,7 +123,16 @@ async function uploadPhoto(photo: {
       .from('field_photos')
       .update({ sync_status: 'failed' })
       .eq('id', photo.id);
+    clearRetry(photo.id);
     return;
+  }
+
+  // Check retry count before attempting
+  const retries = getRetryCount(photo.id);
+  if (retries > 0) {
+    const waitMs = backoffMs(retries);
+    logger.info(`[PhotoWorker] Backoff ${waitMs}ms for ${photo.id} (retry ${retries})`);
+    await sleep(waitMs);
   }
 
   // Mark as uploading
@@ -145,14 +185,27 @@ async function uploadPhoto(photo: {
       })
       .eq('id', photo.id);
 
-    console.log(`[PhotoWorker] Uploaded: ${filename}`);
+    clearRetry(photo.id);
+    logger.info(`[PhotoWorker] Uploaded: ${filename}`);
   } catch (err: any) {
     console.error(`[PhotoWorker] Upload failed for ${photo.id}:`, err?.message);
 
-    // Mark as pending again (will retry on next cycle)
-    await supabase
-      .from('field_photos')
-      .update({ sync_status: 'pending' })
-      .eq('id', photo.id);
+    const newCount = incrementRetry(photo.id);
+
+    if (newCount >= MAX_RETRIES) {
+      // Exceeded max retries — mark as permanently failed
+      console.error(`[PhotoWorker] Max retries (${MAX_RETRIES}) exceeded for ${photo.id}, marking as failed`);
+      await supabase
+        .from('field_photos')
+        .update({ sync_status: 'failed' })
+        .eq('id', photo.id);
+      clearRetry(photo.id);
+    } else {
+      // Mark as pending again (will retry on next cycle with backoff)
+      await supabase
+        .from('field_photos')
+        .update({ sync_status: 'pending' })
+        .eq('id', photo.id);
+    }
   }
 }

@@ -11,6 +11,8 @@
  */
 
 import { supabase } from '@/shared/lib/supabase/client';
+import { localInsert, localUpdate, generateUUID } from '@/shared/lib/powersync/write';
+import { logger } from '@/shared/lib/logger';
 
 export type PunchStatus = 'open' | 'in_progress' | 'resolved' | 'verified' | 'rejected';
 export type PunchPriority = 'low' | 'medium' | 'high' | 'critical';
@@ -97,30 +99,30 @@ export async function createPunchItem(params: {
     return { success: false, error: 'At least one photo is required to document the defect' };
   }
 
-  const { data, error } = await supabase
-    .from('punch_items')
-    .insert({
-      organization_id: params.organizationId,
-      project_id: params.projectId,
-      area_id: params.areaId,
-      title: params.title.trim(),
-      description: params.description?.trim() ?? null,
-      priority: params.priority,
-      status: 'open',
-      photos: params.photos,
-      assigned_to: params.assignedTo ?? null,
-      created_by: params.createdBy,
-      plan_x: params.planX ?? null,
-      plan_y: params.planY ?? null,
-      drawing_id: params.drawingId ?? null,
-    })
-    .select('id')
-    .single();
+  const result = await localInsert('punch_items', {
+    id: generateUUID(),
+    organization_id: params.organizationId,
+    project_id: params.projectId,
+    area_id: params.areaId,
+    title: params.title.trim(),
+    description: params.description?.trim() ?? null,
+    priority: params.priority,
+    status: 'open',
+    photos: params.photos,
+    resolution_photos: [],
+    assigned_to: params.assignedTo ?? null,
+    created_by: params.createdBy,
+    plan_x: params.planX ?? null,
+    plan_y: params.planY ?? null,
+    drawing_id: params.drawingId ?? null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  });
 
-  if (error) return { success: false, error: error.message };
+  if (!result.success) return { success: false, error: result.error };
 
-  console.log(`[Punch] Created: ${params.title}`);
-  return { success: true, id: data?.id };
+  logger.info(`[Punch] Created: ${params.title}`);
+  return { success: true, id: result.id };
 }
 
 /**
@@ -134,16 +136,14 @@ export async function resolvePunchItem(
     return { success: false, error: 'An "after" photo is required to resolve this item' };
   }
 
-  const { error } = await supabase
-    .from('punch_items')
-    .update({
-      status: 'resolved',
-      resolution_photos: resolutionPhotos,
-      resolved_at: new Date().toISOString(),
-    })
-    .eq('id', itemId);
+  const result = await localUpdate('punch_items', itemId, {
+    status: 'resolved',
+    resolution_photos: resolutionPhotos,
+    resolved_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  });
 
-  if (error) return { success: false, error: error.message };
+  if (!result.success) return { success: false, error: result.error };
   return { success: true };
 }
 
@@ -153,15 +153,13 @@ export async function resolvePunchItem(
 export async function verifyPunchItem(
   itemId: string,
 ): Promise<{ success: boolean; error?: string }> {
-  const { error } = await supabase
-    .from('punch_items')
-    .update({
-      status: 'verified',
-      verified_at: new Date().toISOString(),
-    })
-    .eq('id', itemId);
+  const result = await localUpdate('punch_items', itemId, {
+    status: 'verified',
+    verified_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  });
 
-  if (error) return { success: false, error: error.message };
+  if (!result.success) return { success: false, error: result.error };
   return { success: true };
 }
 
@@ -176,17 +174,15 @@ export async function rejectPunchItem(
     return { success: false, error: 'Rejection reason is required' };
   }
 
-  const { error } = await supabase
-    .from('punch_items')
-    .update({
-      status: 'rejected',
-      rejected_reason: reason.trim(),
-      resolved_at: null,
-      resolution_photos: [],
-    })
-    .eq('id', itemId);
+  const result = await localUpdate('punch_items', itemId, {
+    status: 'rejected',
+    rejected_reason: reason.trim(),
+    resolved_at: null,
+    resolution_photos: [],
+    updated_at: new Date().toISOString(),
+  });
 
-  if (error) return { success: false, error: error.message };
+  if (!result.success) return { success: false, error: result.error };
   return { success: true };
 }
 

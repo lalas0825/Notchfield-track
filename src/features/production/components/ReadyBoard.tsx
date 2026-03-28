@@ -191,6 +191,8 @@ function AreaRow({ area, onPress }: { area: ProductionArea; onPress: () => void 
   return (
     <Pressable
       onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${area.name}, ${config.label}`}
       className="mb-1.5 flex-row items-center rounded-xl border border-border bg-card px-4 py-3 active:opacity-80"
     >
       {/* Status dot */}
@@ -236,8 +238,8 @@ function StatusChip({
   return (
     <Pressable
       onPress={onPress}
-      className={`flex-row items-center rounded-full px-3 py-1.5 ${active ? 'border border-white/30' : ''}`}
-      style={active ? { backgroundColor: `${color}20` } : undefined}
+      className={`flex-row items-center rounded-full px-4 py-3 ${active ? 'border border-white/30' : ''}`}
+      style={[active ? { backgroundColor: `${color}20` } : undefined, { minHeight: 48 }]}
     >
       <Ionicons name={icon} size={14} color={color} />
       <Text className="ml-1 text-sm font-bold" style={{ color }}>

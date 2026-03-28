@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/shared/lib/supabase/client';
+import { localInsert, localUpdate, generateUUID } from '@/shared/lib/powersync/write';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { useProjectStore } from '@/features/projects/store/project-store';
+import { logger } from '@/shared/lib/logger';
 
 export type TicketRow = {
   id: string;
@@ -55,7 +57,8 @@ export function useTickets() {
         return { success: false, error: 'Not authenticated' };
       }
 
-      const { error } = await supabase.from('work_tickets').insert({
+      const result = await localInsert('work_tickets', {
+        id: generateUUID(),
         project_id: activeProject.id,
         organization_id: profile.organization_id,
         title: params.title,
@@ -65,14 +68,15 @@ export function useTickets() {
         area: params.area,
         photos: params.photos,
         created_by: user.id,
+        created_at: new Date().toISOString(),
       });
 
-      if (error) {
-        console.error('[Tickets] Create failed:', error.message);
-        return { success: false, error: error.message };
+      if (!result.success) {
+        console.error('[Tickets] Create failed:', result.error);
+        return { success: false, error: result.error };
       }
 
-      console.log(`[Tickets] Created: ${params.title}`);
+      logger.info(`[Tickets] Created: ${params.title}`);
       await fetchTickets();
       return { success: true };
     },
@@ -81,12 +85,9 @@ export function useTickets() {
 
   const updateStatus = useCallback(
     async (ticketId: string, status: string): Promise<{ success: boolean; error?: string }> => {
-      const { error } = await supabase
-        .from('work_tickets')
-        .update({ status })
-        .eq('id', ticketId);
+      const result = await localUpdate('work_tickets', ticketId, { status });
 
-      if (error) return { success: false, error: error.message };
+      if (!result.success) return { success: false, error: result.error };
       await fetchTickets();
       return { success: true };
     },

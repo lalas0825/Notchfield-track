@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/shared/lib/supabase/client';
+import { localInsert, localUpdate, generateUUID } from '@/shared/lib/powersync/write';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { useProjectStore } from '@/features/projects/store/project-store';
 import type { DocType, SignatureEntry } from '../types/schemas';
+import { logger } from '@/shared/lib/logger';
 
 export type SafetyDocRow = {
   id: string;
@@ -55,7 +57,8 @@ export function useSafetyDocs() {
         return { success: false, error: 'Not authenticated' };
       }
 
-      const { error } = await supabase.from('safety_documents').insert({
+      const result = await localInsert('safety_documents', {
+        id: generateUUID(),
         project_id: activeProject.id,
         organization_id: profile.organization_id,
         doc_type: params.doc_type,
@@ -64,14 +67,15 @@ export function useSafetyDocs() {
         signatures: params.signatures,
         status: 'active',
         created_by: user.id,
+        created_at: new Date().toISOString(),
       });
 
-      if (error) {
-        console.error('[Safety] Create failed:', error.message);
-        return { success: false, error: error.message };
+      if (!result.success) {
+        console.error('[Safety] Create failed:', result.error);
+        return { success: false, error: result.error };
       }
 
-      console.log(`[Safety] ${params.doc_type} created: ${params.title}`);
+      logger.info(`[Safety] ${params.doc_type} created: ${params.title}`);
       await fetchDocs();
       return { success: true };
     },
@@ -80,12 +84,9 @@ export function useSafetyDocs() {
 
   const closeDoc = useCallback(
     async (docId: string): Promise<{ success: boolean; error?: string }> => {
-      const { error } = await supabase
-        .from('safety_documents')
-        .update({ status: 'closed' })
-        .eq('id', docId);
+      const result = await localUpdate('safety_documents', docId, { status: 'closed' });
 
-      if (error) return { success: false, error: error.message };
+      if (!result.success) return { success: false, error: result.error };
       await fetchDocs();
       return { success: true };
     },

@@ -1,5 +1,8 @@
 import { create } from 'zustand';
 import { supabase } from '@/shared/lib/supabase/client';
+import { localInsert, localUpdate, localDelete, localUpdateWhere, localDeleteWhere, generateUUID } from '@/shared/lib/powersync/write';
+import { haptic } from '@/shared/lib/haptics';
+import { logger } from '@/shared/lib/logger';
 
 export type Worker = {
   id: string;
@@ -120,80 +123,61 @@ export const useCrewStore = create<CrewState & CrewActions>((set, get) => ({
 
     // If already assigned somewhere, close the old time entry and remove old assignment
     if (existing) {
-      // Close open time entry for old area
-      await supabase
-        .from('area_time_entries')
-        .update({ ended_at: now })
-        .eq('worker_id', workerId)
-        .eq('area_id', existing.area_id)
-        .is('ended_at', null);
-
-      // Delete old assignment (UNIQUE on worker_id will conflict otherwise)
-      await supabase
-        .from('crew_assignments')
-        .delete()
-        .eq('id', existing.id);
+      await localUpdateWhere('area_time_entries', { ended_at: now }, 'worker_id', workerId, { column: 'ended_at', isNull: true });
+      await localDelete('crew_assignments', existing.id);
     }
 
-    // Create new assignment
-    const { error: assignError } = await supabase
-      .from('crew_assignments')
-      .insert({
-        organization_id: organizationId,
-        project_id: projectId,
-        area_id: areaId,
-        worker_id: workerId,
-        assigned_by: assignedBy,
-        assigned_at: now,
-      });
+    // Create new assignment (local-first via PowerSync)
+    const assignResult = await localInsert('crew_assignments', {
+      id: generateUUID(),
+      organization_id: organizationId,
+      project_id: projectId,
+      area_id: areaId,
+      worker_id: workerId,
+      assigned_by: assignedBy,
+      assigned_at: now,
+      created_at: now,
+    });
 
-    if (assignError) {
-      return { success: false, error: assignError.message };
+    if (!assignResult.success) {
+      return { success: false, error: assignResult.error };
     }
 
-    // Create new time entry
-    await supabase
-      .from('area_time_entries')
-      .insert({
-        organization_id: organizationId,
-        project_id: projectId,
-        area_id: areaId,
-        worker_id: workerId,
-        worker_role: workerRole ?? 'mechanic',
-        started_at: now,
-        assigned_by: assignedBy,
-      });
+    // Create new time entry (local-first)
+    await localInsert('area_time_entries', {
+      id: generateUUID(),
+      organization_id: organizationId,
+      project_id: projectId,
+      area_id: areaId,
+      worker_id: workerId,
+      worker_role: workerRole ?? 'mechanic',
+      started_at: now,
+      assigned_by: assignedBy,
+      created_at: now,
+    });
 
     // Refresh state
     await get().fetchAssignments(projectId, organizationId);
     await get().fetchTodayTimeEntries(projectId, organizationId);
 
-    console.log(`[Crew] ${workerId} → ${areaId}`);
+    haptic.medium();
     return { success: true };
   },
 
-  endDay: async (projectId, organizationId, closedBy) => {
+  endDay: async (projectId, organizationId, _closedBy) => {
     const now = new Date().toISOString();
 
-    // Close all open time entries
-    await supabase
-      .from('area_time_entries')
-      .update({ ended_at: now })
-      .eq('project_id', projectId)
-      .eq('organization_id', organizationId)
-      .is('ended_at', null);
+    // Close all open time entries (local-first)
+    await localUpdateWhere('area_time_entries', { ended_at: now }, 'project_id', projectId, { column: 'ended_at', isNull: true });
 
-    // Delete all assignments (fresh start tomorrow)
-    await supabase
-      .from('crew_assignments')
-      .delete()
-      .eq('project_id', projectId)
-      .eq('organization_id', organizationId);
+    // Delete all assignments (local-first)
+    await localDeleteWhere('crew_assignments', 'project_id', projectId);
 
     set({ assignments: [] });
     await get().fetchTodayTimeEntries(projectId, organizationId);
 
-    console.log('[Crew] Day ended — all entries closed');
+    haptic.heavy();
+    logger.info('[Crew] Day ended — all entries closed');
   },
 
   getWorkerAssignment: (workerId) => {

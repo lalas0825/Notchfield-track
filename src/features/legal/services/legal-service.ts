@@ -12,6 +12,7 @@
 
 import * as Crypto from 'expo-crypto';
 import { supabase } from '@/shared/lib/supabase/client';
+import { logger } from '@/shared/lib/logger';
 
 export type LegalDoc = {
   id: string;
@@ -115,7 +116,7 @@ export async function generateNodDraft(params: {
 
   if (error) return { success: false, error: error.message };
 
-  console.log(`[Legal] NOD draft generated: ${title}`);
+  logger.info(`[Legal] NOD draft generated: ${title}`);
   return { success: true, id: data?.id };
 }
 
@@ -169,7 +170,7 @@ export async function signNod(
 
   if (error) return { success: false, error: error.message };
 
-  console.log(`[Legal] NOD signed: ${docId} hash=${hash.substring(0, 16)}...`);
+  logger.info(`[Legal] NOD signed: ${docId} hash=${hash.substring(0, 16)}...`);
   return { success: true };
 }
 
