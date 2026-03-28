@@ -76,41 +76,98 @@ const production_areas = new TableV2({
 
 const production_area_objects = new TableV2({
   area_id: column.text,
-  classification_id: column.text,
-  label: column.text,
-  quantity: column.real,
-  unit: column.text,
-  status: column.text,
-  completed_at: column.text,
-  completed_by: column.text,
+  takeoff_object_id: column.text,
+  organization_id: column.text,
   created_at: column.text,
-  updated_at: column.text,
 });
 
 const production_templates = new TableV2({
   organization_id: column.text,
   name: column.text,
-  area_type: column.text,
   created_at: column.text,
 });
 
 const production_template_phases = new TableV2({
   template_id: column.text,
+  organization_id: column.text,
   name: column.text,
-  phase_order: column.integer,
-  estimated_hours: column.real,
-  is_gate: column.integer, // boolean
+  sequence: column.integer,
+  description: column.text,
+  estimated_duration_hours: column.real,
+  requires_inspection: column.integer, // boolean (gate)
+  crew_size: column.integer,
+  crew_role: column.text,
+  is_optional: column.integer, // boolean
+  wait_hours_after: column.real,
+  depends_on_phase: column.integer,
+  setting_material: column.text,
+  setting_coverage: column.real,
   created_at: column.text,
+  updated_at: column.text,
 });
 
 const production_phase_progress = new TableV2({
   area_id: column.text,
   phase_id: column.text,
+  organization_id: column.text,
   status: column.text,
+  percent_complete: column.integer,
   started_at: column.text,
   completed_at: column.text,
-  actual_hours: column.real,
-  skipped: column.integer, // boolean
+  completed_by: column.text,
+  inspector_id: column.text,
+  inspection_result: column.text,
+  notes: column.text,
+  photo_urls: column.text, // ARRAY stored as text
+  created_at: column.text,
+  updated_at: column.text,
+});
+
+// T2 tables (Track-owned)
+const daily_reports = new TableV2({
+  organization_id: column.text,
+  project_id: column.text,
+  foreman_id: column.text,
+  report_date: column.text,
+  status: column.text,
+  areas_worked: column.text, // JSONB
+  progress_summary: column.text,
+  total_man_hours: column.real,
+  photos_count: column.integer,
+  submitted_at: column.text,
+  created_at: column.text,
+  updated_at: column.text,
+});
+
+const field_messages = new TableV2({
+  organization_id: column.text,
+  project_id: column.text,
+  area_id: column.text,
+  sender_id: column.text,
+  message_type: column.text,
+  message: column.text,
+  photos: column.text, // JSONB
+  created_at: column.text,
+});
+
+const punch_items = new TableV2({
+  organization_id: column.text,
+  project_id: column.text,
+  area_id: column.text,
+  title: column.text,
+  description: column.text,
+  priority: column.text,
+  status: column.text,
+  photos: column.text, // JSONB
+  resolution_photos: column.text, // JSONB
+  assigned_to: column.text,
+  created_by: column.text,
+  resolved_at: column.text,
+  verified_at: column.text,
+  rejected_reason: column.text,
+  plan_x: column.real,
+  plan_y: column.real,
+  drawing_id: column.text,
   created_at: column.text,
   updated_at: column.text,
 });
@@ -315,23 +372,31 @@ export const AppSchema = new Schema({
   safety_documents,
   document_signoffs,
   work_tickets,
-  // Track-owned tables
+  // Track-owned tables (T1)
   crew_assignments,
   area_time_entries,
   gps_checkins,
   gps_geofences,
   field_photos,
+  // Track-owned tables (T2)
+  daily_reports,
+  field_messages,
+  punch_items,
 });
 
 export type Database = (typeof AppSchema)['types'];
 export type ProjectRecord = Database['projects'];
 export type ProfileRecord = Database['profiles'];
 export type ProductionAreaRecord = Database['production_areas'];
+export type PhaseProgressRecord = Database['production_phase_progress'];
+export type TemplatePhaseRecord = Database['production_template_phases'];
 export type SafetyDocRecord = Database['safety_documents'];
 export type WorkTicketRecord = Database['work_tickets'];
 export type CrewAssignmentRecord = Database['crew_assignments'];
 export type TimeEntryRecord = Database['area_time_entries'];
 export type GpsCheckinRecord = Database['gps_checkins'];
 export type FieldPhotoRecord = Database['field_photos'];
+export type DailyReportRecord = Database['daily_reports'];
+export type PunchItemRecord = Database['punch_items'];
 export type DrawingRecord = Database['drawings'];
 export type DrawingSetRecord = Database['drawing_sets'];
