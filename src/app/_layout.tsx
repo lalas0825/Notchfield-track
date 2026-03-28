@@ -1,11 +1,14 @@
 import '@azure/core-asynciterator-polyfill';
 import '../../global.css';
+import '@/shared/lib/i18n/config';
 
 import { useEffect } from 'react';
 import { ActivityIndicator, Platform, View } from 'react-native';
 import { Slot, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useAuthStore } from '@/features/auth/store/auth-store';
+import { SyncStatusBar } from '@/shared/components/SyncStatusBar';
+import { startPhotoWorker } from '@/features/photos/services/photo-worker';
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { session, initialized } = useAuthStore();
@@ -57,11 +60,13 @@ export default function RootLayout() {
 
   useEffect(() => {
     initialize();
+    startPhotoWorker();
   }, []);
 
   return (
     <PowerSyncProvider>
       <StatusBar style="light" />
+      <SyncStatusBar />
       <AuthGate>
         <Slot />
       </AuthGate>

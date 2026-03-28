@@ -57,7 +57,8 @@
           "photosPermission": "NotchField Track accesses your photo library to attach existing photos to reports."
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-localization"
     ],
     "experiments": {
       "typedRoutes": true

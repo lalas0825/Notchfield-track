@@ -1,5 +1,6 @@
 import { ScrollView, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 
 // Stores — reactive via Zustand selectors (no useEffect needed)
@@ -16,6 +17,7 @@ import { QuickActions } from '@/features/home/components/QuickActions';
 import { AlertsList, type Alert } from '@/features/home/components/AlertsList';
 
 export default function HomeScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const profile = useAuthStore((s) => s.profile);
   const { activeProject, geofence } = useProjectStore();
@@ -47,7 +49,7 @@ export default function HomeScreen() {
     alerts.push({
       id: 'no-assignments',
       icon: 'people-outline',
-      message: 'No crew assigned yet today',
+      message: t('home.no_crew_assigned'),
       color: '#F59E0B',
       onPress: () => router.push('/(tabs)/more/crew' as any),
     });
@@ -57,25 +59,26 @@ export default function HomeScreen() {
   const quickActions = [
     {
       icon: 'location' as const,
-      label: 'Check In',
+      label: t('home.quick_check_in'),
       color: '#22C55E',
       onPress: () => router.push('/(tabs)/more/checkin' as any),
     },
     {
       icon: 'construct' as const,
-      label: 'New Ticket',
+      label: t('home.quick_new_ticket'),
       color: '#3B82F6',
       onPress: () => router.push('/(tabs)/docs/tickets/new' as any),
     },
     {
       icon: 'shield' as const,
-      label: 'Safety Doc',
+      label: t('home.quick_safety_doc'),
       color: '#F97316',
       onPress: () => router.push('/(tabs)/docs/safety/new?type=jha' as any),
     },
   ];
 
-  const greeting = getGreeting();
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? t('home.greeting_morning') : hour < 17 ? t('home.greeting_afternoon') : t('home.greeting_evening');
 
   return (
     <ScrollView className="flex-1 bg-background px-4 pt-4">
@@ -137,26 +140,18 @@ export default function HomeScreen() {
  * Welcome state — shown when no project is selected.
  */
 function WelcomeState({ name }: { name: string | null }) {
+  const { t } = useTranslation();
   return (
     <View className="flex-1 items-center justify-center bg-background px-8">
       <View className="mb-6 h-20 w-20 items-center justify-center rounded-full bg-brand-orange/20">
         <Ionicons name="construct" size={40} color="#F97316" />
       </View>
       <Text className="text-2xl font-bold text-white">
-        Welcome{name ? `, ${name.split(' ')[0]}` : ''}
+        {t('home.welcome')}{name ? `, ${name.split(' ')[0]}` : ''}
       </Text>
       <Text className="mt-3 text-center text-base leading-6 text-slate-400">
-        No project loaded yet.{'\n'}
-        Projects sync automatically from Takeoff.{'\n'}
-        Make sure you're assigned to a project.
+        {t('home.no_project')}{'\n'}{t('home.no_project_hint')}
       </Text>
     </View>
   );
-}
-
-function getGreeting(): string {
-  const hour = new Date().getHours();
-  if (hour < 12) return 'Good morning';
-  if (hour < 17) return 'Good afternoon';
-  return 'Good evening';
 }

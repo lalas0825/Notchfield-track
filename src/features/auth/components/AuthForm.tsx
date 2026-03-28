@@ -8,11 +8,13 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/auth-store';
 
 type Mode = 'login' | 'forgot';
 
 export function AuthForm() {
+  const { t } = useTranslation();
   const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -24,30 +26,25 @@ export function AuthForm() {
   const handleLogin = async () => {
     setError(null);
     if (!email.trim() || !password.trim()) {
-      setError('Email and password are required');
+      setError(t('auth.email_required'));
       return;
     }
-
     const result = await signIn(email.trim(), password);
-    if (result.error) {
-      setError(result.error);
-    }
-    // On success, onAuthStateChange in the store handles navigation
+    if (result.error) setError(result.error);
   };
 
   const handleForgotPassword = async () => {
     setError(null);
     setSuccess(null);
     if (!email.trim()) {
-      setError('Enter your email address');
+      setError(t('auth.enter_email'));
       return;
     }
-
     const result = await resetPassword(email.trim());
     if (result.error) {
       setError(result.error);
     } else {
-      setSuccess('Password reset email sent. Check your inbox.');
+      setSuccess(t('auth.reset_email_sent'));
     }
   };
 
@@ -57,44 +54,33 @@ export function AuthForm() {
       className="flex-1 bg-background"
     >
       <View className="flex-1 justify-center px-8">
-        {/* Logo area */}
         <View className="mb-12 items-center">
           <Text className="text-4xl font-bold text-white">NotchField</Text>
           <Text className="mt-1 text-lg text-brand-orange">Track</Text>
         </View>
 
-        {/* Title */}
         <Text className="mb-8 text-center text-2xl font-bold text-white">
-          {mode === 'login' ? 'Sign In' : 'Reset Password'}
+          {mode === 'login' ? t('auth.sign_in') : t('auth.reset_password')}
         </Text>
 
-        {/* Error message */}
         {error && (
           <View className="mb-4 rounded-xl bg-red-500/10 px-4 py-3">
-            <Text className="text-center text-base font-medium text-danger">
-              {error}
-            </Text>
+            <Text className="text-center text-base font-medium text-danger">{error}</Text>
           </View>
         )}
 
-        {/* Success message */}
         {success && (
           <View className="mb-4 rounded-xl bg-green-500/10 px-4 py-3">
-            <Text className="text-center text-base font-medium text-success">
-              {success}
-            </Text>
+            <Text className="text-center text-base font-medium text-success">{success}</Text>
           </View>
         )}
 
-        {/* Email input — 56dp height for field use */}
         <View className="mb-4">
-          <Text className="mb-2 text-sm font-medium text-slate-400">
-            Email
-          </Text>
+          <Text className="mb-2 text-sm font-medium text-slate-400">{t('auth.email')}</Text>
           <TextInput
             value={email}
             onChangeText={setEmail}
-            placeholder="you@company.com"
+            placeholder={t('auth.email_placeholder')}
             placeholderTextColor="#64748B"
             keyboardType="email-address"
             autoCapitalize="none"
@@ -105,12 +91,9 @@ export function AuthForm() {
           />
         </View>
 
-        {/* Password input — only in login mode */}
         {mode === 'login' && (
           <View className="mb-6">
-            <Text className="mb-2 text-sm font-medium text-slate-400">
-              Password
-            </Text>
+            <Text className="mb-2 text-sm font-medium text-slate-400">{t('auth.password')}</Text>
             <TextInput
               value={password}
               onChangeText={setPassword}
@@ -127,7 +110,6 @@ export function AuthForm() {
           </View>
         )}
 
-        {/* Primary action button — 56dp, brand orange */}
         <Pressable
           onPress={mode === 'login' ? handleLogin : handleForgotPassword}
           disabled={loading}
@@ -137,12 +119,11 @@ export function AuthForm() {
             <ActivityIndicator color="#FFFFFF" />
           ) : (
             <Text className="text-lg font-bold text-white">
-              {mode === 'login' ? 'Sign In' : 'Send Reset Link'}
+              {mode === 'login' ? t('auth.sign_in') : t('auth.send_reset_link')}
             </Text>
           )}
         </Pressable>
 
-        {/* Toggle mode */}
         <Pressable
           onPress={() => {
             setMode(mode === 'login' ? 'forgot' : 'login');
@@ -152,9 +133,7 @@ export function AuthForm() {
           className="mt-6 h-12 items-center justify-center"
         >
           <Text className="text-base text-slate-400">
-            {mode === 'login'
-              ? 'Forgot your password?'
-              : 'Back to sign in'}
+            {mode === 'login' ? t('auth.forgot_password') : t('auth.back_to_sign_in')}
           </Text>
         </Pressable>
       </View>
