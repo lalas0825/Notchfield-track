@@ -1,5 +1,5 @@
-import { ActivityIndicator, View } from 'react-native';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { ActivityIndicator, Alert, View } from 'react-native';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { useProduction } from '@/features/production/hooks/useProduction';
 import { useAuthStore } from '@/features/auth/store/auth-store';
@@ -10,10 +10,9 @@ import { enqueuePhoto } from '@/features/photos/services/photo-queue';
 
 export default function AreaDetailScreen() {
   const { areaId } = useLocalSearchParams<{ areaId: string }>();
-  const router = useRouter();
   const { user, profile } = useAuthStore();
   const { activeProject } = useProjectStore();
-  const { areas, templatePhases, getAreaPhases, markAreaStatus, updatePhaseProgress, reload } =
+  const { areas, templatePhases, getAreaPhases, markAreaStatus, completePhase } =
     useProduction();
   const { timeEntries } = useCrewStore();
 
@@ -40,18 +39,16 @@ export default function AreaDetailScreen() {
   }
 
   const handleMarkStatus = async (status: string, blockedReason?: string) => {
-    await markAreaStatus(area.id, status, blockedReason);
-    await reload();
+    const result = await markAreaStatus(area.id, status, blockedReason);
+    if (!result.success && result.error) {
+      // Gate validation failed — show the error (AreaDetail handles display)
+      Alert.alert('Cannot Complete', result.error);
+    }
   };
 
   const handlePhaseComplete = async (progressId: string) => {
-    await updatePhaseProgress(progressId, {
-      status: 'complete',
-      percent_complete: 100,
-      completed_at: new Date().toISOString(),
-      completed_by: user?.id,
-    } as any);
-    await reload();
+    if (!user) return;
+    await completePhase(progressId, user.id);
   };
 
   const handleTakePhoto = async () => {

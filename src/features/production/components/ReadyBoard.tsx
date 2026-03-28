@@ -3,7 +3,7 @@ import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import type { ProductionArea } from '../store/production-store';
+import type { ProductionArea, FloorGroup } from '../store/production-store';
 
 type StatusFilter = 'all' | 'blocked' | 'in_progress' | 'complete' | 'not_started';
 
@@ -25,7 +25,7 @@ const BLOCK_REASONS: Record<string, string> = {
 };
 
 type Props = {
-  floors: { floor: string; areas: ProductionArea[]; progressPct: number }[];
+  floors: FloorGroup[];
   blockedCount: number;
   inProgressCount: number;
   completedCount: number;
@@ -138,9 +138,30 @@ export function ReadyBoard({
                     {floorGroup.floor}
                   </Text>
                 </View>
-                {/* Floor progress bar */}
-                <View className="flex-row items-center">
-                  <View className="mr-2 h-2 w-20 overflow-hidden rounded-full bg-slate-700">
+                {/* Floor metrics */}
+                <View className="flex-row items-center gap-2">
+                  {/* Blocked badge */}
+                  {floorGroup.blockedCount > 0 && (
+                    <View className="flex-row items-center rounded-full bg-red-500/20 px-2 py-0.5">
+                      <Ionicons name="alert-circle" size={10} color="#EF4444" />
+                      <Text className="ml-0.5 text-xs font-bold text-danger">{floorGroup.blockedCount}</Text>
+                    </View>
+                  )}
+                  {/* Gate health */}
+                  {floorGroup.totalGates > 0 && (
+                    <View className="flex-row items-center">
+                      <Ionicons
+                        name="shield-checkmark"
+                        size={12}
+                        color={floorGroup.gateHealthPct === 100 ? '#22C55E' : '#F59E0B'}
+                      />
+                      <Text className="ml-0.5 text-xs text-slate-500">
+                        {floorGroup.completedGates}/{floorGroup.totalGates}
+                      </Text>
+                    </View>
+                  )}
+                  {/* Progress bar */}
+                  <View className="mr-1 h-2 w-16 overflow-hidden rounded-full bg-slate-700">
                     <View
                       className="h-full rounded-full bg-success"
                       style={{ width: `${floorGroup.progressPct}%` }}

@@ -31,8 +31,12 @@ export function useProduction() {
     blockedAreas: store.blockedAreas,
     inProgressAreas: store.inProgressAreas,
     markAreaStatus: store.markAreaStatus,
-    updatePhaseProgress: store.updatePhaseProgress,
+    completePhase: store.completePhase,
+    blockPhase: store.blockPhase,
+    canCompleteArea: store.canCompleteArea,
     getAreaPhases: store.getAreaPhases,
+    totalGates: store.totalGates,
+    completedGates: store.completedGates,
     reload,
   };
 }
