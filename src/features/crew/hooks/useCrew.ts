@@ -20,7 +20,7 @@ export function useCrew() {
       store.fetchAssignments(activeProject.id, profile.organization_id),
       store.fetchTodayTimeEntries(activeProject.id, profile.organization_id),
     ]);
-  }, [profile?.organization_id, activeProject?.id]);
+  }, [profile, activeProject, store]);
 
   useEffect(() => {
     reload();
@@ -40,13 +40,13 @@ export function useCrew() {
         workerRole,
       });
     },
-    [user, profile, activeProject],
+    [user, profile, activeProject, store],
   );
 
   const endDay = useCallback(async () => {
     if (!user || !profile || !activeProject) return;
     await store.endDay(activeProject.id, profile.organization_id, user.id);
-  }, [user, profile, activeProject]);
+  }, [user, profile, activeProject, store]);
 
   // Calculate today's total hours
   const todayHours = store.timeEntries.reduce((sum, e) => {

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
 import { View, Text, Pressable, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -11,7 +11,6 @@ type Props = {
 
 export function SignaturePad({ signerName, onCapture, onClear, captured }: Props) {
   const signatureRef = useRef<any>(null);
-  const [isEmpty, setIsEmpty] = useState(true);
 
   if (Platform.OS === 'web') {
     // Web fallback — simple "signed" toggle
@@ -43,17 +42,16 @@ export function SignaturePad({ signerName, onCapture, onClear, captured }: Props
   }
 
   // Native: use react-native-signature-canvas
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const SignatureCanvas = require('react-native-signature-canvas').default;
 
   const handleOK = (signature: string) => {
     // signature is a base64 data URI
     onCapture(signature);
-    setIsEmpty(false);
   };
 
   const handleClear = () => {
     signatureRef.current?.clearSignature();
-    setIsEmpty(true);
     onClear();
   };
 

@@ -36,7 +36,7 @@ export function useTickets() {
 
     setTickets((data ?? []) as TicketRow[]);
     setLoading(false);
-  }, [activeProject?.id, profile?.organization_id]);
+  }, [activeProject, profile]);
 
   useEffect(() => {
     fetchTickets();

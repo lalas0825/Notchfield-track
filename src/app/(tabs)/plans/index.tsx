@@ -6,7 +6,7 @@ import { useDrawings, type Drawing } from '@/features/plans/hooks/useDrawings';
 
 export default function PlansScreen() {
   const router = useRouter();
-  const { grouped, loading, fetchDrawings } = useDrawings();
+  const { grouped, loading } = useDrawings();
   const [search, setSearch] = useState('');
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 

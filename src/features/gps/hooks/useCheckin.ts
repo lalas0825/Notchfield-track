@@ -90,7 +90,7 @@ export function useCheckin() {
 
     init();
     return () => { mounted = false; };
-  }, [user?.id, activeProject?.id, geofence?.id]);
+  }, [user, activeProject, geofence]);
 
   // Refresh position
   const refreshPosition = useCallback(async () => {

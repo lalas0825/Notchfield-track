@@ -12,7 +12,6 @@ import { AppState, Platform } from 'react-native';
 import * as LegacyFileSystem from 'expo-file-system/legacy';
 import { supabase } from '@/shared/lib/supabase/client';
 
-const MAX_RETRIES = 5;
 const BUCKET = 'field-photos';
 let isProcessing = false;
 let workerStarted = false;
@@ -25,8 +24,9 @@ export function startPhotoWorker(): void {
   if (workerStarted || Platform.OS === 'web') return;
   workerStarted = true;
 
-  // Process on app foreground
-  const subscription = AppState.addEventListener('change', (state) => {
+  // Process on app foreground (subscription kept alive intentionally)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _subscription = AppState.addEventListener('change', (state) => {
     if (state === 'active') {
       processQueue();
     }

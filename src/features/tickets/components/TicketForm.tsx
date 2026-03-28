@@ -25,7 +25,7 @@ const STATUS_OPTIONS = [
 export function TicketForm() {
   const router = useRouter();
   const { createTicket } = useTickets();
-  const { areas, assignments, workers, getAreaWorkers } = useCrewStore();
+  const { areas, assignments, getAreaWorkers } = useCrewStore();
 
   // Auto-detect: if foreman has workers assigned, default to that area
   const firstAssignment = assignments[0];

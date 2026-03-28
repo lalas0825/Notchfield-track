@@ -14,7 +14,6 @@ export default function CrewScreen() {
     areas,
     assignments,
     todayHours,
-    loading,
     assignWorker,
     endDay,
     getWorkerAssignment,

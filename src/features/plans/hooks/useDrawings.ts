@@ -134,7 +134,7 @@ export function useDrawings() {
 
     setGrouped(sortedGroups);
     setLoading(false);
-  }, [activeProject?.id, profile?.organization_id]);
+  }, [activeProject, profile]);
 
   useEffect(() => {
     fetchDrawings();

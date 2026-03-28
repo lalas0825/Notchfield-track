@@ -59,9 +59,7 @@ export async function enqueuePhoto(params: {
   });
 
   // Insert into field_photos table (PowerSync syncs this)
-  const bucketPath = `${params.organizationId}/${params.projectId}/${filename}`;
-
-  const { data, error } = await supabase.from('field_photos').insert({
+  const { data } = await supabase.from('field_photos').insert({
     organization_id: params.organizationId,
     project_id: params.projectId,
     area_id: params.areaId ?? null,

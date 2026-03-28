@@ -25,7 +25,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     } else if (session && inAuthGroup) {
       router.replace('/(tabs)/home');
     }
-  }, [session, initialized, segments]);
+  }, [session, initialized, segments, router]);
 
   if (!initialized) {
     return (
@@ -45,7 +45,9 @@ function PowerSyncProvider({ children }: { children: React.ReactNode }) {
   }
 
   // Dynamic require to avoid web bundle crash
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { PowerSyncContext } = require('@powersync/react-native');
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { powerSync } = require('@/shared/lib/powersync/client');
 
   return (
@@ -61,7 +63,7 @@ export default function RootLayout() {
   useEffect(() => {
     initialize();
     startPhotoWorker();
-  }, []);
+  }, [initialize]);
 
   return (
     <PowerSyncProvider>

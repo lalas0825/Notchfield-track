@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 // ─── Shared ───────────────────────────────────────────────
 export const DocType = z.enum(['jha', 'ptp', 'toolbox_talk']);
+// eslint-disable-next-line @typescript-eslint/no-redeclare
 export type DocType = z.infer<typeof DocType>;
 
 export const SignatureEntry = z.object({
@@ -9,6 +10,7 @@ export const SignatureEntry = z.object({
   signature_data: z.string().min(1, 'Signature is required'), // base64
   signed_at: z.string(),
 });
+// eslint-disable-next-line @typescript-eslint/no-redeclare
 export type SignatureEntry = z.infer<typeof SignatureEntry>;
 
 // ─── JHA (Job Hazard Analysis) ────────────────────────────
@@ -24,6 +26,7 @@ export const JhaContent = z.object({
   weather: z.string().optional(),
   hazards: z.array(JhaHazard).min(1, 'Add at least one hazard'),
 });
+// eslint-disable-next-line @typescript-eslint/no-redeclare
 export type JhaContent = z.infer<typeof JhaContent>;
 
 // ─── PTP (Pre-Task Plan) ─────────────────────────────────
@@ -38,6 +41,7 @@ export const PtpContent = z.object({
   crew_members: z.array(z.string()).min(1, 'Add crew members'),
   tasks: z.array(PtpTask).min(1, 'Add at least one task'),
 });
+// eslint-disable-next-line @typescript-eslint/no-redeclare
 export type PtpContent = z.infer<typeof PtpContent>;
 
 // ─── Toolbox Talk ─────────────────────────────────────────
@@ -46,6 +50,7 @@ export const ToolboxContent = z.object({
   discussion_points: z.array(z.string()).min(1, 'Add discussion points'),
   attendance: z.array(z.string()).min(1, 'Add attendees'),
 });
+// eslint-disable-next-line @typescript-eslint/no-redeclare
 export type ToolboxContent = z.infer<typeof ToolboxContent>;
 
 // ─── Full document validation ─────────────────────────────
@@ -55,6 +60,7 @@ export const SafetyDocFormData = z.object({
   content: z.union([JhaContent, PtpContent, ToolboxContent]),
   signatures: z.array(SignatureEntry).min(1, 'At least one signature is required'),
 });
+// eslint-disable-next-line @typescript-eslint/no-redeclare
 export type SafetyDocFormData = z.infer<typeof SafetyDocFormData>;
 
 // ─── PPE options ──────────────────────────────────────────

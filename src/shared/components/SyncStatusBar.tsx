@@ -22,6 +22,7 @@ export function SyncStatusBar() {
     let unsubscribe: (() => void) | undefined;
 
     try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { powerSync } = require('@/shared/lib/powersync/client');
       if (!powerSync) return;
 

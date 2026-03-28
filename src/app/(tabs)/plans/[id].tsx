@@ -6,7 +6,7 @@ import { getPdfUri } from '@/features/plans/services/drawing-service';
 import { PdfViewerNative } from '@/features/plans/components/PdfViewerNative';
 
 export default function PlanViewerScreen() {
-  const { id, filePath, pageNumber, label } = useLocalSearchParams<{
+  const { filePath, pageNumber, label } = useLocalSearchParams<{
     id: string;
     filePath: string;
     pageNumber: string;

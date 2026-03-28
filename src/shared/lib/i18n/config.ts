@@ -13,6 +13,7 @@ const deviceLocale = getLocales()[0]?.languageCode ?? 'en';
 const supportedLngs = ['en', 'es', 'fr', 'pt', 'it', 'de'];
 const fallbackLng = 'en';
 
+// eslint-disable-next-line import/no-named-as-default-member
 i18n.use(initReactI18next).init({
   resources: {
     en: { translation: en },

@@ -38,7 +38,7 @@ export function useSafetyDocs() {
 
     setDocs((data ?? []) as SafetyDocRow[]);
     setLoading(false);
-  }, [activeProject?.id, profile?.organization_id]);
+  }, [activeProject, profile]);
 
   useEffect(() => {
     fetchDocs();

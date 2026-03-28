@@ -56,7 +56,9 @@ export function GeofenceMap({ position, geofence, isInsideFence }: Props) {
   }
 
   // Native: render MapView with geofence circle + user marker
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const MapView = require('react-native-maps').default;
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { Circle, Marker } = require('react-native-maps');
 
   const region = geofence
