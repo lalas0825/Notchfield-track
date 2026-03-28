@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '@/shared/lib/supabase/client';
+import { useCrewStore } from '@/features/crew/store/crew-store';
 
 type Project = {
   id: string;
@@ -23,48 +24,79 @@ type ProjectState = {
   activeProject: Project | null;
   geofence: Geofence | null;
   loading: boolean;
+  isSupervisor: boolean;
 };
 
 type ProjectActions = {
-  fetchProjects: (organizationId: string) => Promise<void>;
-  setActiveProject: (project: Project) => Promise<void>;
+  fetchProjects: (organizationId: string, userRole: string) => Promise<void>;
+  switchProject: (project: Project) => Promise<void>;
   fetchGeofence: (projectId: string) => Promise<void>;
 };
 
-export const useProjectStore = create<ProjectState & ProjectActions>((set) => ({
+async function loadDependentStores(projectId: string, organizationId: string) {
+  const crew = useCrewStore.getState();
+  await Promise.all([
+    crew.fetchWorkers(organizationId),
+    crew.fetchAreas(projectId),
+    crew.fetchAssignments(projectId, organizationId),
+    crew.fetchTodayTimeEntries(projectId, organizationId),
+  ]);
+}
+
+export const useProjectStore = create<ProjectState & ProjectActions>((set, get) => ({
   projects: [],
   activeProject: null,
   geofence: null,
   loading: false,
+  isSupervisor: false,
 
-  fetchProjects: async (organizationId) => {
+  fetchProjects: async (organizationId: string, userRole: string) => {
     set({ loading: true });
+
+    const isSupervisor = ['superintendent', 'owner', 'admin'].includes(userRole);
+    set({ isSupervisor });
+
     const { data } = await supabase
       .from('projects')
       .select('id, name, address, organization_id')
       .eq('organization_id', organizationId);
 
     const projects = (data ?? []) as Project[];
-    set({
-      projects,
-      // Auto-select first project if none active (foreman has 1)
-      activeProject: projects.length === 1 ? projects[0] : null,
-      loading: false,
-    });
 
-    // Auto-fetch geofence for single-project foreman
-    if (projects.length === 1) {
-      const store = useProjectStore.getState();
-      await store.fetchGeofence(projects[0].id);
+    // Auto-select for foreman (single project). Supervisor chooses.
+    const autoSelect = !isSupervisor && projects.length >= 1
+      ? projects[0]
+      : isSupervisor && projects.length === 1
+        ? projects[0]
+        : null;
+
+    set({ projects, activeProject: autoSelect, loading: false });
+
+    if (autoSelect) {
+      await get().fetchGeofence(autoSelect.id);
+      await loadDependentStores(autoSelect.id, organizationId);
     }
   },
 
-  setActiveProject: async (project) => {
+  switchProject: async (project: Project) => {
+    const prev = get().activeProject;
+    if (prev?.id === project.id) return;
+
+    // Reset dependent stores immediately (no stale data visible)
+    useCrewStore.setState({
+      workers: [],
+      areas: [],
+      assignments: [],
+      timeEntries: [],
+    });
+
     set({ activeProject: project, geofence: null });
-    await useProjectStore.getState().fetchGeofence(project.id);
+
+    await get().fetchGeofence(project.id);
+    await loadDependentStores(project.id, project.organization_id);
   },
 
-  fetchGeofence: async (projectId) => {
+  fetchGeofence: async (projectId: string) => {
     const { data } = await supabase
       .from('gps_geofences')
       .select('*')

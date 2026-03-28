@@ -47,7 +47,7 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
       // Load projects for the user's org
       const profile = get().profile;
       if (profile) {
-        await useProjectStore.getState().fetchProjects(profile.organization_id);
+        await useProjectStore.getState().fetchProjects(profile.organization_id, profile.role);
       }
     }
 
@@ -61,7 +61,7 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
         // Load projects after profile is fetched
         const profile = get().profile;
         if (profile) {
-          await useProjectStore.getState().fetchProjects(profile.organization_id);
+          await useProjectStore.getState().fetchProjects(profile.organization_id, profile.role);
         }
       }
 

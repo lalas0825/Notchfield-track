@@ -15,6 +15,7 @@ import { SafetyCard } from '@/features/home/components/SafetyCard';
 import { TicketsCard } from '@/features/home/components/TicketsCard';
 import { QuickActions } from '@/features/home/components/QuickActions';
 import { AlertsList, type Alert } from '@/features/home/components/AlertsList';
+import { ProjectSwitcher } from '@/features/projects/components/ProjectSwitcher';
 
 export default function HomeScreen() {
   const { t } = useTranslation();
@@ -84,10 +85,16 @@ export default function HomeScreen() {
     <ScrollView className="flex-1 bg-background px-4 pt-4">
       {/* Header */}
       <View className="mb-6">
-        <Text className="text-sm text-slate-400">{greeting}</Text>
-        <Text className="text-2xl font-bold text-white">
-          {profile?.full_name ?? 'Foreman'}
-        </Text>
+        <View className="flex-row items-start justify-between">
+          <View>
+            <Text className="text-sm text-slate-400">{greeting}</Text>
+            <Text className="text-2xl font-bold text-white">
+              {profile?.full_name ?? 'Foreman'}
+            </Text>
+          </View>
+          {/* Supervisor: project switcher. Foreman: hidden */}
+          <ProjectSwitcher />
+        </View>
         <View className="mt-1 flex-row items-center">
           <Ionicons name="business" size={14} color="#F97316" />
           <Text className="ml-1 text-base text-brand-orange">{activeProject.name}</Text>
