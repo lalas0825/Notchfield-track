@@ -8,6 +8,7 @@
 
 ## project/ — Proyectos y decisiones activas
 - [Supabase config](project_supabase-config.md) — Track uses msmpsxalfalzinuorwlg, NOT ReadyBoard. organization_id, profiles, user_org_id()
+- [Build progress](project_build-progress.md) — T1 operational (39/43), T2 S1+S2 done. Key arch decisions: denormalized status, recalcFloor(), gate validation
 
 ## feedback/ — Correcciones y preferencias
 (vacio)

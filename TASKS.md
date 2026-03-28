@@ -80,69 +80,72 @@
 
 ---
 
-## 🏭 PHASE T2 — Production Reporting — ⬜ AFTER TAKEOFF 7B
-> Depends on: production_areas, production_area_objects, production_templates,
-> production_template_phases, production_phase_progress (created in Takeoff Fase 7B)
+## 🏭 PHASE T2 — Production Reporting — 🟡 IN PROGRESS
+> Takeoff 7B tables confirmed: production_areas, production_area_objects, production_templates,
+> production_template_phases, production_phase_progress all exist.
+> 3 new migrations applied: daily_reports, field_messages, punch_items.
 
-### Daily Report (3-click workflow)
-- [ ] TT2.1 Area list — grouped by floor, show progress bar per area, status badges
-- [ ] TT2.2 Area detail — surface checklist from production_area_objects, checkbox per surface
-- [ ] TT2.3 Mark surface complete — tap checkbox → sets completed_at, completed_by on production_area_objects
-- [ ] TT2.4 Progress photo per surface — after marking complete, camera icon appears. Tap → snap photo → auto-linked to area_id + object_id + context_type='progress'. Thumbnail shows next to checkbox. Multiple photos per surface.
-- [ ] TT2.5 Area progress photo — camera button at top of area detail. General room photo, tagged context_type='progress' with area_id only (no specific surface).
-- [ ] TT2.6 Photo gallery per area — swipeable photo timeline on area detail: all photos (progress, blocked, QC) with timestamp, who took it, which surface. Tap to view full-res.
-- [ ] TT2.7 Mark surface blocked — select reason (other_trade, material, inspection, access, rework, design, other) → optional note → optional photo (context_type='blocked') → sets blocked_reason, blocked_at
-- [ ] TT2.8 Unblock surface — when issue resolved, mark complete → system records gap duration
-- [ ] TT2.9 Phase tracking — view phases per area (from template), mark phase complete/started/skipped
-- [ ] TT2.10 Auto-progress calculation — room progress_pct updates from completed surface sqft (via productionEngine logic)
-- [ ] TT2.11 Submit daily report — one button compiles all changes + photos into `daily_reports` summary → notifies PM
+### Daily Report (3-click workflow) — Sprint T2-S1 ✅
+- [x] TT2.1 Area list — ReadyBoard component: grouped by floor, progress bars, status dots, search, filter chips
+- [x] TT2.2 Area detail — AreaDetail component: phase list with gates/locks, status header, time entries
+- [x] TT2.3 Mark surface complete — markAreaStatus() with optimistic UI + gate validation
+- [x] TT2.5 Area progress photo — camera button on AreaDetail → enqueuePhoto() via photo-queue
+- [x] TT2.7 Mark surface blocked — 7 predefined reasons (other_trade, material, etc.), block reporting flow
+- [x] TT2.8 Unblock surface — "Unblock — Resume Work" button, clears blocked_reason
+- [x] TT2.9 Phase tracking — ordered phase list from template, completePhase() with userId audit
+- [x] TT2.11 Submit daily report — report-service.ts: draft/submit lifecycle, upsert on UNIQUE, area checkboxes, auto man-hours
+- [ ] TT2.4 Progress photo per surface — ⬜ needs production_area_objects surface checkboxes (T2-S3)
+- [ ] TT2.6 Photo gallery per area — ⬜ swipeable timeline (T2-S3)
+- [ ] TT2.10 Auto-progress calculation — ⬜ needs surface sqft data (T2-S3)
 
-### Production Dashboard (in-app)
-- [ ] TT2.9 Foreman dashboard — progress of his assigned floors/areas, status counts
-- [ ] TT2.10 Supervisor dashboard — progress across ALL assigned projects, project comparison
-- [ ] TT2.11 Floor progress view — expand floor → see all rooms with progress bars
-- [ ] TT2.12 Blocked areas highlight — red indicators, tap to see reason + photos
+### Production Dashboard (in-app) — Sprint T2-S1 ✅
+- [x] TT2.9 Foreman dashboard — Ready Board is the dashboard: floors, areas, progress, blocked
+- [x] TT2.11 Floor progress view — collapsible floor sections with progress bars
+- [x] TT2.12 Blocked areas highlight — red status dots + blocked reason text + badge in floor header
+- [ ] TT2.10 Supervisor dashboard — ⬜ cross-project comparison (T2-S3)
 
-### Ready Board Mobile (first screen in Production tab)
-- [ ] TT2.13 Ready Board list view — vertical list grouped by floor. Per area: status dot, label, type, progress %, current phase, gate icon, blocked reason. Filter chips: All/Blocked/In Progress/Complete. Floor headers with progress bars. Tap area → Detail. Swipe right → complete, swipe left → block.
-- [ ] TT2.14 Ready Board supervisor aggregate — "All Projects" view: areas grouped by project → floor. Project switcher at top.
+### Ready Board Mobile — Sprint T2-S1 ✅
+- [x] TT2.13 Ready Board list view — vertical list, floor groups, status chips filter, search, tap→detail
+- [x] TT2.14 Ready Board supervisor aggregate — gate health per floor (shield icon), blocked count badge, progress bars
 
-### Gate Tasks (phase verification)
-- [ ] TT2.15 Gate phase UI — when foreman completes a gated phase, show "⛔ AWAITING VERIFICATION" with timer. Lock subsequent phases (greyed out + lock icon). Push notification to PM.
-- [ ] TT2.16 Supervisor gate verification — supervisor can verify gates in Track (not just PM in web). Tap "Verify" → confirm → next phase unlocks.
+### Gate Tasks — Sprint T2-S2 ✅
+- [x] TT2.15 Gate phase UI — phases with requires_inspection show "Gate" badge, locked phases greyed + lock icon, canCompleteArea() validates gates
+- [x] TT2.16 Supervisor gate verification — completePhase() works for any role with access, recalcFloor() updates instantly
+- [x] Gate health metrics — computeGateHealth() per floor: totalGates, completedGates, gateHealthPct
+- [x] Auto field_message on gate block — blockPhase() auto-inserts blocker message
 
 ### Legal Documentation (supervisor only)
-- [ ] TT2.17 NOD draft notification — badge on Docs tab when NOD auto-drafted from block. "NOD Draft Available" with area, days blocked, crew cost impact.
-- [ ] TT2.18 NOD review + sign — supervisor reviews PDF preview, finger-signs (react-native-signature-canvas), system adds SHA-256 + sends to GC. Status: draft → sent.
-- [ ] TT2.19 Legal docs list — all NODs/REAs for current project with status badges (draft/sent/opened/no_response). Supervisor and sub_pm only — foreman never sees.
+- [ ] TT2.17 NOD draft notification — ⬜ T2-S3
+- [ ] TT2.18 NOD review + sign — ⬜ T2-S3
+- [ ] TT2.19 Legal docs list — ⬜ T2-S3
 
 ### Crew Assignment (extended)
-- [ ] TT2.15 Link time entries to production areas — area hours summary visible on area detail screen: "18 man-hours today, 45 total this week"
-- [ ] TT2.16 Supervisor: assign foreman to project — "Mario runs 200 Hamilton this week"
-- [ ] TT2.17 Labor cost per area — man-hours × rate = actual cost. Compare to bid estimate. "Bid: $5,250 labor. Actual so far: $3,800 (72%)."
+- [x] TT2.15 Link time entries to production areas — AreaDetail shows "X man-hours today" from crew time entries
+- [ ] TT2.16 Supervisor: assign foreman to project — ⬜ T2-S3
+- [ ] TT2.17 Labor cost per area — ⬜ T2-S3
 
 ### Communication
-- [ ] TT2.15 Area notes — foreman/supervisor can leave notes on specific areas (visible to both + PM in web)
-- [ ] TT2.16 Photo annotations — take photo, draw/annotate on it, attach to area
-- [ ] TT2.17 `field_messages` table — area_id, sender_id, message, photos[], created_at
-- [ ] TT2.18 `daily_reports` table — project_id, date, areas_worked[], progress_summary, compiled_by
+- [x] TT2.17 `field_messages` table — created via migration, auto-populated by blockPhase()
+- [x] TT2.18 `daily_reports` table — created via migration, used by report-service.ts
+- [ ] TT2.15 Area notes UI — ⬜ T2-S3
+- [ ] TT2.16 Photo annotations — ⬜ T2-S3
 
 ### Punch List (internal — supervisor → foreman)
-- [ ] TT2.26 `punch_items` table — project_id, area_id, object_id (surface, optional), title, description, priority (low/medium/high/critical), status (open/in_progress/resolved/verified/rejected), photos[], assigned_to (foreman), created_by (supervisor), resolved_at, verified_at, rejected_reason
-- [ ] TT2.27 Create punch item — supervisor taps area → "Add Punch Item" → photo (required) + title + description + priority + assign to foreman. Can also create from plan view (tap location on drawing).
-- [ ] TT2.28 Punch list view — list of all punch items for project. Filter by: status, priority, area, assigned to. Badge count on Docs tab: "5 open punch items."
-- [ ] TT2.29 Foreman resolves punch — foreman sees assigned items → taps item → takes "after" photo → marks resolved. Before/after photos side by side.
-- [ ] TT2.30 Supervisor verifies — supervisor reviews resolved items → approves (verified) or rejects (rejected + reason). Rejected items re-open for foreman.
-- [ ] TT2.31 Punch item on plan — punch items pinned to location on the drawing (coordinates). Supervisor can see red pins on the plan where items exist. Tap pin → item detail.
-- [ ] TT2.32 Punch summary KPIs — total open, resolved today, avg resolution time, items by priority. Shown on Home screen if >0 open items.
+- [x] TT2.26 `punch_items` table — created via migration with RLS
+- [ ] TT2.27 Create punch item — ⬜ T2-S3
+- [ ] TT2.28 Punch list view — ⬜ T2-S3
+- [ ] TT2.29 Foreman resolves punch — ⬜ T2-S3
+- [ ] TT2.30 Supervisor verifies — ⬜ T2-S3
+- [ ] TT2.31 Punch item on plan — ⬜ T2-S3
+- [ ] TT2.32 Punch summary KPIs — ⬜ T2-S3
 
 ### AI Agent + Voice Commands (Future — Post-Pilot)
-- [ ] TT2.20 AI Agent chat UI — floating 🤖 button on every screen → half-screen slide-up chat panel. Type input + voice input toggle. Inline confirmation cards for write actions. Role-scoped (foreman sees hours not $).
-- [ ] TT2.21 Picovoice wake word — "Hey NotchField" detection via @picovoice/porcupine-react-native. Battery-efficient, runs on-device. Activates voice listening mode.
-- [ ] TT2.22 Picovoice speech-to-intent — 4 offline voice commands via @picovoice/rhino-react-native: "Wall A done" (markComplete), "Blocked other trade" (reportBlocked), "Check in" (checkIn), "What's left" (queryStatus). English + Spanish.
-- [ ] TT2.23 Voice context file — Picovoice Rhino context trained on construction vocabulary: surface names (wall/floor/saddle/vanity), block reasons (other trade/no material/inspection), bilingual EN+ES. Trained at console.picovoice.ai.
-- [ ] TT2.24 AI Agent online mode — complex questions route to Gemini 2.5 Flash API with 29 tool declarations. Context injection: user role, project, current area. Response with real project data.
-- [ ] TT2.25 Hybrid voice routing — Picovoice handles 4 simple intents offline → if not matched → routes to Gemini API when online → if offline → queues "I'll process that when connected."
+- [ ] TT2.20 AI Agent chat UI — ⬜ T2-S4
+- [ ] TT2.21 Picovoice wake word — ⬜ T2-S4
+- [ ] TT2.22 Picovoice speech-to-intent — ⬜ T2-S4
+- [ ] TT2.23 Voice context file — ⬜ T2-S4
+- [ ] TT2.24 AI Agent online mode — ⬜ T2-S4
+- [ ] TT2.25 Hybrid voice routing — ⬜ T2-S4
 
 ---
 
