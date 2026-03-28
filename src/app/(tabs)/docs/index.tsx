@@ -4,9 +4,10 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafetyDocs } from '@/features/safety/hooks/useSafetyDocs';
 import { useTickets } from '@/features/tickets/hooks/useTickets';
+import { usePunchList } from '@/features/punch/hooks/usePunchList';
 import { DOC_TYPE_LABELS } from '@/features/safety/types/schemas';
 
-type Tab = 'safety' | 'tickets';
+type Tab = 'safety' | 'tickets' | 'punch';
 
 const STATUS_COLORS: Record<string, string> = {
   draft: '#94A3B8',
@@ -21,9 +22,10 @@ export default function DocsScreen() {
   const [tab, setTab] = useState<Tab>('tickets');
   const { docs: safetyDocs, loading: safetyLoading } = useSafetyDocs();
   const { tickets, loading: ticketsLoading } = useTickets();
+  const { items: punchItems, loading: punchLoading, counts: punchCounts } = usePunchList();
   const [fabOpen, setFabOpen] = useState(false);
 
-  const loading = tab === 'safety' ? safetyLoading : ticketsLoading;
+  const loading = tab === 'safety' ? safetyLoading : tab === 'punch' ? punchLoading : ticketsLoading;
 
   return (
     <View className="flex-1 bg-background">
@@ -38,11 +40,26 @@ export default function DocsScreen() {
           </Text>
         </Pressable>
         <Pressable
+          onPress={() => setTab('punch')}
+          className={`flex-1 items-center py-3 ${tab === 'punch' ? 'border-b-2 border-brand-orange' : ''}`}
+        >
+          <View className="flex-row items-center">
+            <Text className={`text-base font-medium ${tab === 'punch' ? 'text-brand-orange' : 'text-slate-400'}`}>
+              Punch
+            </Text>
+            {punchCounts.open > 0 && (
+              <View className="ml-1 h-5 min-w-[20px] items-center justify-center rounded-full bg-danger px-1">
+                <Text className="text-[10px] font-bold text-white">{punchCounts.open}</Text>
+              </View>
+            )}
+          </View>
+        </Pressable>
+        <Pressable
           onPress={() => setTab('safety')}
           className={`flex-1 items-center py-3 ${tab === 'safety' ? 'border-b-2 border-brand-orange' : ''}`}
         >
           <Text className={`text-base font-medium ${tab === 'safety' ? 'text-brand-orange' : 'text-slate-400'}`}>
-            Safety ({safetyDocs.length})
+            Safety
           </Text>
         </Pressable>
       </View>
@@ -77,6 +94,36 @@ export default function DocsScreen() {
                       </Text>
                     </View>
                     <StatusBadge status={t.status} />
+                  </Pressable>
+                ))
+              )}
+            </>
+          )}
+
+          {/* ─── Punch tab ─── */}
+          {tab === 'punch' && (
+            <>
+              {punchItems.length === 0 ? (
+                <EmptyState icon="checkmark-done-circle-outline" message="No punch items yet." />
+              ) : (
+                punchItems.map((item) => (
+                  <Pressable
+                    key={item.id}
+                    onPress={() => router.push(`/(tabs)/docs/punch/${item.id}` as any)}
+                    className="mb-2 flex-row items-center rounded-xl border border-border bg-card px-4 py-4 active:opacity-80"
+                  >
+                    <View className="h-10 w-10 items-center justify-center rounded-lg bg-purple-500/20">
+                      <Ionicons name="flag" size={20} color="#A855F7" />
+                    </View>
+                    <View className="ml-3 flex-1">
+                      <Text className="text-base font-medium text-white" numberOfLines={1}>
+                        {item.title}
+                      </Text>
+                      <Text className="mt-0.5 text-sm text-slate-400">
+                        {item.priority} priority
+                      </Text>
+                    </View>
+                    <StatusBadge status={item.status} />
                   </Pressable>
                 ))
               )}
