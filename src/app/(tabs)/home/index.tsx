@@ -1,10 +1,162 @@
-import { View, Text } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+
+// Stores — reactive via Zustand selectors (no useEffect needed)
+import { useAuthStore } from '@/features/auth/store/auth-store';
+import { useProjectStore } from '@/features/projects/store/project-store';
+import { useCrewStore } from '@/features/crew/store/crew-store';
+
+// Dashboard components
+import { GpsStatusCard } from '@/features/home/components/GpsStatusCard';
+import { CrewCard } from '@/features/home/components/CrewCard';
+import { SafetyCard } from '@/features/home/components/SafetyCard';
+import { TicketsCard } from '@/features/home/components/TicketsCard';
+import { QuickActions } from '@/features/home/components/QuickActions';
+import { AlertsList, type Alert } from '@/features/home/components/AlertsList';
 
 export default function HomeScreen() {
+  const router = useRouter();
+  const profile = useAuthStore((s) => s.profile);
+  const { activeProject, geofence } = useProjectStore();
+  const { workers, assignments, timeEntries } = useCrewStore();
+
+  // ─── No project selected → Welcome state ───
+  if (!activeProject) {
+    return <WelcomeState name={profile?.full_name ?? null} />;
+  }
+
+  // ─── Compute stats from stores (no API calls) ───
+  const assignedCount = assignments.length;
+  const totalWorkers = workers.length;
+
+  // Today's hours from time entries
+  const todayHours = timeEntries.reduce((sum, e) => {
+    if (e.hours) return sum + e.hours;
+    if (!e.ended_at) {
+      const elapsed = (Date.now() - new Date(e.started_at).getTime()) / 3600000;
+      return sum + elapsed;
+    }
+    return sum;
+  }, 0);
+
+  // Build alerts from current state
+  const alerts: Alert[] = [];
+
+  if (assignedCount === 0 && totalWorkers > 0) {
+    alerts.push({
+      id: 'no-assignments',
+      icon: 'people-outline',
+      message: 'No crew assigned yet today',
+      color: '#F59E0B',
+      onPress: () => router.push('/(tabs)/more/crew' as any),
+    });
+  }
+
+  // ─── Quick actions ───
+  const quickActions = [
+    {
+      icon: 'location' as const,
+      label: 'Check In',
+      color: '#22C55E',
+      onPress: () => router.push('/(tabs)/more/checkin' as any),
+    },
+    {
+      icon: 'construct' as const,
+      label: 'New Ticket',
+      color: '#3B82F6',
+      onPress: () => router.push('/(tabs)/docs/tickets/new' as any),
+    },
+    {
+      icon: 'shield' as const,
+      label: 'Safety Doc',
+      color: '#F97316',
+      onPress: () => router.push('/(tabs)/docs/safety/new?type=jha' as any),
+    },
+  ];
+
+  const greeting = getGreeting();
+
   return (
-    <View className="flex-1 items-center justify-center bg-background">
-      <Text className="text-2xl font-bold text-white">NotchField Track</Text>
-      <Text className="mt-2 text-slate-400">Home — Phase T1</Text>
+    <ScrollView className="flex-1 bg-background px-4 pt-4">
+      {/* Header */}
+      <View className="mb-6">
+        <Text className="text-sm text-slate-400">{greeting}</Text>
+        <Text className="text-2xl font-bold text-white">
+          {profile?.full_name ?? 'Foreman'}
+        </Text>
+        <View className="mt-1 flex-row items-center">
+          <Ionicons name="business" size={14} color="#F97316" />
+          <Text className="ml-1 text-base text-brand-orange">{activeProject.name}</Text>
+        </View>
+      </View>
+
+      {/* Quick Actions */}
+      <QuickActions actions={quickActions} />
+
+      {/* Alerts */}
+      <AlertsList alerts={alerts} />
+
+      {/* GPS Status */}
+      <GpsStatusCard
+        isCheckedIn={false}
+        lastCheckinTime={null}
+        isInsideFence={geofence ? null : null}
+        onPress={() => router.push('/(tabs)/more/checkin' as any)}
+      />
+
+      {/* Crew */}
+      <CrewCard
+        assignedCount={assignedCount}
+        totalWorkers={totalWorkers}
+        todayHours={todayHours}
+        onPress={() => router.push('/(tabs)/more/crew' as any)}
+      />
+
+      {/* Safety — reads from store */}
+      <SafetyCard
+        totalDocs={0}
+        activeDocs={0}
+        unsignedCount={0}
+        onPress={() => router.push('/(tabs)/docs' as any)}
+      />
+
+      {/* Tickets */}
+      <TicketsCard
+        openCount={0}
+        last24hCount={0}
+        onPress={() => router.push('/(tabs)/docs' as any)}
+      />
+
+      <View className="h-24" />
+    </ScrollView>
+  );
+}
+
+/**
+ * Welcome state — shown when no project is selected.
+ */
+function WelcomeState({ name }: { name: string | null }) {
+  return (
+    <View className="flex-1 items-center justify-center bg-background px-8">
+      <View className="mb-6 h-20 w-20 items-center justify-center rounded-full bg-brand-orange/20">
+        <Ionicons name="construct" size={40} color="#F97316" />
+      </View>
+      <Text className="text-2xl font-bold text-white">
+        Welcome{name ? `, ${name.split(' ')[0]}` : ''}
+      </Text>
+      <Text className="mt-3 text-center text-base leading-6 text-slate-400">
+        No project loaded yet.{'\n'}
+        Projects sync automatically from Takeoff.{'\n'}
+        Make sure you're assigned to a project.
+      </Text>
     </View>
   );
+}
+
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
 }
