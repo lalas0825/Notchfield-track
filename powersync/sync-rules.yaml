@@ -1,0 +1,125 @@
+# ============================================================
+# PowerSync Sync Rules — NotchField Track
+# ============================================================
+# Matches REAL Takeoff schema:
+#   profiles (not users), organization_id (not org_id),
+#   production_areas (not areas), no project_members table.
+# Isolation: all data filtered by organization_id.
+# ============================================================
+
+bucket_definitions:
+
+  # ─────────────────────────────────────────────────────────
+  # USER PROFILE + ORG
+  # Every user gets their own profile and organization.
+  # ─────────────────────────────────────────────────────────
+  user_profile:
+    parameters: SELECT id AS user_id, organization_id FROM profiles WHERE id = token_parameters.user_id
+    data:
+      - SELECT * FROM profiles WHERE id = bucket.user_id
+      - SELECT * FROM organizations WHERE id = bucket.organization_id
+
+  # ─────────────────────────────────────────────────────────
+  # ORG DATA — all org members visible (for crew display)
+  # ─────────────────────────────────────────────────────────
+  org_members:
+    parameters: SELECT organization_id FROM profiles WHERE id = token_parameters.user_id
+    data:
+      - SELECT * FROM profiles WHERE organization_id = bucket.organization_id AND is_active = true
+
+  # ─────────────────────────────────────────────────────────
+  # PROJECT DATA — all projects in user's org
+  # (Takeoff uses org-level isolation, no project_members)
+  # ─────────────────────────────────────────────────────────
+  project:
+    parameters: >
+      SELECT p.id AS project_id, p.organization_id
+      FROM projects p
+      JOIN profiles pr ON pr.organization_id = p.organization_id
+      WHERE pr.id = token_parameters.user_id
+    data:
+      - SELECT * FROM projects WHERE id = bucket.project_id
+      - SELECT * FROM production_areas WHERE project_id = bucket.project_id
+      - SELECT * FROM production_area_objects WHERE area_id IN (SELECT id FROM production_areas WHERE project_id = bucket.project_id)
+      - SELECT * FROM production_templates WHERE organization_id = bucket.organization_id
+      - SELECT * FROM production_template_phases WHERE template_id IN (SELECT id FROM production_templates WHERE organization_id = bucket.organization_id)
+      - SELECT * FROM production_phase_progress WHERE area_id IN (SELECT id FROM production_areas WHERE project_id = bucket.project_id)
+      - SELECT * FROM classifications WHERE organization_id = bucket.organization_id
+
+  # ─────────────────────────────────────────────────────────
+  # DRAWINGS — per project
+  # ─────────────────────────────────────────────────────────
+  drawings:
+    parameters: >
+      SELECT p.id AS project_id
+      FROM projects p
+      JOIN profiles pr ON pr.organization_id = p.organization_id
+      WHERE pr.id = token_parameters.user_id
+    data:
+      - SELECT * FROM drawing_sets WHERE project_id = bucket.project_id
+      - SELECT * FROM drawings WHERE project_id = bucket.project_id
+      - SELECT dr.* FROM drawing_revisions dr JOIN drawings d ON d.id = dr.drawing_id WHERE d.project_id = bucket.project_id
+      - SELECT * FROM takeoff_objects WHERE drawing_id IN (SELECT id FROM drawings WHERE project_id = bucket.project_id)
+
+  # ─────────────────────────────────────────────────────────
+  # SAFETY DOCUMENTS — org-scoped, project-filtered
+  # ─────────────────────────────────────────────────────────
+  safety:
+    parameters: >
+      SELECT p.id AS project_id, p.organization_id
+      FROM projects p
+      JOIN profiles pr ON pr.organization_id = p.organization_id
+      WHERE pr.id = token_parameters.user_id
+    data:
+      - SELECT * FROM safety_documents WHERE project_id = bucket.project_id AND organization_id = bucket.organization_id
+      - SELECT ds.* FROM document_signoffs ds JOIN safety_documents sd ON sd.id = ds.document_id WHERE sd.project_id = bucket.project_id AND sd.organization_id = bucket.organization_id
+
+  # ─────────────────────────────────────────────────────────
+  # WORK TICKETS — org-scoped, project-filtered
+  # ─────────────────────────────────────────────────────────
+  tickets:
+    parameters: >
+      SELECT p.id AS project_id, p.organization_id
+      FROM projects p
+      JOIN profiles pr ON pr.organization_id = p.organization_id
+      WHERE pr.id = token_parameters.user_id
+    data:
+      - SELECT * FROM work_tickets WHERE project_id = bucket.project_id AND organization_id = bucket.organization_id
+
+  # ─────────────────────────────────────────────────────────
+  # CREW + TIME — org-scoped, project-filtered
+  # ─────────────────────────────────────────────────────────
+  crew:
+    parameters: >
+      SELECT p.id AS project_id, p.organization_id
+      FROM projects p
+      JOIN profiles pr ON pr.organization_id = p.organization_id
+      WHERE pr.id = token_parameters.user_id
+    data:
+      - SELECT * FROM crew_assignments WHERE project_id = bucket.project_id AND organization_id = bucket.organization_id
+      - SELECT * FROM area_time_entries WHERE project_id = bucket.project_id AND organization_id = bucket.organization_id
+
+  # ─────────────────────────────────────────────────────────
+  # GPS — org-scoped, project-filtered
+  # ─────────────────────────────────────────────────────────
+  gps:
+    parameters: >
+      SELECT p.id AS project_id, p.organization_id
+      FROM projects p
+      JOIN profiles pr ON pr.organization_id = p.organization_id
+      WHERE pr.id = token_parameters.user_id
+    data:
+      - SELECT * FROM gps_checkins WHERE project_id = bucket.project_id AND organization_id = bucket.organization_id
+      - SELECT * FROM gps_geofences WHERE project_id = bucket.project_id AND organization_id = bucket.organization_id
+
+  # ─────────────────────────────────────────────────────────
+  # FIELD PHOTOS — STRICT org isolation
+  # ─────────────────────────────────────────────────────────
+  photos:
+    parameters: >
+      SELECT p.id AS project_id, p.organization_id
+      FROM projects p
+      JOIN profiles pr ON pr.organization_id = p.organization_id
+      WHERE pr.id = token_parameters.user_id
+    data:
+      - SELECT * FROM field_photos WHERE project_id = bucket.project_id AND organization_id = bucket.organization_id
