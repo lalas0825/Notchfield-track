@@ -7,6 +7,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/auth-store';
@@ -55,8 +56,11 @@ export function AuthForm() {
     >
       <View className="flex-1 justify-center px-8">
         <View className="mb-12 items-center">
-          <Text className="text-4xl font-bold text-white">NotchField</Text>
-          <Text className="mt-1 text-lg text-brand-orange">Track</Text>
+          <Image
+            source={require('@/assets/images/logo.png')}
+            style={{ width: 280, height: 100 }}
+            resizeMode="contain"
+          />
         </View>
 
         <Text className="mb-8 text-center text-2xl font-bold text-white">

@@ -8,7 +8,7 @@
     "scheme": "notchfield-track",
     "userInterfaceStyle": "dark",
     "splash": {
-      "image": "./src/assets/images/splash-icon.png",
+      "image": "./src/assets/images/logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#0F172A"
     },
