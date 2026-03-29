@@ -8,6 +8,7 @@ import {
   Platform,
   ActivityIndicator,
   Image,
+  ImageBackground,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/auth-store';
@@ -50,15 +51,21 @@ export function AuthForm() {
   };
 
   return (
+    <ImageBackground
+      source={require('@/assets/images/log-in.jpg')}
+      style={{ flex: 1 }}
+      resizeMode="cover"
+    >
+      <View style={{ flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.85)' }}>
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      className="flex-1 bg-background"
+      className="flex-1"
     >
       <View className="flex-1 justify-center px-8">
-        <View className="mb-12 items-center">
+        <View className="mb-10 items-center">
           <Image
             source={require('@/assets/images/logo.png')}
-            style={{ width: 280, height: 100 }}
+            style={{ width: 260, height: 90 }}
             resizeMode="contain"
           />
         </View>
@@ -142,5 +149,7 @@ export function AuthForm() {
         </Pressable>
       </View>
     </KeyboardAvoidingView>
+      </View>
+    </ImageBackground>
   );
 }
