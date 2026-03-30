@@ -5,8 +5,9 @@
  *   - Provides JWT tokens for sync authentication
  *   - Handles CRUD uploads (local changes → Supabase REST API)
  *
- * PowerSync calls fetchCredentials() to get a valid token,
- * and uploadData() to push local writes to Supabase.
+ * IMPORTANT: Strips auto-generated columns (serial `number`, `updated_at`)
+ * before upserting to Postgres. These columns have server-side defaults
+ * (nextval, now()) that conflict with NULL/0 values from local SQLite.
  */
 
 import {
@@ -19,11 +20,57 @@ import { supabase } from '../supabase/client';
 
 const POWERSYNC_URL = process.env.EXPO_PUBLIC_POWERSYNC_URL ?? '';
 
+/**
+ * Columns that Postgres auto-generates via DEFAULT/SERIAL.
+ * These must be excluded from INSERT/UPSERT operations because:
+ * - `number`: uses nextval() sequence — sending NULL/0 causes type errors
+ * - `updated_at`: uses now() trigger — let Postgres handle it
+ *
+ * `id` and `created_at` are NOT excluded because we generate them locally.
+ */
+const AUTO_GENERATED_COLUMNS = new Set([
+  'number',
+  'updated_at',
+]);
+
+/**
+ * Clean opData by removing auto-generated columns and null/undefined values
+ * that would conflict with NOT NULL + DEFAULT constraints.
+ */
+/**
+ * Columns known to contain JSONB data in Postgres.
+ * When PowerSync stores these locally, they're JSON strings.
+ * Before uploading to Supabase, parse them back to objects.
+ */
+const JSONB_COLUMNS = new Set([
+  'photos', 'resolution_photos', 'content', 'signatures',
+  'areas_worked', 'photo_urls',
+]);
+
+function cleanData(data: Record<string, unknown> | undefined): Record<string, unknown> {
+  if (!data) return {};
+
+  const cleaned: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(data)) {
+    // Skip auto-generated columns
+    if (AUTO_GENERATED_COLUMNS.has(key)) continue;
+
+    // Parse JSONB columns (stored as strings in SQLite)
+    if (JSONB_COLUMNS.has(key) && typeof value === 'string') {
+      try {
+        cleaned[key] = JSON.parse(value);
+      } catch {
+        cleaned[key] = value;
+      }
+      continue;
+    }
+
+    cleaned[key] = value;
+  }
+  return cleaned;
+}
+
 export class SupabaseConnector implements PowerSyncBackendConnector {
-  /**
-   * Provides PowerSync with the Supabase JWT for authenticated sync.
-   * Called automatically by PowerSync when token expires.
-   */
   async fetchCredentials() {
     const { data: { session }, error } = await supabase.auth.getSession();
 
@@ -40,13 +87,6 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
     };
   }
 
-  /**
-   * Uploads local CRUD operations to Supabase.
-   * Called by PowerSync when there are pending local changes.
-   *
-   * Strategy: process each operation sequentially via Supabase REST.
-   * On conflict: last-write-wins (field data is authoritative).
-   */
   async uploadData(database: AbstractPowerSyncDatabase): Promise<void> {
     const transaction = await database.getNextCrudTransaction();
     if (!transaction) return;
@@ -65,7 +105,7 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
   private async applyOperation(op: CrudEntry): Promise<void> {
     const table = op.table;
     const id = op.id;
-    const data = op.opData;
+    const data = cleanData(op.opData);
 
     switch (op.op) {
       case UpdateType.PUT: {
@@ -80,7 +120,7 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
       case UpdateType.PATCH: {
         const { error } = await supabase
           .from(table)
-          .update(data!)
+          .update(data)
           .eq('id', id);
 
         if (error) throw new Error(`PATCH ${table}/${id}: ${error.message}`);

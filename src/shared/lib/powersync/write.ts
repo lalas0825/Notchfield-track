@@ -54,7 +54,13 @@ export async function localInsert(
     try {
       const columns = Object.keys(row);
       const placeholders = columns.map(() => '?').join(', ');
-      const values = columns.map((k) => (row as Record<string, unknown>)[k] ?? null);
+      const values = columns.map((k) => {
+        const v = (row as Record<string, unknown>)[k];
+        if (v === null || v === undefined) return null;
+        // Serialize arrays and objects for SQLite (no native JSON type)
+        if (Array.isArray(v) || (typeof v === 'object' && v !== null)) return JSON.stringify(v);
+        return v;
+      });
 
       await ps.execute(
         `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`,
@@ -85,7 +91,11 @@ export async function localUpdate(
     try {
       const entries = Object.entries(data).filter(([_, v]) => v !== undefined);
       const setClause = entries.map(([k]) => `${k} = ?`).join(', ');
-      const values = entries.map(([_, v]) => v ?? null);
+      const values: unknown[] = entries.map(([_, v]) => {
+        if (v === null || v === undefined) return null;
+        if (Array.isArray(v) || (typeof v === 'object' && v !== null)) return JSON.stringify(v);
+        return v;
+      });
       values.push(id);
 
       await ps.execute(
