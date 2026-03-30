@@ -37,7 +37,8 @@ export function useLegalDocs() {
     setPendingNods(blocked.filter((a) => !existingAreaIds.has(a.id)));
 
     setLoading(false);
-  }, [activeProject, profile, isSupervisor]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeProject?.id, profile?.organization_id, isSupervisor]);
 
   useEffect(() => {
     reload();

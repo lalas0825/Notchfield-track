@@ -90,7 +90,9 @@ export function useCheckin() {
 
     init();
     return () => { mounted = false; };
-  }, [user, activeProject, geofence]);
+    // Use primitive IDs as deps to avoid infinite re-render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, activeProject?.id, geofence?.id]);
 
   // Refresh position
   const refreshPosition = useCallback(async () => {

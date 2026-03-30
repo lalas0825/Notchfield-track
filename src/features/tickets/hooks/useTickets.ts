@@ -38,7 +38,8 @@ export function useTickets() {
 
     setTickets((data ?? []) as TicketRow[]);
     setLoading(false);
-  }, [activeProject, profile]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeProject?.id, profile?.organization_id]);
 
   useEffect(() => {
     fetchTickets();

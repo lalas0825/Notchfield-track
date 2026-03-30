@@ -78,15 +78,24 @@ export function SignaturePad({ signerName, onCapture, onClear, captured }: Props
       <Text className="mb-2 text-sm font-medium text-slate-400">
         Signature — {signerName}
       </Text>
-      <View className="h-[150px] overflow-hidden rounded-lg border border-slate-600 bg-white">
+      <View style={{ height: 200, borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: '#475569', backgroundColor: 'white' }}>
         <SignatureCanvas
           ref={signatureRef}
           onOK={handleOK}
-          webStyle=".m-signature-pad { box-shadow: none; border: none; } .m-signature-pad--body { border: none; } .m-signature-pad--footer { display: none; }"
+          onEmpty={() => {}}
+          webStyle={`
+            .m-signature-pad { box-shadow: none; border: none; height: 100%; width: 100%; }
+            .m-signature-pad--body { border: none; height: 100%; }
+            .m-signature-pad--footer { display: none; margin: 0; padding: 0; }
+            body, html { height: 100%; margin: 0; padding: 0; }
+            canvas { width: 100% !important; height: 100% !important; }
+          `}
           backgroundColor="white"
           penColor="black"
           minWidth={2}
           maxWidth={4}
+          dotSize={3}
+          style={{ flex: 1 }}
         />
       </View>
       <View className="mt-3 flex-row justify-between">

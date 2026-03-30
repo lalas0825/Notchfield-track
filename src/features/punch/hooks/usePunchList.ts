@@ -26,7 +26,8 @@ export function usePunchList(areaId?: string) {
 
     setItems(data);
     setLoading(false);
-  }, [activeProject, profile, areaId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeProject?.id, profile?.organization_id, areaId]);
 
   useEffect(() => {
     reload();

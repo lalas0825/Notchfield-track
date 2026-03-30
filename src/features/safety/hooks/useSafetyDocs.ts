@@ -40,7 +40,8 @@ export function useSafetyDocs() {
 
     setDocs((data ?? []) as SafetyDocRow[]);
     setLoading(false);
-  }, [activeProject, profile]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeProject?.id, profile?.organization_id]);
 
   useEffect(() => {
     fetchDocs();
