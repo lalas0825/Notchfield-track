@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { View, Text, Pressable, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -11,9 +11,9 @@ type Props = {
 
 export function SignaturePad({ signerName, onCapture, onClear, captured }: Props) {
   const signatureRef = useRef<any>(null);
+  const [signing, setSigning] = useState(false);
 
   if (Platform.OS === 'web') {
-    // Web fallback — simple "signed" toggle
     return (
       <View className="rounded-xl border border-border bg-card p-4">
         <Text className="mb-2 text-sm font-medium text-slate-400">
@@ -41,17 +41,17 @@ export function SignaturePad({ signerName, onCapture, onClear, captured }: Props
     );
   }
 
-  // Native: use react-native-signature-canvas
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const SignatureCanvas = require('react-native-signature-canvas').default;
 
   const handleOK = (signature: string) => {
-    // signature is a base64 data URI
     onCapture(signature);
+    setSigning(false);
   };
 
   const handleClear = () => {
     signatureRef.current?.clearSignature();
+    setSigning(false);
     onClear();
   };
 
@@ -78,24 +78,44 @@ export function SignaturePad({ signerName, onCapture, onClear, captured }: Props
       <Text className="mb-2 text-sm font-medium text-slate-400">
         Signature — {signerName}
       </Text>
-      <View style={{ height: 200, borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: '#475569', backgroundColor: 'white' }}>
+      {/*
+        Key fix: onStartShouldSetResponder + onMoveShouldSetResponder
+        prevents the parent ScrollView from stealing touch events.
+        This allows finger drawing in the signature canvas.
+      */}
+      <View
+        style={{
+          height: 200,
+          borderRadius: 8,
+          overflow: 'hidden',
+          borderWidth: 1,
+          borderColor: signing ? '#F97316' : '#475569',
+          backgroundColor: 'white',
+        }}
+        onStartShouldSetResponder={() => true}
+        onMoveShouldSetResponder={() => true}
+        onResponderTerminationRequest={() => false}
+      >
         <SignatureCanvas
           ref={signatureRef}
           onOK={handleOK}
           onEmpty={() => {}}
+          onBegin={() => setSigning(true)}
+          onEnd={() => setSigning(false)}
           webStyle={`
-            .m-signature-pad { box-shadow: none; border: none; height: 100%; width: 100%; }
-            .m-signature-pad--body { border: none; height: 100%; }
-            .m-signature-pad--footer { display: none; margin: 0; padding: 0; }
-            body, html { height: 100%; margin: 0; padding: 0; }
-            canvas { width: 100% !important; height: 100% !important; }
+            .m-signature-pad { box-shadow: none; border: none; height: 100%; width: 100%; margin: 0; }
+            .m-signature-pad--body { border: none; height: 100%; width: 100%; }
+            .m-signature-pad--body canvas { width: 100% !important; height: 100% !important; touch-action: none; }
+            .m-signature-pad--footer { display: none; }
+            body, html { height: 100%; width: 100%; margin: 0; padding: 0; overflow: hidden; touch-action: none; }
           `}
           backgroundColor="white"
           penColor="black"
           minWidth={2}
           maxWidth={4}
-          dotSize={3}
-          style={{ flex: 1 }}
+          dotSize={0}
+          androidHardwareAccelerationDisabled={false}
+          style={{ flex: 1, width: '100%', height: 200 }}
         />
       </View>
       <View className="mt-3 flex-row justify-between">

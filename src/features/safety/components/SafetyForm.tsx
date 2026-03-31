@@ -130,7 +130,7 @@ export function SafetyForm({ docType }: Props) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       className="flex-1"
     >
-      <ScrollView className="flex-1 bg-background px-4 pt-4" keyboardShouldPersistTaps="handled">
+      <ScrollView className="flex-1 bg-background px-4 pt-4" keyboardShouldPersistTaps="handled" nestedScrollEnabled>
         {/* Title */}
         <FieldLabel label="Title" />
         <StyledInput value={title} onChangeText={setTitle} placeholder="Document title" />
