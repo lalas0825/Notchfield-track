@@ -5,11 +5,11 @@ import type { ProductionArea, PhaseProgress, TemplatePhase } from '../store/prod
 
 const BLOCK_REASONS = [
   { value: 'other_trade', label: 'Other trade' },
-  { value: 'material', label: 'No material' },
-  { value: 'inspection', label: 'Pending inspection' },
-  { value: 'access', label: 'Access denied' },
-  { value: 'rework', label: 'Rework needed' },
-  { value: 'design', label: 'Design issue' },
+  { value: 'material_not_delivered', label: 'No material' },
+  { value: 'inspection_pending', label: 'Pending inspection' },
+  { value: 'access_denied', label: 'Access denied' },
+  { value: 'rework_required', label: 'Rework needed' },
+  { value: 'design_change', label: 'Design issue' },
   { value: 'other', label: 'Other' },
 ];
 
@@ -44,7 +44,7 @@ export function AreaDetail({
 
   // Find current phase (first non-complete)
   const currentPhaseIdx = orderedPhases.findIndex(
-    (p) => !p.progress || p.progress.status !== 'complete',
+    (p) => !p.progress || p.progress.status !== 'completed',
   );
 
   return (
@@ -91,7 +91,7 @@ export function AreaDetail({
         <View className="mb-4">
           <Text className="mb-2 text-sm font-bold uppercase text-slate-400">Phases</Text>
           {orderedPhases.map((item, idx) => {
-            const isComplete = item.progress?.status === 'complete';
+            const isComplete = item.progress?.status === 'completed';
             const isCurrent = idx === currentPhaseIdx;
             const isLocked = idx > currentPhaseIdx && currentPhaseIdx >= 0;
             const isGate = item.template.requires_inspection;
@@ -107,7 +107,7 @@ export function AreaDetail({
                 }}
                 disabled={isLocked}
                 accessibilityRole="button"
-                accessibilityLabel={`${item.template.name} phase, ${isComplete ? 'complete' : isLocked ? 'locked' : isCurrent ? 'current' : 'pending'}`}
+                accessibilityLabel={`${item.template.name} phase, ${isComplete ? 'completed' : isLocked ? 'locked' : isCurrent ? 'current' : 'pending'}`}
                 className={`mb-1.5 flex-row items-center rounded-xl border px-4 py-3 ${
                   isCurrent
                     ? 'border-brand-orange bg-brand-orange/10'
@@ -170,10 +170,10 @@ export function AreaDetail({
         </Pressable>
 
         {/* Status actions */}
-        {area.status !== 'complete' && area.status !== 'blocked' && (
+        {area.status !== 'completed' && area.status !== 'blocked' && (
           <>
             <Pressable
-              onPress={() => onMarkStatus('complete')}
+              onPress={() => onMarkStatus('completed')}
               className="h-14 flex-row items-center justify-center rounded-xl bg-success active:opacity-80"
             >
               <Ionicons name="checkmark-circle" size={22} color="#FFFFFF" />

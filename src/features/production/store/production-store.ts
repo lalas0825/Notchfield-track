@@ -93,7 +93,7 @@ function computeGateHealth(
     for (const p of areaPhases) {
       if (gatePhaseIds.has(p.phase_id)) {
         totalGates++;
-        if (p.status === 'complete') completedGates++;
+        if (p.status === 'completed') completedGates++;
       }
     }
   }
@@ -116,7 +116,7 @@ function buildFloors(
     floorMap.get(floor)!.push(area);
   }
   return [...floorMap.entries()].map(([floor, floorAreas]) => {
-    const completed = floorAreas.filter((a) => a.status === 'complete').length;
+    const completed = floorAreas.filter((a) => a.status === 'completed').length;
     const progressPct = floorAreas.length > 0 ? Math.round((completed / floorAreas.length) * 100) : 0;
     const blockedCount = floorAreas.filter((a) => a.status === 'blocked').length;
     const gateHealth = computeGateHealth(floorAreas, phases, templatePhases);
@@ -165,7 +165,7 @@ export const useProductionStore = create<ProductionState & ProductionActions>((s
       floors,
       loading: false,
       totalAreas: areas.length,
-      completedAreas: areas.filter((a) => a.status === 'complete').length,
+      completedAreas: areas.filter((a) => a.status === 'completed').length,
       blockedAreas: areas.filter((a) => a.status === 'blocked').length,
       inProgressAreas: areas.filter((a) => a.status === 'in_progress').length,
       totalGates: globalGates.totalGates,
@@ -174,7 +174,7 @@ export const useProductionStore = create<ProductionState & ProductionActions>((s
   },
 
   markAreaStatus: async (areaId: string, status: string, blockedReason?: string, userId?: string) => {
-    if (status === 'complete') {
+    if (status === 'completed') {
       const { allowed, pendingGates } = get().canCompleteArea(areaId);
       if (!allowed) {
         return { success: false, error: `Cannot complete: ${pendingGates.length} gate(s) pending verification (${pendingGates.join(', ')})` };
@@ -217,7 +217,7 @@ export const useProductionStore = create<ProductionState & ProductionActions>((s
           { column: 'resolved_at', isNull: true },
         );
       }
-    } else if (status === 'complete') {
+    } else if (status === 'completed') {
       updates.completed_at = now;
       updates.blocked_reason = null;
     }
@@ -227,7 +227,7 @@ export const useProductionStore = create<ProductionState & ProductionActions>((s
     if (!result.success) return result;
 
     // Haptic feedback based on status
-    if (status === 'complete') haptic.success();
+    if (status === 'completed') haptic.success();
     else if (status === 'blocked') haptic.error();
 
     // Optimistic update + recalc floor
@@ -244,7 +244,7 @@ export const useProductionStore = create<ProductionState & ProductionActions>((s
 
     // FIX 1: Local-first write
     const result = await localUpdate('production_phase_progress', progressId, {
-      status: 'complete',
+      status: 'completed',
       percent_complete: 100,
       completed_at: now,
       completed_by: userId,
@@ -260,7 +260,7 @@ export const useProductionStore = create<ProductionState & ProductionActions>((s
         if (idx >= 0) {
           phaseList[idx] = {
             ...phaseList[idx],
-            status: 'complete',
+            status: 'completed',
             percent_complete: 100,
             completed_at: now,
             completed_by: userId,
@@ -318,7 +318,7 @@ export const useProductionStore = create<ProductionState & ProductionActions>((s
     const pendingGates: string[] = [];
     for (const gate of gateTemplates) {
       const progress = areaPhases.find((p) => p.phase_id === gate.id);
-      if (!progress || progress.status !== 'complete') {
+      if (!progress || progress.status !== 'completed') {
         pendingGates.push(gate.name);
       }
     }
@@ -333,7 +333,7 @@ export const useProductionStore = create<ProductionState & ProductionActions>((s
   recalcFloor: (floor: string) => {
     set((s) => {
       const floorAreas = s.areas.filter((a) => (a.floor ?? 'Unassigned') === floor);
-      const completed = floorAreas.filter((a) => a.status === 'complete').length;
+      const completed = floorAreas.filter((a) => a.status === 'completed').length;
       const progressPct = floorAreas.length > 0 ? Math.round((completed / floorAreas.length) * 100) : 0;
       const blockedCount = floorAreas.filter((a) => a.status === 'blocked').length;
       const gateHealth = computeGateHealth(floorAreas, s.phases, s.templatePhases);
@@ -346,7 +346,7 @@ export const useProductionStore = create<ProductionState & ProductionActions>((s
       return {
         floors: newFloors,
         totalAreas: allAreas.length,
-        completedAreas: allAreas.filter((a) => a.status === 'complete').length,
+        completedAreas: allAreas.filter((a) => a.status === 'completed').length,
         blockedAreas: allAreas.filter((a) => a.status === 'blocked').length,
         inProgressAreas: allAreas.filter((a) => a.status === 'in_progress').length,
       };

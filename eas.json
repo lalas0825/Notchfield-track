@@ -4,6 +4,18 @@
     "appVersionSource": "local"
   },
   "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://msmpsxalfalzinuorwlg.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1zbXBzeGFsZmFsemludW9yd2xnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM2OTU3NjIsImV4cCI6MjA4OTI3MTc2Mn0.FAH0XJNnkcEORXO7lWv8T5zVyRjOXAEx0rqasqmda18",
+        "EXPO_PUBLIC_POWERSYNC_URL": "https://69c72137a112d86b20541618.powersync.journeyapps.com"
+      }
+    },
     "preview": {
       "distribution": "internal",
       "android": {

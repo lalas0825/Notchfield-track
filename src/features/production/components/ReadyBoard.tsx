@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import type { ProductionArea, FloorGroup } from '../store/production-store';
 
-type StatusFilter = 'all' | 'blocked' | 'in_progress' | 'complete' | 'not_started';
+type StatusFilter = 'all' | 'blocked' | 'in_progress' | 'completed' | 'not_started';
 
 const STATUS_CONFIG: Record<string, { color: string; icon: keyof typeof Ionicons.glyphMap; label: string }> = {
   complete: { color: '#22C55E', icon: 'checkmark-circle', label: 'Complete' },
@@ -16,11 +16,11 @@ const STATUS_CONFIG: Record<string, { color: string; icon: keyof typeof Ionicons
 
 const BLOCK_REASONS: Record<string, string> = {
   other_trade: 'Other trade',
-  material: 'No material',
-  inspection: 'Pending inspection',
-  access: 'Access denied',
-  rework: 'Rework needed',
-  design: 'Design issue',
+  material_not_delivered: 'No material',
+  inspection_pending: 'Pending inspection',
+  access_denied: 'Access denied',
+  rework_required: 'Rework needed',
+  design_change: 'Design issue',
   other: 'Other',
 };
 
@@ -87,8 +87,8 @@ export function ReadyBoard({
           count={completedCount}
           color="#22C55E"
           icon="checkmark-circle"
-          active={filter === 'complete'}
-          onPress={() => setFilter(filter === 'complete' ? 'all' : 'complete')}
+          active={filter === 'completed'}
+          onPress={() => setFilter(filter === 'completed' ? 'all' : 'completed')}
         />
         <StatusChip
           count={totalCount - blockedCount - inProgressCount - completedCount}
