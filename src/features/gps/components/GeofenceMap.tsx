@@ -26,10 +26,13 @@ export function GeofenceMap({ position, geofence, isInsideFence }: Props) {
       ? distanceMeters(position.latitude, position.longitude, geofence.center_lat, geofence.center_lng)
       : null;
 
-  // On web or if maps aren't available, show text fallback
-  if (Platform.OS === 'web' || !position) {
+  // Show text fallback when: web, no position, or no Google Maps API key configured.
+  // Google Maps crashes the app if API key is missing from AndroidManifest.
+  const hasMapKey = !!process.env.EXPO_PUBLIC_GOOGLE_MAPS_KEY;
+
+  if (Platform.OS === 'web' || !position || !hasMapKey) {
     return (
-      <View className="h-[200px] items-center justify-center rounded-2xl border border-border bg-card">
+      <View style={{ height: 200 }} className="items-center justify-center rounded-2xl border border-border bg-card">
         {!position ? (
           <Text className="text-base text-slate-400">Waiting for GPS...</Text>
         ) : (
