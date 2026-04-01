@@ -1,15 +1,31 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/shared/lib/supabase/client';
+import { useAuthStore } from '@/features/auth/store/auth-store';
+import { useProjectStore } from '@/features/projects/store/project-store';
 import { DOC_TYPE_LABELS, RISK_LEVELS } from '@/features/safety/types/schemas';
+import { exportSafetyDoc } from '@/features/safety/services/safety-export';
 import type { SafetyDocRow } from '@/features/safety/hooks/useSafetyDocs';
 
 export default function SafetyDocDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { profile } = useAuthStore();
+  const { activeProject } = useProjectStore();
   const [doc, setDoc] = useState<SafetyDocRow | null>(null);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  const handleExport = async () => {
+    if (!doc || !activeProject) return;
+    setExporting(true);
+    setExportError(null);
+    const result = await exportSafetyDoc(doc, activeProject.name, activeProject.organization_id);
+    setExporting(false);
+    if (!result.success) setExportError(result.error ?? 'Export failed');
+  };
 
   useEffect(() => {
     async function load() {
@@ -53,12 +69,32 @@ export default function SafetyDocDetailScreen() {
         }}
       />
       <ScrollView className="flex-1 bg-background px-4 pt-4">
-        {/* Header card */}
+        {/* Header card + Export button */}
         <View className="mb-4 rounded-2xl border border-border bg-card p-4">
-          <Text className="text-xl font-bold text-white">{doc.title}</Text>
-          <Text className="mt-1 text-sm text-slate-400">
-            Created {new Date(doc.created_at).toLocaleDateString()} · Status: {doc.status}
-          </Text>
+          <View className="flex-row items-start justify-between">
+            <View className="flex-1">
+              <Text className="text-xl font-bold text-white">{doc.title}</Text>
+              <Text className="mt-1 text-sm text-slate-400">
+                Created {new Date(doc.created_at).toLocaleDateString()} · Status: {doc.status}
+              </Text>
+            </View>
+            {/* Export PDF button — big, top-right, impossible to miss */}
+            <Pressable
+              onPress={handleExport}
+              disabled={exporting}
+              className="ml-3 h-12 flex-row items-center rounded-xl bg-brand-orange px-4 active:opacity-80"
+            >
+              <Ionicons name={exporting ? 'hourglass' : 'share-outline'} size={18} color="#FFFFFF" />
+              <Text className="ml-2 text-sm font-bold text-white">
+                {exporting ? 'Generating...' : 'Export PDF'}
+              </Text>
+            </Pressable>
+          </View>
+          {exportError && (
+            <View className="mt-2 rounded-lg bg-red-500/10 px-3 py-2">
+              <Text className="text-sm text-danger">{exportError}</Text>
+            </View>
+          )}
         </View>
 
         {/* ─── JHA Detail ─── */}

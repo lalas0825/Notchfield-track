@@ -64,7 +64,8 @@
       ],
       "expo-secure-store",
       "expo-localization",
-      "@journeyapps/react-native-quick-sqlite"
+      "@journeyapps/react-native-quick-sqlite",
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true
