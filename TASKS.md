@@ -1,12 +1,13 @@
 # NotchField Track — TASKS_TRACK.md
-> Track native app task tracker | 105 tasks | Updated: 2026-03-31
+> Track native app task tracker | 105 tasks | Updated: 2026-04-01
 > 4 phases: T1 (start now) → T2 (after Takeoff 7B) → T3 (after Takeoff 9) → T4 (after Takeoff 10)
 > Same Supabase as Takeoff. Expo + PowerSync. Offline-first.
 > **Supabase project:** msmpsxalfalzinuorwlg (Notchfield Takeoff — shared)
 > **PowerSync:** 69c72137a112d86b20541618.powersync.journeyapps.com
 > **EAS Project:** 281ade7b-a5d9-4f43-9710-d270ae4c49f4 (@lalas825/notchfield-track)
-> **Repo:** https://github.com/lalas0825/Notchfield-track (25 commits)
-> **APK:** Installed on device. Login + Home + Docs + Plans + More working. Board + GPS + Signature need debug.
+> **Repo:** https://github.com/lalas0825/Notchfield-track (30 commits)
+> **APK:** Installed on device. Login + Home + Docs + Plans + More working.
+> **Takeoff:** UNBLOCKED — all Track ↔ Takeoff data loops closed.
 
 ---
 
