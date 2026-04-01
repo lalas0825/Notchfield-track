@@ -362,6 +362,20 @@ const production_block_logs = new TableV2({
   created_at: column.text,
 });
 
+const worker_certifications = new TableV2({
+  organization_id: column.text,
+  worker_id: column.text,
+  cert_type: column.text,
+  cert_number: column.text,
+  issued_at: column.text,
+  expires_at: column.text,
+  issuing_authority: column.text,
+  status: column.text, // 'active' | 'pending_renewal' | 'expired' | 'revoked'
+  document_url: column.text,
+  created_at: column.text,
+  updated_at: column.text,
+});
+
 // ============================================================
 // SCHEMA EXPORT
 // ============================================================
@@ -395,6 +409,7 @@ export const AppSchema = new Schema({
   field_messages,
   punch_items,
   production_block_logs,
+  worker_certifications,
 });
 
 export type Database = (typeof AppSchema)['types'];

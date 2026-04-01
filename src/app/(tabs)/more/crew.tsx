@@ -2,13 +2,16 @@ import { useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, View, ActivityIndicator } from 'react-native';
 import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuthStore } from '@/features/auth/store/auth-store';
 import { useCrew } from '@/features/crew/hooks/useCrew';
+import { useCertAlerts } from '@/features/crew/hooks/useCertAlerts';
 import { WorkerCard } from '@/features/crew/components/WorkerCard';
 import { AreaPicker } from '@/features/crew/components/AreaPicker';
 
 type Step = 'workers' | 'area';
 
 export default function CrewScreen() {
+  const { profile } = useAuthStore();
   const {
     workers,
     areas,
@@ -19,6 +22,7 @@ export default function CrewScreen() {
     getWorkerAssignment,
     getAreaWorkers,
   } = useCrew();
+  const { getCertSummary, hasExpiredCerts } = useCertAlerts(profile?.organization_id);
 
   const [step, setStep] = useState<Step>('workers');
   const [selectedWorkers, setSelectedWorkers] = useState<string[]>([]);
@@ -33,6 +37,39 @@ export default function CrewScreen() {
 
   const handleAssign = async () => {
     if (!selectedArea || selectedWorkers.length === 0) return;
+
+    // Check for expired certs
+    const expiredWorkers = selectedWorkers.filter((id) => hasExpiredCerts(id));
+    if (expiredWorkers.length > 0) {
+      const names = expiredWorkers
+        .map((id) => workers.find((w) => w.id === id)?.full_name ?? 'Unknown')
+        .join(', ');
+
+      return new Promise<void>((resolve) => {
+        Alert.alert(
+          'Expired Certifications',
+          `${names} ${expiredWorkers.length === 1 ? 'has' : 'have'} expired certifications. Assign anyway under your responsibility?`,
+          [
+            { text: 'Cancel', style: 'cancel', onPress: () => resolve() },
+            {
+              text: 'Assign Anyway',
+              style: 'destructive',
+              onPress: async () => {
+                setAssigning(true);
+                for (const workerId of selectedWorkers) {
+                  await assignWorker(workerId, selectedArea);
+                }
+                setAssigning(false);
+                setSelectedWorkers([]);
+                setSelectedArea(null);
+                setStep('workers');
+                resolve();
+              },
+            },
+          ],
+        );
+      });
+    }
 
     setAssigning(true);
     for (const workerId of selectedWorkers) {
@@ -125,6 +162,7 @@ export default function CrewScreen() {
               ) : (
                 workers.map((worker) => {
                   const assignment = getWorkerAssignment(worker.id);
+                  const certSummary = getCertSummary(worker.id);
                   return (
                     <WorkerCard
                       key={worker.id}
@@ -132,6 +170,7 @@ export default function CrewScreen() {
                       currentArea={assignment ? areaName(assignment.area_id) : null}
                       selected={selectedWorkers.includes(worker.id)}
                       onPress={() => toggleWorker(worker.id)}
+                      certStatus={certSummary?.worstStatus ?? null}
                     />
                   );
                 })

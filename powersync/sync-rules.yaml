@@ -45,3 +45,4 @@ bucket_definitions:
       - SELECT * FROM takeoff_objects WHERE organization_id = bucket.organization_id
       - SELECT * FROM master_production_targets WHERE organization_id = bucket.organization_id
       - SELECT * FROM production_block_logs WHERE organization_id = bucket.organization_id
+      - SELECT * FROM worker_certifications WHERE organization_id = bucket.organization_id
