@@ -203,8 +203,16 @@ function AreaRow({ area, onPress }: { area: ProductionArea; onPress: () => void 
       {/* Area info */}
       <View className="ml-3 flex-1">
         <View className="flex-row items-center">
+          {(area as any).area_code && (
+            <Text style={{ fontFamily: 'monospace', fontSize: 11, color: '#475569', backgroundColor: 'rgba(255,255,255,0.05)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginRight: 6, overflow: 'hidden' }}>
+              {(area as any).area_code}
+            </Text>
+          )}
           <Text className="text-base font-medium text-white">{area.name}</Text>
         </View>
+        {(area as any).description && (
+          <Text className="mt-0.5 text-xs text-slate-500" numberOfLines={1}>{(area as any).description}</Text>
+        )}
         {area.status === 'blocked' && area.blocked_reason && (
           <View className="mt-0.5 flex-row items-center">
             <Text className="text-sm text-danger">

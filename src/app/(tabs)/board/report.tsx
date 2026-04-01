@@ -145,7 +145,14 @@ export default function DailyReportScreen() {
                     >
                       {selected && <Ionicons name="checkmark" size={18} color="#FFFFFF" />}
                     </View>
-                    <Text className="ml-3 text-base font-medium text-white">{area.name}</Text>
+                    <View className="ml-3 flex-row items-center">
+                      {(area as any).area_code && (
+                        <Text style={{ fontFamily: 'monospace', fontSize: 10, color: '#475569', backgroundColor: 'rgba(255,255,255,0.05)', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 3, marginRight: 6 }}>
+                          {(area as any).area_code}
+                        </Text>
+                      )}
+                      <Text className="text-base font-medium text-white">{area.name}</Text>
+                    </View>
                   </Pressable>
                 );
               })}

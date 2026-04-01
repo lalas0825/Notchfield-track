@@ -28,7 +28,8 @@ bucket_definitions:
       - SELECT * FROM drawing_revisions WHERE organization_id = bucket.organization_id
       - SELECT * FROM production_area_objects WHERE organization_id = bucket.organization_id
       - SELECT * FROM production_phase_progress WHERE organization_id = bucket.organization_id
-      - SELECT * FROM production_areas WHERE organization_id = bucket.organization_id
+      - SELECT * FROM units WHERE organization_id = bucket.organization_id
+      - SELECT * FROM production_areas WHERE organization_id = bucket.organization_id AND (area_type = 'individual' OR area_type IS NULL)
       - SELECT * FROM drawing_sets WHERE organization_id = bucket.organization_id
       - SELECT * FROM drawings WHERE organization_id = bucket.organization_id
       - SELECT * FROM safety_documents WHERE organization_id = bucket.organization_id

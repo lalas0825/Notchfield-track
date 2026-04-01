@@ -53,7 +53,17 @@ export function AreaDetail({
       <View className="mb-4 rounded-2xl border border-border bg-card p-4">
         <View className="flex-row items-start justify-between">
           <View>
-            <Text className="text-xl font-bold text-white">{area.name}</Text>
+            <View className="flex-row items-center">
+              {(area as any).area_code && (
+                <Text style={{ fontFamily: 'monospace', fontSize: 13, color: '#60A5FA', backgroundColor: 'rgba(96,165,250,0.1)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, marginRight: 8, overflow: 'hidden' }}>
+                  {(area as any).area_code}
+                </Text>
+              )}
+              <Text className="text-xl font-bold text-white">{area.name}</Text>
+            </View>
+            {(area as any).description && (
+              <Text className="mt-1 text-sm text-slate-500">{(area as any).description}</Text>
+            )}
             <Text className="mt-0.5 text-sm text-slate-400">
               {area.floor ?? ''} {area.zone ? `· ${area.zone}` : ''}
             </Text>

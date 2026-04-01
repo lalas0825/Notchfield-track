@@ -63,6 +63,11 @@ const production_areas = new TableV2({
   status: column.text,
   classification_id: column.text,
   notes: column.text,
+  unit_id: column.text,
+  area_code: column.text,
+  description: column.text,
+  area_type: column.text, // 'individual' | 'group' | 'group_exploded'
+  parent_group_id: column.text,
   started_at: column.text,
   completed_at: column.text,
   created_by: column.text,
@@ -78,6 +83,8 @@ const production_area_objects = new TableV2({
   area_id: column.text,
   takeoff_object_id: column.text,
   organization_id: column.text,
+  material_code: column.text,
+  quantity_sf: column.real,
   created_at: column.text,
 });
 
@@ -214,6 +221,16 @@ const drawing_revisions = new TableV2({
   issued_at: column.text,
   description: column.text,
   uploaded_by: column.text,
+  created_at: column.text,
+});
+
+const units = new TableV2({
+  organization_id: column.text,
+  project_id: column.text,
+  floor: column.text,
+  name: column.text,
+  unit_type: column.text,
+  sort_order: column.integer,
   created_at: column.text,
 });
 
@@ -434,6 +451,7 @@ export const AppSchema = new Schema({
   projects,
   organizations,
   profiles,
+  units,
   production_areas,
   production_area_objects,
   production_templates,
@@ -468,6 +486,7 @@ export const AppSchema = new Schema({
 export type Database = (typeof AppSchema)['types'];
 export type ProjectRecord = Database['projects'];
 export type ProfileRecord = Database['profiles'];
+export type UnitRecord = Database['units'];
 export type ProductionAreaRecord = Database['production_areas'];
 export type PhaseProgressRecord = Database['production_phase_progress'];
 export type TemplatePhaseRecord = Database['production_template_phases'];
