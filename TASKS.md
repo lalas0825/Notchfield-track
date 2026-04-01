@@ -14,7 +14,7 @@
 
 | Phase | What | Tasks | Depends On | Status |
 |-------|------|-------|-----------|--------|
-| **T1 — Foundation + Safety + GPS + Time Tracking + Plans** | Auth, navigation, GPS, safety, work tickets, crew, time entries, drawing viewer | **43** | Nothing (tables exist) | ✅ OPERATIONAL (39/43) |
+| **T1 — Foundation + Safety + GPS + Time Tracking + Plans** | Auth, navigation, GPS, safety, work tickets, crew, time entries, drawing viewer | **43** | Nothing (tables exist) | ✅ OPERATIONAL (40/43) |
 | **T2 — Production + Ready Board + Legal + Punch List + AI Agent** | Daily report, checkboxes, Ready Board, gates, NOD/REA, punch list, AI agent + voice | **38** | Takeoff Fase 7B | ✅ S1-S3 DONE (AI Agent deferred post-launch) |
 | **T3 — Delivery + Material Flow** | Delivery confirmation, supervisor tracker, material consumption | **10** | Takeoff Fase 9 | ⬜ After Fase 9 |
 | **T4 — Polish + App Store** | Role enforcement, push, performance, store submission | **10** | Takeoff Fase 10 | ⬜ After Fase 10 |
@@ -68,7 +68,7 @@ All 5 bugs are fixed in code (commit 79b592a). Need EAS dev-client build to veri
 - [x] TT1.20 Safety doc list — grouped by type, status badges, FAB create button
 - [x] TT1.21 Signature collection — SignaturePad (react-native-signature-canvas), base64 capture
 - [x] TT1.22 QR signature — document_signoffs table exists with token field (web route pending)
-- [ ] TT1.23 Cert tracking — ⬜ deferred (nice-to-have, not blocking)
+- [x] TT1.23 Cert tracking — worker_certifications table, useCertAlerts hook, cert dots on WorkerCard, assignment validation Alert
 
 ### Work Tickets
 - [x] TT1.24 Create work ticket — TicketForm with camera, crew auto-fill from crew-store
