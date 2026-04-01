@@ -376,6 +376,55 @@ const worker_certifications = new TableV2({
   updated_at: column.text,
 });
 
+// T3 — Delivery tables
+const delivery_tickets = new TableV2({
+  organization_id: column.text,
+  project_id: column.text,
+  supplier_name: column.text,
+  supplier_po: column.text,
+  status: column.text, // 'pending' | 'in_transit' | 'delivered' | 'partial' | 'rejected' | 'consumed'
+  delivery_date: column.text,
+  received_at: column.text,
+  received_by: column.text,
+  ticket_photo_url: column.text,
+  notes: column.text,
+  created_by: column.text,
+  created_at: column.text,
+  updated_at: column.text,
+});
+
+const delivery_ticket_items = new TableV2({
+  organization_id: column.text,
+  ticket_id: column.text,
+  area_id: column.text,
+  material_name: column.text,
+  material_code: column.text,
+  quantity_ordered: column.real,
+  quantity_received: column.real,
+  unit: column.text,
+  receipt_status: column.text, // 'pending' | 'received' | 'short' | 'damaged' | 'rejected'
+  receipt_notes: column.text,
+  receipt_photos: column.text, // ARRAY as text
+  created_at: column.text,
+  updated_at: column.text,
+});
+
+const material_consumption = new TableV2({
+  organization_id: column.text,
+  project_id: column.text,
+  area_id: column.text,
+  material_name: column.text,
+  material_code: column.text,
+  unit: column.text,
+  target_qty: column.real,
+  delivered_qty: column.real,
+  installed_qty: column.real,
+  surplus_qty: column.real,
+  waste_pct: column.real,
+  created_at: column.text,
+  updated_at: column.text,
+});
+
 // ============================================================
 // SCHEMA EXPORT
 // ============================================================
@@ -410,6 +459,10 @@ export const AppSchema = new Schema({
   punch_items,
   production_block_logs,
   worker_certifications,
+  // Track-owned tables (T3)
+  delivery_tickets,
+  delivery_ticket_items,
+  material_consumption,
 });
 
 export type Database = (typeof AppSchema)['types'];

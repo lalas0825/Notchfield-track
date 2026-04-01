@@ -1,0 +1,278 @@
+import { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import { useAuthStore } from '@/features/auth/store/auth-store';
+import {
+  fetchDeliveryItems,
+  confirmItem,
+  confirmAllItems,
+  finalizeTicket,
+  updateDeliveredQty,
+  type DeliveryItem,
+} from '@/features/delivery/services/delivery-service';
+import { useProjectStore } from '@/features/projects/store/project-store';
+
+const STATUS_BUTTONS: { value: 'received' | 'short' | 'damaged' | 'rejected'; label: string; color: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { value: 'received', label: 'Received', color: '#22C55E', icon: 'checkmark-circle' },
+  { value: 'short', label: 'Short', color: '#F59E0B', icon: 'remove-circle' },
+  { value: 'damaged', label: 'Damaged', color: '#F97316', icon: 'alert-circle' },
+  { value: 'rejected', label: 'Rejected', color: '#EF4444', icon: 'close-circle' },
+];
+
+export default function DeliveryDetailScreen() {
+  const { id: ticketId } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
+  const { user, profile } = useAuthStore();
+  const { activeProject } = useProjectStore();
+  const [items, setItems] = useState<DeliveryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [activeItemId, setActiveItemId] = useState<string | null>(null);
+  const [qtyInput, setQtyInput] = useState('');
+  const [notesInput, setNotesInput] = useState('');
+
+  useEffect(() => {
+    async function load() {
+      const data = await fetchDeliveryItems(ticketId);
+      setItems(data);
+      setLoading(false);
+    }
+    load();
+  }, [ticketId]);
+
+  const pendingCount = items.filter((i) => i.receipt_status === 'pending').length;
+  const allConfirmed = pendingCount === 0 && items.length > 0;
+
+  const handleConfirmItem = async (itemId: string, status: 'received' | 'short' | 'damaged' | 'rejected') => {
+    const item = items.find((i) => i.id === itemId);
+    if (!item) return;
+
+    const qty = status === 'received'
+      ? item.quantity_ordered
+      : qtyInput ? parseFloat(qtyInput) : 0;
+
+    // Over-consumption warning
+    if (qty > item.quantity_ordered) {
+      Alert.alert(
+        'Over-delivery',
+        `Receiving ${qty} but only ${item.quantity_ordered} ordered. Continue?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Continue', onPress: () => doConfirm(itemId, status, qty) },
+        ],
+      );
+      return;
+    }
+
+    await doConfirm(itemId, status, qty);
+  };
+
+  const doConfirm = async (itemId: string, status: 'received' | 'short' | 'damaged' | 'rejected', qty: number) => {
+    setSaving(true);
+    await confirmItem(itemId, status, qty, notesInput || undefined);
+
+    // Update material_consumption if received and has area
+    const item = items.find((i) => i.id === itemId);
+    if (item && (status === 'received' || status === 'short') && item.area_id && profile && activeProject) {
+      await updateDeliveredQty({
+        organizationId: profile.organization_id,
+        projectId: activeProject.id,
+        areaId: item.area_id,
+        materialName: item.material_name,
+        materialCode: item.material_code,
+        unit: item.unit,
+        deliveredQty: qty,
+      });
+    }
+
+    // Refresh items
+    const updated = await fetchDeliveryItems(ticketId);
+    setItems(updated);
+    setActiveItemId(null);
+    setQtyInput('');
+    setNotesInput('');
+    setSaving(false);
+  };
+
+  const handleConfirmAll = async () => {
+    setSaving(true);
+    await confirmAllItems(ticketId);
+
+    // Update material_consumption for all items
+    for (const item of items.filter((i) => i.receipt_status === 'pending')) {
+      if (item.area_id && profile && activeProject) {
+        await updateDeliveredQty({
+          organizationId: profile.organization_id,
+          projectId: activeProject.id,
+          areaId: item.area_id,
+          materialName: item.material_name,
+          materialCode: item.material_code,
+          unit: item.unit,
+          deliveredQty: item.quantity_ordered,
+        });
+      }
+    }
+
+    const updated = await fetchDeliveryItems(ticketId);
+    setItems(updated);
+    setSaving(false);
+  };
+
+  const handleFinalize = async () => {
+    if (!user) return;
+    setSaving(true);
+    await finalizeTicket(ticketId, user.id);
+    setSaving(false);
+    router.back();
+  };
+
+  if (loading) {
+    return (
+      <View className="flex-1 items-center justify-center bg-background">
+        <ActivityIndicator size="large" color="#F97316" />
+      </View>
+    );
+  }
+
+  return (
+    <>
+      <Stack.Screen options={{ title: 'Delivery Confirmation' }} />
+      <View className="flex-1 bg-background">
+        <ScrollView className="flex-1 px-4 pt-4">
+          {/* Summary */}
+          <View className="mb-4 flex-row items-center justify-between rounded-xl border border-border bg-card px-4 py-3">
+            <Text className="text-base text-white">{items.length} items</Text>
+            <Text className="text-base font-bold" style={{ color: pendingCount > 0 ? '#F59E0B' : '#22C55E' }}>
+              {pendingCount > 0 ? `${pendingCount} pending` : 'All confirmed'}
+            </Text>
+          </View>
+
+          {/* Confirm All button */}
+          {pendingCount > 0 && (
+            <Pressable
+              onPress={handleConfirmAll}
+              disabled={saving}
+              className="mb-4 h-14 flex-row items-center justify-center rounded-xl bg-success active:opacity-80"
+            >
+              <Ionicons name="checkmark-done" size={22} color="#FFFFFF" />
+              <Text className="ml-2 text-lg font-bold text-white">Confirm All ({pendingCount})</Text>
+            </Pressable>
+          )}
+
+          {/* Item list */}
+          {items.map((item) => {
+            const confirmed = item.receipt_status !== 'pending';
+            const isActive = activeItemId === item.id;
+            const statusColor = confirmed
+              ? item.receipt_status === 'received' ? '#22C55E'
+              : item.receipt_status === 'short' ? '#F59E0B'
+              : item.receipt_status === 'damaged' ? '#F97316'
+              : '#EF4444'
+              : '#64748B';
+
+            return (
+              <View key={item.id} className="mb-2 rounded-xl border border-border bg-card">
+                <Pressable
+                  onPress={() => !confirmed && setActiveItemId(isActive ? null : item.id)}
+                  className="flex-row items-center px-4 py-3 active:opacity-80"
+                >
+                  <View className="flex-1">
+                    <Text className="text-base font-medium text-white">{item.material_name}</Text>
+                    <Text className="mt-0.5 text-sm text-slate-400">
+                      {item.quantity_ordered} {item.unit}
+                      {item.material_code ? ` · ${item.material_code}` : ''}
+                    </Text>
+                  </View>
+                  <View className="flex-row items-center">
+                    {confirmed && item.quantity_received !== null && (
+                      <Text className="mr-2 text-sm font-bold" style={{ color: statusColor }}>
+                        {item.quantity_received} {item.unit}
+                      </Text>
+                    )}
+                    <View className="rounded-full px-2 py-0.5" style={{ backgroundColor: `${statusColor}20` }}>
+                      <Text className="text-xs font-bold capitalize" style={{ color: statusColor }}>
+                        {item.receipt_status}
+                      </Text>
+                    </View>
+                  </View>
+                </Pressable>
+
+                {/* Expanded confirmation panel */}
+                {isActive && !confirmed && (
+                  <View className="border-t border-border px-4 py-3">
+                    {/* Quantity input (for short/damaged) */}
+                    <View className="mb-3 flex-row items-center">
+                      <Text className="mr-2 text-sm text-slate-400">Qty received:</Text>
+                      <TextInput
+                        value={qtyInput || String(item.quantity_ordered)}
+                        onChangeText={setQtyInput}
+                        keyboardType="numeric"
+                        className="h-10 w-24 rounded-lg border border-border bg-background px-3 text-center text-base text-white"
+                      />
+                      <Text className="ml-2 text-sm text-slate-500">{item.unit}</Text>
+                    </View>
+
+                    {/* Notes */}
+                    <TextInput
+                      value={notesInput}
+                      onChangeText={setNotesInput}
+                      placeholder="Notes (optional)"
+                      placeholderTextColor="#64748B"
+                      className="mb-3 h-10 rounded-lg border border-border bg-background px-3 text-sm text-white"
+                    />
+
+                    {/* Status buttons */}
+                    <View className="flex-row gap-2">
+                      {STATUS_BUTTONS.map((btn) => (
+                        <Pressable
+                          key={btn.value}
+                          onPress={() => handleConfirmItem(item.id, btn.value)}
+                          disabled={saving}
+                          className="flex-1 items-center rounded-lg py-2 active:opacity-80"
+                          style={{ backgroundColor: `${btn.color}20` }}
+                        >
+                          <Ionicons name={btn.icon} size={18} color={btn.color} />
+                          <Text className="mt-0.5 text-[10px] font-bold" style={{ color: btn.color }}>
+                            {btn.label}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </View>
+                )}
+              </View>
+            );
+          })}
+
+          <View className="h-32" />
+        </ScrollView>
+
+        {/* Finalize button */}
+        {allConfirmed && (
+          <View className="border-t border-border bg-card px-4 pb-8 pt-3">
+            <Pressable
+              onPress={handleFinalize}
+              disabled={saving}
+              className="h-14 flex-row items-center justify-center rounded-xl bg-brand-orange active:opacity-80"
+            >
+              <Ionicons name="checkmark-done-circle" size={22} color="#FFFFFF" />
+              <Text className="ml-2 text-lg font-bold text-white">
+                {saving ? 'Finalizing...' : 'Finalize Delivery'}
+              </Text>
+            </Pressable>
+          </View>
+        )}
+      </View>
+    </>
+  );
+}

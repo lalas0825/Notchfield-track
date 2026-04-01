@@ -32,6 +32,13 @@ export default function MoreScreen() {
       color: '#3B82F6',
     },
     {
+      icon: 'cube',
+      label: 'Deliveries',
+      subtitle: 'Confirm material deliveries',
+      route: '/(tabs)/more/delivery',
+      color: '#8B5CF6',
+    },
+    {
       icon: 'settings',
       label: 'Settings',
       subtitle: 'Language, notifications, profile',
