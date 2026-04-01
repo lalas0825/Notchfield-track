@@ -1,11 +1,12 @@
 # NotchField Track — TASKS_TRACK.md
-> Track native app task tracker | 105 tasks | Updated: 2026-03-28
+> Track native app task tracker | 105 tasks | Updated: 2026-03-31
 > 4 phases: T1 (start now) → T2 (after Takeoff 7B) → T3 (after Takeoff 9) → T4 (after Takeoff 10)
 > Same Supabase as Takeoff. Expo + PowerSync. Offline-first.
 > **Supabase project:** msmpsxalfalzinuorwlg (Notchfield Takeoff — shared)
 > **PowerSync:** 69c72137a112d86b20541618.powersync.journeyapps.com
 > **EAS Project:** 281ade7b-a5d9-4f43-9710-d270ae4c49f4 (@lalas825/notchfield-track)
-> **Repo:** https://github.com/lalas0825/Notchfield-track (13 commits)
+> **Repo:** https://github.com/lalas0825/Notchfield-track (25 commits)
+> **APK:** Installed on device. Login + Home + Docs + Plans + More working. Board + GPS + Signature need debug.
 
 ---
 
@@ -14,11 +15,25 @@
 | Phase | What | Tasks | Depends On | Status |
 |-------|------|-------|-----------|--------|
 | **T1 — Foundation + Safety + GPS + Time Tracking + Plans** | Auth, navigation, GPS, safety, work tickets, crew, time entries, drawing viewer | **43** | Nothing (tables exist) | ✅ OPERATIONAL (39/43) |
-| **T2 — Production + Ready Board + Legal + Punch List + AI Agent** | Daily report, checkboxes, Ready Board, gates, NOD/REA, punch list, AI agent + voice | **38** | Takeoff Fase 7B | 🟡 S1-S3 DONE (AI Agent deferred) |
+| **T2 — Production + Ready Board + Legal + Punch List + AI Agent** | Daily report, checkboxes, Ready Board, gates, NOD/REA, punch list, AI agent + voice | **38** | Takeoff Fase 7B | ✅ S1-S3 DONE (AI Agent deferred post-launch) |
 | **T3 — Delivery + Material Flow** | Delivery confirmation, supervisor tracker, material consumption | **10** | Takeoff Fase 9 | ⬜ After Fase 9 |
 | **T4 — Polish + App Store** | Role enforcement, push, performance, store submission | **10** | Takeoff Fase 10 | ⬜ After Fase 10 |
-| **EAS Build** | APK testing on real device | — | — | 🟡 Build #2 (fix: quick-sqlite dep) |
+| **Audit** | 65-check audit (AUDIT_TRACK.md) | 65 | — | ✅ B- grade, 11 FAILs fixed |
+| **EAS Build** | APK on device testing | — | — | 🟡 ~7 builds. Awaiting dev-client build |
+| **Seed Data** | Real production data in Supabase | — | — | ✅ 6 areas, 5 workers, template, geofence |
 | **TOTAL** | | **105** | | |
+
+### 🐛 Known Device Bugs (need dev-client build to debug)
+
+| Bug | Severity | Root Cause | Fix Status |
+|-----|----------|-----------|------------|
+| GPS screen crash | P0 | Google Maps API key missing → fallback to text | ✅ Fixed in code, needs build |
+| Signature pad dots only | P1 | ScrollView steals touch from WebView canvas | ✅ Fixed in code, needs build |
+| Tickets don't sync to Supabase | P1 | Serial `number` column + JSONB serialization | ✅ Fixed in connector, needs build |
+| Status values mismatch | P0 | `'complete'` vs `'completed'` in Postgres CHECK | ✅ Fixed in code |
+| Blocked reasons mismatch | P1 | `'material'` vs `'material_not_delivered'` | ✅ Fixed in code |
+
+All 5 bugs are fixed in code (commit 79b592a). Need EAS dev-client build to verify on device.
 
 ---
 
