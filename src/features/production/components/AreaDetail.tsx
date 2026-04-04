@@ -21,6 +21,7 @@ type Props = {
   onPhaseComplete: (progressId: string) => Promise<void>;
   onTakePhoto: () => void;
   timeHours: number | null;
+  renderBeforePhases?: React.ReactNode;
 };
 
 export function AreaDetail({
@@ -31,6 +32,7 @@ export function AreaDetail({
   onPhaseComplete,
   onTakePhoto,
   timeHours,
+  renderBeforePhases,
 }: Props) {
   const [showBlockReasons, setShowBlockReasons] = useState(false);
 
@@ -96,7 +98,10 @@ export function AreaDetail({
         )}
       </View>
 
-      {/* Phase list */}
+      {/* New sqft-weighted phase checklist (Sprint 23) */}
+      {renderBeforePhases}
+
+      {/* Legacy phase list (from production_phase_progress) */}
       {orderedPhases.length > 0 && (
         <View className="mb-4">
           <Text className="mb-2 text-sm font-bold uppercase text-slate-400">Phases</Text>

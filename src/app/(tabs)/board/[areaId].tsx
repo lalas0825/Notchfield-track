@@ -6,6 +6,7 @@ import { useAuthStore } from '@/features/auth/store/auth-store';
 import { useProjectStore } from '@/features/projects/store/project-store';
 import { useCrewStore } from '@/features/crew/store/crew-store';
 import { AreaDetail } from '@/features/production/components/AreaDetail';
+import { PhaseChecklist } from '@/features/production/components/PhaseChecklist';
 import { enqueuePhoto } from '@/features/photos/services/photo-queue';
 
 export default function AreaDetailScreen() {
@@ -85,6 +86,13 @@ export default function AreaDetailScreen() {
         onPhaseComplete={handlePhaseComplete}
         onTakePhoto={handleTakePhoto}
         timeHours={areaTimeToday > 0 ? areaTimeToday : null}
+        renderBeforePhases={
+          <PhaseChecklist
+            areaId={area.id}
+            templateId={area.template_id}
+            userId={user?.id ?? ''}
+          />
+        }
       />
     </>
   );
