@@ -68,6 +68,10 @@ const production_areas = new TableV2({
   description: column.text,
   area_type: column.text, // 'individual' | 'group' | 'group_exploded'
   parent_group_id: column.text,
+  room_type_id: column.text,
+  acceptance_status: column.text,
+  start_date: column.text,
+  target_end_date: column.text,
   started_at: column.text,
   completed_at: column.text,
   created_by: column.text,
@@ -109,6 +113,9 @@ const production_template_phases = new TableV2({
   depends_on_phase: column.integer,
   setting_material: column.text,
   setting_coverage: column.real,
+  applies_to_surface_types: column.text, // JSON string array
+  is_binary: column.integer, // boolean
+  binary_weight: column.real,
   created_at: column.text,
   updated_at: column.text,
 });
@@ -442,6 +449,48 @@ const material_consumption = new TableV2({
   updated_at: column.text,
 });
 
+// Sprint 23 — Room types + phase progress
+const room_types = new TableV2({
+  organization_id: column.text,
+  project_id: column.text,
+  name: column.text,
+  description: column.text,
+  template_id: column.text,
+  created_at: column.text,
+  updated_at: column.text,
+});
+
+const room_type_surfaces = new TableV2({
+  room_type_id: column.text,
+  organization_id: column.text,
+  name: column.text,
+  surface_type: column.text,
+  material_code: column.text,
+  material_name: column.text,
+  default_qty: column.real,
+  unit: column.text,
+  sort_order: column.integer,
+  created_at: column.text,
+});
+
+const phase_progress = new TableV2({
+  organization_id: column.text,
+  project_id: column.text,
+  area_id: column.text,
+  phase_id: column.text,
+  status: column.text, // 'not_started' | 'in_progress' | 'blocked' | 'complete' | 'skipped'
+  target_sf: column.real,
+  completed_sf: column.real,
+  started_at: column.text,
+  completed_at: column.text,
+  blocked_reason: column.text,
+  verified_at: column.text,
+  verified_by: column.text,
+  completed_by: column.text,
+  created_at: column.text,
+  updated_at: column.text,
+});
+
 // ============================================================
 // SCHEMA EXPORT
 // ============================================================
@@ -477,6 +526,10 @@ export const AppSchema = new Schema({
   punch_items,
   production_block_logs,
   worker_certifications,
+  // Sprint 23 tables
+  room_types,
+  room_type_surfaces,
+  phase_progress,
   // Track-owned tables (T3)
   delivery_tickets,
   delivery_ticket_items,
