@@ -64,6 +64,7 @@ export default function AreaDetailScreen() {
       organizationId: profile.organization_id,
       projectId: activeProject.id,
       areaId: area.id,
+      phaseId: null, // general area photo — not linked to a specific phase
       contextType: 'progress',
       takenBy: user!.id,
     });

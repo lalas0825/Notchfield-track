@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Alert, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
 import { supabase } from '@/shared/lib/supabase/client';
+import { useAuthStore } from '@/features/auth/store/auth-store';
+import { useProjectStore } from '@/features/projects/store/project-store';
+import { enqueuePhoto } from '@/features/photos/services/photo-queue';
+import { haptic } from '@/shared/lib/haptics';
 import { PhaseRow } from './PhaseRow';
 import { PhaseUpdateSheet } from './PhaseUpdateSheet';
 import {
@@ -20,6 +26,11 @@ export function PhaseChecklist({ areaId, templateId, userId }: Props) {
   const [phases, setPhases] = useState<PhaseProgressRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPhase, setSelectedPhase] = useState<PhaseProgressRow | null>(null);
+  // Map of phase_id → photo count
+  const [photoCounts, setPhotoCounts] = useState<Record<string, number>>({});
+
+  const { user, profile } = useAuthStore();
+  const { activeProject } = useProjectStore();
 
   const loadPhases = useCallback(async () => {
     if (!areaId) return;
@@ -69,9 +80,82 @@ export function PhaseChecklist({ areaId, templateId, userId }: Props) {
     setLoading(false);
   }, [areaId]);
 
+  /** Load photo counts per phase for this area */
+  const loadPhotoCounts = useCallback(async () => {
+    if (!areaId) return;
+
+    const { data } = await supabase
+      .from('field_photos')
+      .select('phase_id')
+      .eq('area_id', areaId)
+      .not('phase_id', 'is', null);
+
+    if (!data) return;
+
+    const counts: Record<string, number> = {};
+    for (const row of data as any[]) {
+      if (row.phase_id) {
+        counts[row.phase_id] = (counts[row.phase_id] ?? 0) + 1;
+      }
+    }
+    setPhotoCounts(counts);
+  }, [areaId]);
+
   useEffect(() => {
     loadPhases();
-  }, [loadPhases]);
+    loadPhotoCounts();
+  }, [loadPhases, loadPhotoCounts]);
+
+  /** Handle camera tap from a specific phase row */
+  const handlePhasePhoto = useCallback(
+    async (phase: PhaseProgressRow) => {
+      if (!user || !profile || !activeProject) return;
+
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Camera access is required to take photos.');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
+      if (result.canceled || !result.assets[0]) return;
+
+      // Try to get GPS — non-blocking
+      let gpsLat: number | undefined;
+      let gpsLng: number | undefined;
+      try {
+        const { status: locStatus } = await Location.requestForegroundPermissionsAsync();
+        if (locStatus === 'granted') {
+          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+          gpsLat = loc.coords.latitude;
+          gpsLng = loc.coords.longitude;
+        }
+      } catch {
+        // GPS is best-effort — continue without it
+      }
+
+      await enqueuePhoto({
+        sourceUri: result.assets[0].uri,
+        organizationId: profile.organization_id,
+        projectId: activeProject.id,
+        areaId,
+        phaseId: phase.id,
+        contextType: 'progress',
+        takenBy: user.id,
+        gpsLat,
+        gpsLng,
+      });
+
+      haptic.success();
+
+      // Refresh counts inline
+      setPhotoCounts((prev) => ({
+        ...prev,
+        [phase.id]: (prev[phase.id] ?? 0) + 1,
+      }));
+    },
+    [user, profile, activeProject, areaId],
+  );
 
   if (loading) return null;
 
@@ -120,6 +204,8 @@ export function PhaseChecklist({ areaId, templateId, userId }: Props) {
           phase={phase}
           isLocked={isPhaseLockedFn(phase, phases)}
           onPress={() => setSelectedPhase(phase)}
+          onTakePhoto={() => handlePhasePhoto(phase)}
+          photoCount={photoCounts[phase.id] ?? 0}
         />
       ))}
 

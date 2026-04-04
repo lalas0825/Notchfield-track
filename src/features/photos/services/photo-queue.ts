@@ -36,6 +36,7 @@ export async function enqueuePhoto(params: {
   organizationId: string;
   projectId: string;
   areaId?: string;
+  phaseId?: string | null;
   contextType: string;
   caption?: string;
   takenBy: string;
@@ -67,6 +68,7 @@ export async function enqueuePhoto(params: {
     organization_id: params.organizationId,
     project_id: params.projectId,
     area_id: params.areaId ?? null,
+    phase_id: params.phaseId ?? null,
     context_type: params.contextType,
     caption: params.caption ?? null,
     local_uri: localUri,

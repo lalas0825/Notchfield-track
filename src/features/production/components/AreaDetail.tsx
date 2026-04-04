@@ -19,6 +19,7 @@ type Props = {
   templatePhases: TemplatePhase[];
   onMarkStatus: (status: string, blockedReason?: string) => Promise<void>;
   onPhaseComplete: (progressId: string) => Promise<void>;
+  /** Area-level camera — enqueues photo with phase_id = null */
   onTakePhoto: () => void;
   timeHours: number | null;
   renderBeforePhases?: React.ReactNode;

@@ -1,5 +1,6 @@
 import { Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { haptic } from '@/shared/lib/haptics';
 import type { PhaseProgressRow } from '../utils/progressCalculation';
 
 const STATUS_ICONS: Record<string, { icon: keyof typeof Ionicons.glyphMap; color: string }> = {
@@ -14,9 +15,19 @@ type Props = {
   phase: PhaseProgressRow;
   isLocked: boolean;
   onPress: () => void;
+  onTakePhoto?: () => void;
+  photoCount?: number;
+  onViewPhotos?: () => void;
 };
 
-export function PhaseRow({ phase, isLocked, onPress }: Props) {
+export function PhaseRow({
+  phase,
+  isLocked,
+  onPress,
+  onTakePhoto,
+  photoCount = 0,
+  onViewPhotos,
+}: Props) {
   const statusConfig = isLocked
     ? { icon: 'lock-closed' as const, color: '#6B7280' }
     : STATUS_ICONS[phase.status] ?? STATUS_ICONS.not_started;
@@ -24,6 +35,20 @@ export function PhaseRow({ phase, isLocked, onPress }: Props) {
   const isBinary = phase.is_binary;
   const isGate = phase.requires_inspection;
   const tappable = !isLocked && phase.status !== 'complete' && phase.status !== 'skipped';
+
+  // Camera visible only for in_progress or complete phases
+  const showCamera = !isLocked &&
+    (phase.status === 'in_progress' || phase.status === 'complete');
+
+  const handleCameraTap = () => {
+    haptic.light();
+    onTakePhoto?.();
+  };
+
+  const handleBadgeTap = () => {
+    haptic.light();
+    onViewPhotos?.();
+  };
 
   return (
     <Pressable
@@ -78,9 +103,60 @@ export function PhaseRow({ phase, isLocked, onPress }: Props) {
         )}
       </View>
 
+      {/* Camera icon + photo count badge */}
+      {showCamera && (
+        <View className="flex-row items-center ml-2">
+          {/* Photo count badge — tap to view gallery */}
+          {photoCount > 0 && (
+            <Pressable
+              onPress={handleBadgeTap}
+              hitSlop={8}
+              accessibilityLabel={`${photoCount} photos for this phase. Tap to view.`}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: '#F97316',
+                borderRadius: 12,
+                paddingHorizontal: 6,
+                paddingVertical: 2,
+                marginRight: 6,
+              }}
+            >
+              <Ionicons name="camera" size={11} color="#fff" />
+              <Text
+                style={{
+                  color: '#fff',
+                  fontSize: 11,
+                  fontWeight: '700',
+                  marginLeft: 3,
+                }}
+              >
+                {photoCount}
+              </Text>
+            </Pressable>
+          )}
+
+          {/* Camera tap button */}
+          <Pressable
+            onPress={handleCameraTap}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Take photo for this phase"
+            style={{
+              width: 32,
+              height: 32,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Ionicons name="camera-outline" size={20} color="#94A3B8" />
+          </Pressable>
+        </View>
+      )}
+
       {/* Tap indicator for tappable rows */}
       {tappable && (
-        <Ionicons name="chevron-forward" size={16} color="#475569" style={{ marginLeft: 8 }} />
+        <Ionicons name="chevron-forward" size={16} color="#475569" style={{ marginLeft: 4 }} />
       )}
     </Pressable>
   );
