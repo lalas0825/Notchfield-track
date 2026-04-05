@@ -72,3 +72,56 @@ export function isPhaseLockedFn(
 
   return false;
 }
+
+// ─── Surface-level progress (sqft-weighted) ───────────────
+
+export interface SurfaceRow {
+  id: string;
+  status?: string;
+  quantity_sf?: number | null;
+  unit?: string | null;
+}
+
+/**
+ * Calculate surface progress using sqft-weighted formula.
+ * A 1,280 SF wall counts more than a 6 SF saddle.
+ * PCS/EA items without sqft get a fixed weight of 20.
+ */
+export function calculateSurfaceProgress(surfaces: SurfaceRow[]): number {
+  let totalSf = 0;
+  let completedSf = 0;
+
+  for (const s of surfaces) {
+    const sf = s.quantity_sf ?? 0;
+    if (sf > 0) {
+      totalSf += sf;
+      if (s.status === 'completed' || s.status === 'complete') {
+        completedSf += sf;
+      }
+    }
+  }
+
+  // PCS/EA items without sqft get fixed weight
+  const pcsItems = surfaces.filter((s) => !s.quantity_sf || s.quantity_sf <= 0);
+  if (pcsItems.length > 0) {
+    const PCS_WEIGHT = 20;
+    totalSf += pcsItems.length * PCS_WEIGHT;
+    completedSf += pcsItems.filter((s) => s.status === 'completed' || s.status === 'complete').length * PCS_WEIGHT;
+  }
+
+  return totalSf > 0 ? completedSf / totalSf : 0;
+}
+
+/**
+ * Combined area progress: prefer phases, fallback to surfaces.
+ * Returns 0-1 ratio.
+ */
+export function calculateAreaProgress(
+  phases: PhaseProgressRow[],
+  surfaces: SurfaceRow[],
+): number {
+  if (phases.length > 0) {
+    return calculateProgress(phases);
+  }
+  return calculateSurfaceProgress(surfaces);
+}

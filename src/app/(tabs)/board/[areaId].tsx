@@ -7,6 +7,8 @@ import { useProjectStore } from '@/features/projects/store/project-store';
 import { useCrewStore } from '@/features/crew/store/crew-store';
 import { AreaDetail } from '@/features/production/components/AreaDetail';
 import { PhaseChecklist } from '@/features/production/components/PhaseChecklist';
+import { SurfaceChecklist } from '@/features/production/components/SurfaceChecklist';
+import { PhotoGallery } from '@/features/production/components/PhotoGallery';
 import { enqueuePhoto } from '@/features/photos/services/photo-queue';
 
 export default function AreaDetailScreen() {
@@ -93,6 +95,12 @@ export default function AreaDetailScreen() {
             templateId={area.template_id}
             userId={user?.id ?? ''}
           />
+        }
+        renderAfterPhases={
+          <SurfaceChecklist areaId={area.id} />
+        }
+        renderPhotoGallery={
+          <PhotoGallery areaId={area.id} />
         }
       />
     </>

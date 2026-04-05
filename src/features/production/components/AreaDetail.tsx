@@ -23,6 +23,8 @@ type Props = {
   onTakePhoto: () => void;
   timeHours: number | null;
   renderBeforePhases?: React.ReactNode;
+  renderAfterPhases?: React.ReactNode;
+  renderPhotoGallery?: React.ReactNode;
 };
 
 export function AreaDetail({
@@ -34,6 +36,8 @@ export function AreaDetail({
   onTakePhoto,
   timeHours,
   renderBeforePhases,
+  renderAfterPhases,
+  renderPhotoGallery,
 }: Props) {
   const [showBlockReasons, setShowBlockReasons] = useState(false);
 
@@ -173,6 +177,12 @@ export function AreaDetail({
           })}
         </View>
       )}
+
+      {/* Surface checklist (with camera icons per surface) */}
+      {renderAfterPhases}
+
+      {/* Photo gallery (rendered via renderPhotoGallery prop) */}
+      {renderPhotoGallery}
 
       {/* Action buttons */}
       <View className="mb-4 gap-2">
