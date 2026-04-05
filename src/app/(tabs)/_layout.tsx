@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useDelivery } from '@/features/delivery/hooks/useDelivery';
 
 const TAB_BAR_STYLE = {
   backgroundColor: '#0F172A',
@@ -12,6 +13,8 @@ const ACTIVE_COLOR = '#F97316';
 const INACTIVE_COLOR = '#94A3B8';
 
 export default function TabsLayout() {
+  const { badgeCount } = useDelivery();
+
   return (
     <Tabs
       screenOptions={{
@@ -56,6 +59,8 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="document-text" size={size} color={color} />
           ),
+          tabBarBadge: badgeCount > 0 ? badgeCount : undefined,
+          tabBarBadgeStyle: { backgroundColor: '#8B5CF6', fontSize: 10 },
         }}
       />
       <Tabs.Screen

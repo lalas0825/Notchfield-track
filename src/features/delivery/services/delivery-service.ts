@@ -239,12 +239,88 @@ export async function updateDeliveredQty(params: {
   });
 }
 
+// ─── Pending reviews + incoming ───────────────
+
+/**
+ * Fetch tickets needing foreman review (pending_review).
+ */
+export async function fetchPendingReviews(
+  projectId: string,
+  organizationId: string,
+): Promise<DeliveryTicket[]> {
+  const { data } = await supabase
+    .from('delivery_tickets')
+    .select('*')
+    .eq('project_id', projectId)
+    .eq('organization_id', organizationId)
+    .eq('status', 'pending_review')
+    .order('created_at', { ascending: false });
+
+  return (data ?? []) as DeliveryTicket[];
+}
+
+/**
+ * Fetch incoming deliveries (shipped, in transit).
+ */
+export async function fetchIncomingDeliveries(
+  projectId: string,
+  organizationId: string,
+): Promise<DeliveryTicket[]> {
+  const { data } = await supabase
+    .from('delivery_tickets')
+    .select('*')
+    .eq('project_id', projectId)
+    .eq('organization_id', organizationId)
+    .eq('status', 'shipped')
+    .order('delivery_date', { ascending: true });
+
+  return (data ?? []) as DeliveryTicket[];
+}
+
+/**
+ * Approve a delivery ticket (pending_review → approved).
+ */
+export async function approveTicket(
+  ticketId: string,
+): Promise<{ success: boolean; error?: string }> {
+  const result = await localUpdate('delivery_tickets', ticketId, {
+    status: 'approved',
+    approved_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  });
+  if (!result.success) return result;
+  logger.info('Delivery', `Ticket ${ticketId} approved`);
+  return { success: true };
+}
+
+/**
+ * Request changes on a delivery ticket (append note, keep status).
+ */
+export async function requestChanges(
+  ticketId: string,
+  note: string,
+  existingNotes: string | null,
+): Promise<{ success: boolean; error?: string }> {
+  const timestamp = new Date().toLocaleString();
+  const appendedNote = existingNotes
+    ? `${existingNotes}\n\n[${timestamp}] Change requested: ${note}`
+    : `[${timestamp}] Change requested: ${note}`;
+
+  const result = await localUpdate('delivery_tickets', ticketId, {
+    notes: appendedNote,
+    updated_at: new Date().toISOString(),
+  });
+  if (!result.success) return result;
+  logger.info('Delivery', `Changes requested on ${ticketId}`);
+  return { success: true };
+}
+
 // ─── Counts ────────────────────────────────────
 
 export function getDeliveryCounts(tickets: DeliveryTicket[]) {
   return {
-    pending: tickets.filter((t) => t.status === 'pending' || t.status === 'in_transit').length,
-    delivered: tickets.filter((t) => t.status === 'delivered').length,
+    pending: tickets.filter((t) => t.status === 'pending' || t.status === 'in_transit' || t.status === 'shipped').length,
+    delivered: tickets.filter((t) => t.status === 'delivered' || t.status === 'confirmed').length,
     partial: tickets.filter((t) => t.status === 'partial').length,
     total: tickets.length,
   };

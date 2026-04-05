@@ -3,6 +3,8 @@ import { useAuthStore } from '@/features/auth/store/auth-store';
 import { useProjectStore } from '@/features/projects/store/project-store';
 import {
   fetchDeliveryTickets,
+  fetchPendingReviews,
+  fetchIncomingDeliveries,
   fetchMaterialConsumption,
   getDeliveryCounts,
   type DeliveryTicket,
@@ -13,17 +15,23 @@ export function useDelivery() {
   const { profile } = useAuthStore();
   const { activeProject } = useProjectStore();
   const [tickets, setTickets] = useState<DeliveryTicket[]>([]);
+  const [pendingReviews, setPendingReviews] = useState<DeliveryTicket[]>([]);
+  const [incoming, setIncoming] = useState<DeliveryTicket[]>([]);
   const [materials, setMaterials] = useState<MaterialRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   const reload = useCallback(async () => {
     if (!activeProject || !profile) return;
     setLoading(true);
-    const [t, m] = await Promise.all([
+    const [t, pr, inc, m] = await Promise.all([
       fetchDeliveryTickets(activeProject.id, profile.organization_id),
+      fetchPendingReviews(activeProject.id, profile.organization_id),
+      fetchIncomingDeliveries(activeProject.id, profile.organization_id),
       fetchMaterialConsumption(activeProject.id, profile.organization_id),
     ]);
     setTickets(t);
+    setPendingReviews(pr);
+    setIncoming(inc);
     setMaterials(m);
     setLoading(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -35,5 +43,8 @@ export function useDelivery() {
 
   const counts = getDeliveryCounts(tickets);
 
-  return { tickets, materials, loading, reload, counts };
+  // Badge count for Docs tab: pending reviews + incoming
+  const badgeCount = pendingReviews.length + incoming.length;
+
+  return { tickets, pendingReviews, incoming, materials, loading, reload, counts, badgeCount };
 }

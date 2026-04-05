@@ -16,6 +16,7 @@ import { TicketsCard } from '@/features/home/components/TicketsCard';
 import { QuickActions } from '@/features/home/components/QuickActions';
 import { AlertsList, type Alert } from '@/features/home/components/AlertsList';
 import { ProjectSwitcher } from '@/features/projects/components/ProjectSwitcher';
+import { useDelivery } from '@/features/delivery/hooks/useDelivery';
 
 export default function HomeScreen() {
   const { t } = useTranslation();
@@ -23,6 +24,7 @@ export default function HomeScreen() {
   const profile = useAuthStore((s) => s.profile);
   const { activeProject, geofence } = useProjectStore();
   const { workers, assignments, timeEntries } = useCrewStore();
+  const { pendingReviews, incoming } = useDelivery();
 
   // ─── No project selected → Welcome state ───
   if (!activeProject) {
@@ -53,6 +55,26 @@ export default function HomeScreen() {
       message: t('home.no_crew_assigned'),
       color: '#F59E0B',
       onPress: () => router.push('/(tabs)/more/crew' as any),
+    });
+  }
+
+  if (pendingReviews.length > 0) {
+    alerts.push({
+      id: 'pending-reviews',
+      icon: 'cube',
+      message: `${pendingReviews.length} Delivery Ticket${pendingReviews.length > 1 ? 's' : ''} Need Your Review`,
+      color: '#8B5CF6',
+      onPress: () => router.push('/(tabs)/more/delivery/reviews' as any),
+    });
+  }
+
+  if (incoming.length > 0) {
+    alerts.push({
+      id: 'incoming-deliveries',
+      icon: 'car',
+      message: `${incoming.length} Delivery${incoming.length > 1 ? 'ies' : ''} In Transit`,
+      color: '#3B82F6',
+      onPress: () => router.push('/(tabs)/more/delivery' as any),
     });
   }
 
