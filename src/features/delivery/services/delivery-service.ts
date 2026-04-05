@@ -19,10 +19,17 @@ export type DeliveryTicket = {
   project_id: string;
   supplier_name: string;
   supplier_po: string | null;
+  ticket_number: string | null;
   status: string;
   delivery_date: string | null;
   received_at: string | null;
   received_by: string | null;
+  requested_by: string | null;
+  shipping_method: string | null;
+  priority: string | null;
+  shipped_by: string | null;
+  approved_at: string | null;
+  shipped_at: string | null;
   ticket_photo_url: string | null;
   notes: string | null;
   created_by: string;
@@ -66,6 +73,7 @@ export async function fetchDeliveryTickets(
     .select('*')
     .eq('project_id', projectId)
     .eq('organization_id', organizationId)
+    .in('status', ['shipped', 'delivered', 'partial', 'confirmed'])
     .order('created_at', { ascending: false });
 
   return (data ?? []) as DeliveryTicket[];

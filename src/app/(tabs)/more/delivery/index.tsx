@@ -5,8 +5,10 @@ import { useDelivery } from '@/features/delivery/hooks/useDelivery';
 
 const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
   pending: { color: '#F59E0B', label: 'Pending' },
+  shipped: { color: '#3B82F6', label: 'Shipped' },
   in_transit: { color: '#3B82F6', label: 'In Transit' },
   delivered: { color: '#22C55E', label: 'Delivered' },
+  confirmed: { color: '#22C55E', label: 'Confirmed' },
   partial: { color: '#F97316', label: 'Partial' },
   rejected: { color: '#EF4444', label: 'Rejected' },
   consumed: { color: '#94A3B8', label: 'Consumed' },
@@ -63,16 +65,34 @@ export default function DeliveryListScreen() {
                 >
                   <View className="flex-row items-start justify-between">
                     <View className="flex-1">
-                      <Text className="text-base font-medium text-white">{ticket.supplier_name}</Text>
+                      <View className="flex-row items-center">
+                        {ticket.ticket_number && (
+                          <Text style={{ fontFamily: 'monospace', fontSize: 11, color: '#60A5FA', marginRight: 6 }}>
+                            {ticket.ticket_number}
+                          </Text>
+                        )}
+                        <Text className="text-base font-medium text-white">{ticket.supplier_name}</Text>
+                      </View>
                       {ticket.supplier_po && (
                         <Text className="mt-0.5 text-sm text-slate-400">PO: {ticket.supplier_po}</Text>
                       )}
                       <Text className="mt-0.5 text-xs text-slate-500">
-                        {ticket.delivery_date ? new Date(ticket.delivery_date).toLocaleDateString() : 'No date'}
+                        {ticket.shipped_at
+                          ? `Shipped ${new Date(ticket.shipped_at).toLocaleDateString()}`
+                          : ticket.delivery_date
+                          ? new Date(ticket.delivery_date).toLocaleDateString()
+                          : 'No date'}
                       </Text>
                     </View>
-                    <View className="rounded-full px-2 py-0.5" style={{ backgroundColor: `${config.color}20` }}>
-                      <Text className="text-xs font-bold" style={{ color: config.color }}>{config.label}</Text>
+                    <View className="items-end">
+                      {ticket.priority === 'urgent' && (
+                        <View className="mb-1 rounded-full bg-red-500/20 px-2 py-0.5">
+                          <Text className="text-[10px] font-bold text-danger">URGENT</Text>
+                        </View>
+                      )}
+                      <View className="rounded-full px-2 py-0.5" style={{ backgroundColor: `${config.color}20` }}>
+                        <Text className="text-xs font-bold" style={{ color: config.color }}>{config.label}</Text>
+                      </View>
                     </View>
                   </View>
                 </Pressable>
