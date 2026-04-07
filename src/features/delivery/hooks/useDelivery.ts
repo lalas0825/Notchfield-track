@@ -2,11 +2,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { useProjectStore } from '@/features/projects/store/project-store';
 import {
+  fetchDeliveryRows,
   fetchDeliveryTickets,
   fetchPendingReviews,
   fetchIncomingDeliveries,
   fetchMaterialConsumption,
   getDeliveryCounts,
+  type DeliveryRow,
   type DeliveryTicket,
   type MaterialRow,
 } from '../services/delivery-service';
@@ -14,6 +16,7 @@ import {
 export function useDelivery() {
   const { profile } = useAuthStore();
   const { activeProject } = useProjectStore();
+  const [rows, setRows] = useState<DeliveryRow[]>([]);
   const [tickets, setTickets] = useState<DeliveryTicket[]>([]);
   const [pendingReviews, setPendingReviews] = useState<DeliveryTicket[]>([]);
   const [incoming, setIncoming] = useState<DeliveryTicket[]>([]);
@@ -23,12 +26,14 @@ export function useDelivery() {
   const reload = useCallback(async () => {
     if (!activeProject || !profile) return;
     setLoading(true);
-    const [t, pr, inc, m] = await Promise.all([
+    const [r, t, pr, inc, m] = await Promise.all([
+      fetchDeliveryRows(activeProject.id, profile.organization_id),
       fetchDeliveryTickets(activeProject.id, profile.organization_id),
       fetchPendingReviews(activeProject.id, profile.organization_id),
       fetchIncomingDeliveries(activeProject.id, profile.organization_id),
       fetchMaterialConsumption(activeProject.id, profile.organization_id),
     ]);
+    setRows(r);
     setTickets(t);
     setPendingReviews(pr);
     setIncoming(inc);
@@ -46,5 +51,5 @@ export function useDelivery() {
   // Badge count for Docs tab: pending reviews + incoming
   const badgeCount = pendingReviews.length + incoming.length;
 
-  return { tickets, pendingReviews, incoming, materials, loading, reload, counts, badgeCount };
+  return { rows, tickets, pendingReviews, incoming, materials, loading, reload, counts, badgeCount };
 }

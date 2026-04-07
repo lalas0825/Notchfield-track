@@ -24,7 +24,7 @@ const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
 
 export default function DeliveryListScreen() {
   const router = useRouter();
-  const { tickets, loading, counts } = useDelivery();
+  const { rows, loading, counts } = useDelivery();
 
   return (
     <>
@@ -54,7 +54,7 @@ export default function DeliveryListScreen() {
           <View className="flex-1 items-center justify-center">
             <ActivityIndicator size="large" color="#F97316" />
           </View>
-        ) : tickets.length === 0 ? (
+        ) : rows.length === 0 ? (
           <View className="flex-1 items-center justify-center px-8">
             <Ionicons name="cube-outline" size={48} color="#334155" />
             <Text className="mt-4 text-center text-base text-slate-400">
@@ -63,47 +63,55 @@ export default function DeliveryListScreen() {
           </View>
         ) : (
           <ScrollView className="flex-1 px-4 pt-3">
-            {tickets.map((ticket) => {
-              const config = STATUS_CONFIG[ticket.status] ?? STATUS_CONFIG.pending;
+            {rows.map((row) => {
+              const config = STATUS_CONFIG[row.status] ?? STATUS_CONFIG.pending;
+              const showShipmentLabel =
+                row.type === 'shipment' && (row.total_shipments ?? 1) > 1;
+              const dateStr = row.ship_date ?? row.delivery_date ?? null;
               return (
                 <Pressable
-                  key={ticket.id}
-                  onPress={() => router.push(`/(tabs)/more/delivery/${ticket.id}` as any)}
+                  key={row.id}
+                  onPress={() =>
+                    router.push(`/(tabs)/more/delivery/${row.id}?type=${row.type}` as any)
+                  }
                   className="mb-2 rounded-xl border border-border bg-card px-4 py-4 active:opacity-80"
                 >
                   <View className="flex-row items-start justify-between">
                     <View className="flex-1">
-                      <View className="flex-row items-center">
-                        {ticket.ticket_number && (
+                      <View className="flex-row flex-wrap items-center">
+                        {row.ticket_number && (
                           <Text style={{ fontFamily: 'monospace', fontSize: 11, color: '#60A5FA', marginRight: 6 }}>
-                            {ticket.ticket_number}
+                            {row.ticket_number}
                           </Text>
                         )}
-                        <Text className="text-base font-medium text-white">{ticket.supplier_name}</Text>
+                        {showShipmentLabel && (
+                          <Text className="mr-2 text-xs font-bold text-brand-orange">
+                            · Shipment {row.shipment_number} of {row.total_shipments}
+                          </Text>
+                        )}
+                        <Text className="text-base font-medium text-white">{row.supplier_name}</Text>
                       </View>
-                      {ticket.supplier_po && (
-                        <Text className="mt-0.5 text-sm text-slate-400">PO: {ticket.supplier_po}</Text>
+                      {row.supplier_po && (
+                        <Text className="mt-0.5 text-sm text-slate-400">PO: {row.supplier_po}</Text>
                       )}
                       <View className="mt-0.5 flex-row items-center">
                         <Text className="text-xs text-slate-500">
-                          {ticket.delivery_date
-                            ? new Date(ticket.delivery_date).toLocaleDateString()
-                            : 'No date'}
+                          {dateStr ? new Date(dateStr).toLocaleDateString() : 'No date'}
                         </Text>
-                        {(ticket as any).delivery_time && (
+                        {row.delivery_time && (
                           <Text className="ml-2 text-xs text-slate-400">
-                            🕐 {formatTime((ticket as any).delivery_time)}
+                            🕐 {formatTime(row.delivery_time)}
                           </Text>
                         )}
                       </View>
                     </View>
                     <View className="items-end">
-                      {(ticket as any).has_shortages === 1 && (
+                      {row.has_shortages && (
                         <View className="mb-1 rounded-full bg-amber-500/20 px-2 py-0.5">
                           <Text className="text-[10px] font-bold text-warning">⚠️ Partial</Text>
                         </View>
                       )}
-                      {ticket.priority === 'urgent' && (
+                      {row.priority === 'urgent' && (
                         <View className="mb-1 rounded-full bg-red-500/20 px-2 py-0.5">
                           <Text className="text-[10px] font-bold text-danger">URGENT</Text>
                         </View>

@@ -431,6 +431,8 @@ const delivery_ticket_item_checks = new TableV2({
   organization_id: column.text,
   ticket_id: column.text,
   ticket_item_id: column.text,
+  shipment_id: column.text,
+  shipment_item_id: column.text,
   check_status: column.text, // 'pending' | 'verified' | 'short' | 'damaged' | 'unavailable'
   quantity_confirmed: column.real,
   quantity_short: column.real,
@@ -438,6 +440,30 @@ const delivery_ticket_item_checks = new TableV2({
   notes: column.text,
   checked_by: column.text,
   checked_at: column.text,
+  created_at: column.text,
+  updated_at: column.text,
+});
+
+// Sprint 39B — Shipments
+const delivery_shipments = new TableV2({
+  organization_id: column.text,
+  ticket_id: column.text,
+  shipment_number: column.integer,
+  status: column.text, // 'pending' | 'preparing' | 'shipped' | 'delivered' | 'confirmed'
+  ship_date: column.text,
+  delivery_time: column.text,
+  shipped_at: column.text,
+  delivered_at: column.text,
+  notes: column.text,
+  created_at: column.text,
+  updated_at: column.text,
+});
+
+const delivery_shipment_items = new TableV2({
+  organization_id: column.text,
+  shipment_id: column.text,
+  ticket_item_id: column.text,
+  quantity_shipped: column.real,
   created_at: column.text,
   updated_at: column.text,
 });
@@ -559,6 +585,8 @@ export const AppSchema = new Schema({
   delivery_tickets,
   delivery_ticket_items,
   delivery_ticket_item_checks,
+  delivery_shipments,
+  delivery_shipment_items,
   material_consumption,
 });
 
