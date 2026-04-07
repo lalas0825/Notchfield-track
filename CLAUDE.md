@@ -1,7 +1,7 @@
 # 🏗️ NotchField Track — Factory OS
 > *"Track collects, Web processes. Same database, different doors."*
-> Updated: 2026-03-28 | T1 OPERATIONAL, T2 S1-S3 DONE
-> Repo: https://github.com/lalas0825/Notchfield-track (13 commits)
+> Updated: 2026-04-06 | T1 OPERATIONAL, T2 S1-S3 DONE, T3 7/10
+> Repo: https://github.com/lalas0825/Notchfield-track (38 commits)
 > Supabase: msmpsxalfalzinuorwlg | PowerSync: 69c72137a112d86b20541618
 > EAS: @lalas825/notchfield-track (281ade7b-a5d9-4f43-9710-d270ae4c49f4)
 
@@ -1112,7 +1112,28 @@ Does NOT work: JOINs, subqueries in data, aliases in parameters.
 | create_track_t1_tables | crew_assignments, area_time_entries, gps_checkins, gps_geofences, field_photos |
 | create_track_t2_tables | daily_reports, field_messages, punch_items |
 | add_legal_immutability_trigger | guard_legal_immutability() on legal_documents |
+| create_worker_certifications | worker_certifications (cert tracking + expiry alerts) |
 | powersync publication | `CREATE PUBLICATION powersync FOR ALL TABLES` |
+
+### PowerSync Schema — 38 tables synced (as of Sprint 37)
+Takeoff reads: projects, organizations, profiles, units, production_areas, production_area_objects,
+production_templates, production_template_phases, production_phase_progress, classifications,
+drawing_sets, drawings, drawing_revisions, takeoff_objects, safety_documents, document_signoffs,
+work_tickets, room_types, room_type_surfaces, phase_progress
+
+Track-owned: crew_assignments, area_time_entries, gps_checkins, gps_geofences, field_photos,
+daily_reports, field_messages, punch_items, production_block_logs, worker_certifications,
+delivery_tickets, delivery_ticket_items, material_consumption
+
+### Key Sprints Applied
+| Sprint | What |
+|--------|------|
+| 25A | room_types, room_type_surfaces, phase_progress tables + new columns |
+| 25B | PhaseChecklist UI — sqft-weighted progress with bottom sheet |
+| 25C | Phase-linked photos with camera icon + GPS tagging |
+| 29-37 | Delivery columns (ticket_number, priority, shipped_by) + status filter |
+| 34 | Pilot features: surface camera, photo gallery, sqft progress |
+| Delivery Review | pending_review flow, Home alerts, Docs tab badge |
 
 ---
 

@@ -1,13 +1,14 @@
 # NotchField Track — TASKS_TRACK.md
-> Track native app task tracker | 105 tasks | Updated: 2026-04-01
+> Track native app task tracker | 105 tasks | Updated: 2026-04-06
 > 4 phases: T1 (start now) → T2 (after Takeoff 7B) → T3 (after Takeoff 9) → T4 (after Takeoff 10)
 > Same Supabase as Takeoff. Expo + PowerSync. Offline-first.
 > **Supabase project:** msmpsxalfalzinuorwlg (Notchfield Takeoff — shared)
-> **PowerSync:** 69c72137a112d86b20541618.powersync.journeyapps.com
+> **PowerSync:** 69c72137a112d86b20541618.powersync.journeyapps.com (38 tables synced)
 > **EAS Project:** 281ade7b-a5d9-4f43-9710-d270ae4c49f4 (@lalas825/notchfield-track)
-> **Repo:** https://github.com/lalas0825/Notchfield-track (30 commits)
+> **Repo:** https://github.com/lalas0825/Notchfield-track (38 commits)
 > **APK:** Installed on device. Login + Home + Docs + Plans + More working.
 > **Takeoff:** UNBLOCKED — all Track ↔ Takeoff data loops closed.
+> **Synced through:** Takeoff Sprint 37 + Delivery Review feature
 
 ---
 
@@ -16,13 +17,24 @@
 | Phase | What | Tasks | Depends On | Status |
 |-------|------|-------|-----------|--------|
 | **T1 — Foundation + Safety + GPS + Time Tracking + Plans** | Auth, navigation, GPS, safety, work tickets, crew, time entries, drawing viewer | **43** | Nothing (tables exist) | ✅ OPERATIONAL (40/43) |
-| **T2 — Production + Ready Board + Legal + Punch List + AI Agent** | Daily report, checkboxes, Ready Board, gates, NOD/REA, punch list, AI agent + voice | **38** | Takeoff Fase 7B | ✅ S1-S3 DONE (AI Agent deferred post-launch) |
-| **T3 — Delivery + Material Flow** | Delivery confirmation, supervisor tracker, material consumption | **10** | Takeoff Fase 9 | ✅ 7/10 DONE (3 UI screens pending) |
+| **T2 — Production + Ready Board + Legal + Punch List + AI Agent** | Daily report, checkboxes, Ready Board, gates, NOD/REA, punch list, AI agent + voice | **38** | Takeoff Fase 7B | ✅ S1-S3 DONE + Sprint 25A/B/C + Sprint 34 |
+| **T3 — Delivery + Material Flow** | Delivery confirmation, supervisor tracker, material consumption | **10** | Takeoff Fase 9 | ✅ 9/10 DONE (1 UI screen pending) |
 | **T4 — Polish + App Store** | Role enforcement, push, performance, store submission | **10** | Takeoff Fase 10 | ⬜ After Fase 10 |
 | **Audit** | 65-check audit (AUDIT_TRACK.md) | 65 | — | ✅ B- grade, 11 FAILs fixed |
-| **EAS Build** | APK on device testing | — | — | 🟡 ~7 builds. Awaiting dev-client build |
-| **Seed Data** | Real production data in Supabase | — | — | ✅ 6 areas, 5 workers, template, geofence |
+| **EAS Build** | APK on device testing | — | — | 🟡 ~8 builds. Needs dev-client build |
+| **Seed Data** | Real production data in Supabase | — | — | ✅ 6 areas, 5 workers, template, geofence, certs |
 | **TOTAL** | | **105** | | |
+
+### Recent Sprints (since last TASKS update)
+
+| Sprint | What | Status |
+|--------|------|--------|
+| 25A | PowerSync schema: room_types, room_type_surfaces, phase_progress + new columns | ✅ |
+| 25B | PhaseChecklist UI: sqft-weighted progress, bottom sheet, gate locking | ✅ |
+| 25C | Phase-linked photos: camera icon per phase, photo count badge, GPS tagging | ✅ |
+| 29-37 | Delivery columns sync + status filter (shipped/delivered only) | ✅ |
+| 34 | Pilot features: surface camera, photo gallery, sqft progress calc | ✅ |
+| Delivery Review | pending_review → approved flow, Home alerts, Docs tab badge | ✅ |
 
 ### 🐛 Known Device Bugs (need dev-client build to debug)
 
@@ -99,10 +111,10 @@ All 5 bugs are fixed in code (commit 79b592a). Need EAS dev-client build to veri
 
 ---
 
-## 🏭 PHASE T2 — Production Reporting — 🟡 IN PROGRESS
-> Takeoff 7B tables confirmed: production_areas, production_area_objects, production_templates,
-> production_template_phases, production_phase_progress all exist.
-> 3 new migrations applied: daily_reports, field_messages, punch_items.
+## 🏭 PHASE T2 — Production Reporting — ✅ S1-S3 + Sprints 25/34 DONE
+> Takeoff 7B tables confirmed. Sprint 23 added room_types, room_type_surfaces, phase_progress.
+> Sprint 25: PhaseChecklist with sqft-weighted progress. Sprint 34: pilot features.
+> Delivery Review: pending_review → approved flow with Home alerts + Docs badge.
 
 ### Daily Report (3-click workflow) — Sprint T2-S1 ✅
 - [x] TT2.1 Area list — ReadyBoard component: grouped by floor, progress bars, status dots, search, filter chips
@@ -113,9 +125,9 @@ All 5 bugs are fixed in code (commit 79b592a). Need EAS dev-client build to veri
 - [x] TT2.8 Unblock surface — "Unblock — Resume Work" button, clears blocked_reason
 - [x] TT2.9 Phase tracking — ordered phase list from template, completePhase() with userId audit
 - [x] TT2.11 Submit daily report — report-service.ts: draft/submit lifecycle, upsert on UNIQUE, area checkboxes, auto man-hours
-- [ ] TT2.4 Progress photo per surface — ⬜ needs production_area_objects surface checkboxes (T2-S3)
-- [ ] TT2.6 Photo gallery per area — ⬜ swipeable timeline (T2-S3)
-- [ ] TT2.10 Auto-progress calculation — ⬜ needs surface sqft data (T2-S3)
+- [x] TT2.4 Progress photo per surface — Sprint 34: SurfaceChecklist with camera icon per surface, photo count badge
+- [x] TT2.6 Photo gallery per area — Sprint 34: PhotoGallery horizontal strip + PhotoViewer full-screen modal
+- [x] TT2.10 Auto-progress calculation — Sprint 34: calculateSurfaceProgress() sqft-weighted, PCS items get 20 SF weight
 
 ### Production Dashboard (in-app) — Sprint T2-S1 ✅
 - [x] TT2.9 Foreman dashboard — Ready Board is the dashboard: floors, areas, progress, blocked
@@ -168,11 +180,13 @@ All 5 bugs are fixed in code (commit 79b592a). Need EAS dev-client build to veri
 
 ---
 
-## 📦 PHASE T3 — Delivery + Material Flow — ✅ COMPLETE
+## 📦 PHASE T3 — Delivery + Material Flow — ✅ 9/10 DONE
 > Tables exist: delivery_tickets, delivery_ticket_items, material_consumption.
 > PowerSync schema + sync rules updated. Delivery service + UI built.
+> Delivery Review: pending_review → approved flow with Home alerts.
 
 ### Delivery Confirmation
+- [x] TT3.0 Delivery Review — pending_review tickets: approve or request changes, Home alerts, Docs tab badge
 - [ ] TT3.1 Delivery notification — ⬜ push notification (T4 — needs expo-notifications)
 - [x] TT3.2 Delivery checklist — per item: received / short / damaged / rejected buttons in expandable panel
 - [x] TT3.3 Quantity received input — numeric input with over-delivery warning Alert
