@@ -51,3 +51,4 @@ bucket_definitions:
       - SELECT * FROM room_types WHERE organization_id = bucket.organization_id
       - SELECT * FROM room_type_surfaces WHERE organization_id = bucket.organization_id
       - SELECT * FROM phase_progress WHERE organization_id = bucket.organization_id
+      - SELECT * FROM delivery_ticket_item_checks WHERE organization_id = bucket.organization_id

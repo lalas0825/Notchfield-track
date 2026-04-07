@@ -3,6 +3,14 @@ import { Stack, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useDelivery } from '@/features/delivery/hooks/useDelivery';
 
+/** Format TIME string (HH:MM:SS or HH:MM) to 12h format */
+function formatTime(time: string): string {
+  const [h, m] = time.split(':').map(Number);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const hour = h % 12 || 12;
+  return `${hour}:${String(m).padStart(2, '0')} ${ampm}`;
+}
+
 const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
   pending: { color: '#F59E0B', label: 'Pending' },
   shipped: { color: '#3B82F6', label: 'Shipped' },
@@ -76,15 +84,25 @@ export default function DeliveryListScreen() {
                       {ticket.supplier_po && (
                         <Text className="mt-0.5 text-sm text-slate-400">PO: {ticket.supplier_po}</Text>
                       )}
-                      <Text className="mt-0.5 text-xs text-slate-500">
-                        {ticket.shipped_at
-                          ? `Shipped ${new Date(ticket.shipped_at).toLocaleDateString()}`
-                          : ticket.delivery_date
-                          ? new Date(ticket.delivery_date).toLocaleDateString()
-                          : 'No date'}
-                      </Text>
+                      <View className="mt-0.5 flex-row items-center">
+                        <Text className="text-xs text-slate-500">
+                          {ticket.delivery_date
+                            ? new Date(ticket.delivery_date).toLocaleDateString()
+                            : 'No date'}
+                        </Text>
+                        {(ticket as any).delivery_time && (
+                          <Text className="ml-2 text-xs text-slate-400">
+                            🕐 {formatTime((ticket as any).delivery_time)}
+                          </Text>
+                        )}
+                      </View>
                     </View>
                     <View className="items-end">
+                      {(ticket as any).has_shortages === 1 && (
+                        <View className="mb-1 rounded-full bg-amber-500/20 px-2 py-0.5">
+                          <Text className="text-[10px] font-bold text-warning">⚠️ Partial</Text>
+                        </View>
+                      )}
                       {ticket.priority === 'urgent' && (
                         <View className="mb-1 rounded-full bg-red-500/20 px-2 py-0.5">
                           <Text className="text-[10px] font-bold text-danger">URGENT</Text>

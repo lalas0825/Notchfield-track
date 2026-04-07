@@ -74,6 +74,7 @@ export async function fetchDeliveryTickets(
     .eq('project_id', projectId)
     .eq('organization_id', organizationId)
     .in('status', ['shipped', 'delivered', 'partial', 'confirmed'])
+    .order('delivery_time', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: false });
 
   return (data ?? []) as DeliveryTicket[];

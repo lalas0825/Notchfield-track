@@ -418,9 +418,26 @@ const delivery_tickets = new TableV2({
   shipped_by: column.text,
   approved_at: column.text,
   shipped_at: column.text,
+  delivery_time: column.text,
+  has_shortages: column.integer, // boolean 0/1
   ticket_photo_url: column.text,
   notes: column.text,
   created_by: column.text,
+  created_at: column.text,
+  updated_at: column.text,
+});
+
+const delivery_ticket_item_checks = new TableV2({
+  organization_id: column.text,
+  ticket_id: column.text,
+  ticket_item_id: column.text,
+  check_status: column.text, // 'pending' | 'verified' | 'short' | 'damaged' | 'unavailable'
+  quantity_confirmed: column.real,
+  quantity_short: column.real,
+  shortage_reason: column.text,
+  notes: column.text,
+  checked_by: column.text,
+  checked_at: column.text,
   created_at: column.text,
   updated_at: column.text,
 });
@@ -541,6 +558,7 @@ export const AppSchema = new Schema({
   // Track-owned tables (T3)
   delivery_tickets,
   delivery_ticket_items,
+  delivery_ticket_item_checks,
   material_consumption,
 });
 
