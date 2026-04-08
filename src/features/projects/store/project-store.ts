@@ -78,23 +78,28 @@ export const useProjectStore = create<ProjectState & ProjectActions>((set, get) 
       query = query.in('id', assignedProjectIds);
     }
 
-    const { data } = await query;
+    try {
+      const { data } = await query;
 
-    const projects = (data ?? []) as Project[];
+      const projects = (data ?? []) as Project[];
 
-    // Supervisor with multiple projects → must pick. Foreman/worker → auto-select first.
-    const autoSelect =
-      !isSupervisor && projects.length >= 1
-        ? projects[0]
-        : isSupervisor && projects.length === 1
+      // Supervisor with multiple projects → must pick. Foreman/worker → auto-select first.
+      const autoSelect =
+        !isSupervisor && projects.length >= 1
           ? projects[0]
-          : null;
+          : isSupervisor && projects.length === 1
+            ? projects[0]
+            : null;
 
-    set({ projects, activeProject: autoSelect, loading: false });
+      set({ projects, activeProject: autoSelect, loading: false });
 
-    if (autoSelect) {
-      await get().fetchGeofence(autoSelect.id);
-      await loadDependentStores(autoSelect.id, organizationId);
+      if (autoSelect) {
+        await get().fetchGeofence(autoSelect.id);
+        await loadDependentStores(autoSelect.id, organizationId);
+      }
+    } catch (err) {
+      console.warn('[ProjectStore] fetchProjects error:', err);
+      set({ loading: false });
     }
   },
 

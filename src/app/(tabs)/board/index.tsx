@@ -4,10 +4,13 @@ import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useProduction } from '@/features/production/hooks/useProduction';
 import { ReadyBoard } from '@/features/production/components/ReadyBoard';
+import { useProjectStore } from '@/features/projects/store/project-store';
+import { ProjectSwitcher } from '@/features/projects/components/ProjectSwitcher';
 import type { ProductionArea } from '@/features/production/store/production-store';
 
 export default function BoardScreen() {
   const router = useRouter();
+  const activeProject = useProjectStore((s) => s.activeProject);
   const {
     floors,
     loading,
@@ -23,6 +26,23 @@ export default function BoardScreen() {
       params: { areaId: area.id },
     });
   };
+
+  if (!activeProject) {
+    return (
+      <>
+        <Stack.Screen options={{ title: 'Ready Board' }} />
+        <View className="flex-1 items-center justify-center bg-background px-8">
+          <Ionicons name="business-outline" size={48} color="#334155" />
+          <Text className="mt-4 text-center text-base text-slate-400">
+            Select a project to view the Ready Board.
+          </Text>
+          <View className="mt-6">
+            <ProjectSwitcher />
+          </View>
+        </View>
+      </>
+    );
+  }
 
   if (loading) {
     return (

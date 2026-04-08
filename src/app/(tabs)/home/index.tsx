@@ -167,6 +167,8 @@ export default function HomeScreen() {
 
 /**
  * Welcome state — shown when no project is selected.
+ * For supervisors with multiple projects, shows the ProjectSwitcher
+ * so they can pick a project without being stuck.
  */
 function WelcomeState({ name }: { name: string | null }) {
   const { t } = useTranslation();
@@ -181,6 +183,9 @@ function WelcomeState({ name }: { name: string | null }) {
       <Text className="mt-3 text-center text-base leading-6 text-slate-400">
         {t('home.no_project')}{'\n'}{t('home.no_project_hint')}
       </Text>
+      <View className="mt-6">
+        <ProjectSwitcher />
+      </View>
     </View>
   );
 }

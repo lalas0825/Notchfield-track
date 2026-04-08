@@ -63,23 +63,29 @@ export function TrackPermissionsProvider({ children }: { children: ReactNode }) 
 
   const reload = useCallback(async () => {
     if (!userId || !organizationId || !rawRole) {
-      setAssignedProjectIds([]);
+      // Don't update state if already empty (avoids new array ref on every render)
+      setAssignedProjectIds((prev) => (prev.length === 0 ? prev : []));
       return;
     }
     setLoading(true);
-    const { data } = await supabase
-      .from('project_assignments')
-      .select('project_id')
-      .eq('user_id', userId)
-      .eq('is_active', true);
-    const ids = ((data ?? []) as { project_id: string }[]).map((r) => r.project_id);
-    setAssignedProjectIds(ids);
-    // Push the scoped project list into the project store so the rest of the
-    // app sees only assigned projects.
-    if (allowed) {
-      await useProjectStore.getState().fetchProjects(organizationId, rawRole, ids);
+    try {
+      const { data } = await supabase
+        .from('project_assignments')
+        .select('project_id')
+        .eq('user_id', userId)
+        .eq('is_active', true);
+      const ids = ((data ?? []) as { project_id: string }[]).map((r) => r.project_id);
+      setAssignedProjectIds(ids);
+      // Push the scoped project list into the project store so the rest of the
+      // app sees only assigned projects.
+      if (allowed) {
+        await useProjectStore.getState().fetchProjects(organizationId, rawRole, ids);
+      }
+    } catch (err) {
+      console.warn('[TrackPermissions] reload error:', err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [userId, organizationId, rawRole, allowed]);
 
   useEffect(() => {
