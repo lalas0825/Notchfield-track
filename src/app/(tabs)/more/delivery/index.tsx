@@ -79,8 +79,20 @@ export default function DeliveryListScreen() {
             </Text>
           </View>
         ) : (
-          <ScrollView className="flex-1 px-4 pt-3">
-            {rows.map((row) => {
+          (() => {
+            const COMPLETED = new Set(['delivered', 'confirmed']);
+            const pendingRows = rows.filter((r) => !COMPLETED.has(r.status));
+            // Completed: most recent first (descending) by ship_date/delivery_date
+            const completedRows = rows
+              .filter((r) => COMPLETED.has(r.status))
+              .slice()
+              .sort((a, b) => {
+                const aDate = a.ship_date ?? a.delivery_date ?? '';
+                const bDate = b.ship_date ?? b.delivery_date ?? '';
+                return bDate.localeCompare(aDate);
+              });
+
+            const renderCard = (row: typeof rows[number]) => {
               const config = STATUS_CONFIG[row.status] ?? STATUS_CONFIG.pending;
               const showShipmentLabel =
                 row.type === 'shipment' && (row.total_shipments ?? 1) > 1;
@@ -134,15 +146,40 @@ export default function DeliveryListScreen() {
                         </View>
                       )}
                       <View className="rounded-full px-2 py-0.5" style={{ backgroundColor: `${config.color}20` }}>
-                        <Text className="text-xs font-bold" style={{ color: config.color }}>{config.label}</Text>
+                        <Text className="text-xs font-bold" style={{ color: config.color }}>
+                          {COMPLETED.has(row.status) ? `${config.label} ✅` : config.label}
+                        </Text>
                       </View>
                     </View>
                   </View>
                 </Pressable>
               );
-            })}
-            <View className="h-24" />
-          </ScrollView>
+            };
+
+            return (
+              <ScrollView className="flex-1 px-4 pt-3">
+                {pendingRows.length > 0 && (
+                  <>
+                    <Text className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">
+                      Pending ({pendingRows.length})
+                    </Text>
+                    {pendingRows.map(renderCard)}
+                  </>
+                )}
+
+                {completedRows.length > 0 && (
+                  <>
+                    <Text className={`mb-2 text-xs font-bold uppercase tracking-wider text-slate-400 ${pendingRows.length > 0 ? 'mt-4' : ''}`}>
+                      Completed ({completedRows.length})
+                    </Text>
+                    {completedRows.map(renderCard)}
+                  </>
+                )}
+
+                <View className="h-24" />
+              </ScrollView>
+            );
+          })()
         )}
       </View>
     </>

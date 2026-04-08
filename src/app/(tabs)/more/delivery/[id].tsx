@@ -71,6 +71,8 @@ export default function DeliveryDetailScreen() {
   const [checks, setChecks] = useState<Map<string, ItemCheck>>(new Map());
   const [hasShortages, setHasShortages] = useState(false);
   const [deliveryTime, setDeliveryTime] = useState<string | null>(null);
+  /** Status used to decide read-only mode. Comes from shipment.status in shipment mode, ticket.status in legacy mode. */
+  const [statusForGate, setStatusForGate] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activeRowId, setActiveRowId] = useState<string | null>(null);
@@ -87,6 +89,7 @@ export default function DeliveryDetailScreen() {
       setShipmentDetail(detail);
       setHasShortages(detail.ticket.has_shortages);
       setDeliveryTime(detail.shipment.delivery_time);
+      setStatusForGate(detail.shipment.status);
       const label =
         detail.shipment.total_shipments > 1
           ? `${detail.ticket.ticket_number ?? 'DT'} · Shipment ${detail.shipment.shipment_number} of ${detail.shipment.total_shipments}`
@@ -123,12 +126,13 @@ export default function DeliveryDetailScreen() {
       // Legacy ticket flow
       const [itemsData, ticketData, checksData] = await Promise.all([
         fetchDeliveryItems(id),
-        supabase.from('delivery_tickets').select('ticket_number, has_shortages, delivery_time').eq('id', id).single(),
+        supabase.from('delivery_tickets').select('ticket_number, has_shortages, delivery_time, status').eq('id', id).single(),
         supabase.from('delivery_ticket_item_checks').select('*').eq('ticket_id', id),
       ]);
       setHasShortages(ticketData.data?.has_shortages ?? false);
       setDeliveryTime(ticketData.data?.delivery_time ?? null);
       setHeaderTitle(ticketData.data?.ticket_number ?? 'Delivery');
+      setStatusForGate(ticketData.data?.status ?? '');
       setRows(
         itemsData.map((it) => ({
           rowId: it.id,
@@ -161,6 +165,8 @@ export default function DeliveryDetailScreen() {
 
   const pendingCount = rows.filter((r) => r.receipt_status === 'pending').length;
   const allConfirmed = pendingCount === 0 && rows.length > 0;
+  /** Read-only RECORD view: shipment/ticket already confirmed or delivered */
+  const isReadOnly = statusForGate === 'confirmed' || statusForGate === 'delivered';
 
   /** Get the warehouse-packed qty for a row (defaults to the row's quantity_to_confirm) */
   const getPackedQty = (row: Row): number => {
@@ -291,8 +297,22 @@ export default function DeliveryDetailScreen() {
       <Stack.Screen options={{ title: headerTitle }} />
       <View className="flex-1 bg-background">
         <ScrollView className="flex-1 px-4 pt-4">
+          {/* Read-only RECORD banner */}
+          {isReadOnly && (
+            <View className="mb-4 rounded-xl border border-success bg-green-500/15 px-4 py-3">
+              <View className="flex-row items-center">
+                <Ionicons name="checkmark-circle" size={20} color="#22C55E" />
+                <Text className="ml-2 text-base font-bold text-success">DELIVERY RECORD</Text>
+              </View>
+              <Text className="mt-1 text-sm text-slate-300">
+                This delivery is confirmed. Read-only — showing what the warehouse packed
+                and what was received.
+              </Text>
+            </View>
+          )}
+
           {/* Partial shipment warning */}
-          {hasShortages && (
+          {hasShortages && !isReadOnly && (
             <View className="mb-4 rounded-xl border border-warning bg-amber-500/20 px-4 py-3">
               <View className="flex-row items-center">
                 <Ionicons name="warning" size={20} color="#F59E0B" />
@@ -301,6 +321,16 @@ export default function DeliveryDetailScreen() {
               <Text className="mt-1 text-sm text-slate-300">
                 Warehouse reported shortages on this delivery. Check quantities carefully.
               </Text>
+            </View>
+          )}
+
+          {/* Partial shipment notice (read-only mode) */}
+          {hasShortages && isReadOnly && (
+            <View className="mb-4 rounded-xl border border-warning bg-amber-500/15 px-4 py-3">
+              <View className="flex-row items-center">
+                <Ionicons name="warning" size={18} color="#F59E0B" />
+                <Text className="ml-2 text-sm font-bold text-warning">Had shortages</Text>
+              </View>
             </View>
           )}
 
@@ -319,13 +349,16 @@ export default function DeliveryDetailScreen() {
                 </Text>
               )}
             </View>
-            <Text className="text-base font-bold" style={{ color: pendingCount > 0 ? '#F59E0B' : '#22C55E' }}>
-              {pendingCount > 0 ? `${pendingCount} pending` : 'All confirmed'}
+            <Text
+              className="text-base font-bold"
+              style={{ color: isReadOnly ? '#22C55E' : pendingCount > 0 ? '#F59E0B' : '#22C55E' }}
+            >
+              {isReadOnly ? 'Completed' : pendingCount > 0 ? `${pendingCount} pending` : 'All confirmed'}
             </Text>
           </View>
 
-          {/* Confirm All button */}
-          {pendingCount > 0 && (
+          {/* Confirm All button — hidden in read-only mode */}
+          {pendingCount > 0 && !isReadOnly && (
             <Pressable
               onPress={handleConfirmAll}
               disabled={saving}
@@ -334,6 +367,12 @@ export default function DeliveryDetailScreen() {
               <Ionicons name="checkmark-done" size={22} color="#FFFFFF" />
               <Text className="ml-2 text-lg font-bold text-white">Confirm All ({pendingCount})</Text>
             </Pressable>
+          )}
+
+          {isReadOnly && (
+            <Text className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">
+              Packed & Received
+            </Text>
           )}
 
           {/* Item list */}
@@ -352,7 +391,7 @@ export default function DeliveryDetailScreen() {
             return (
               <View key={row.rowId} className="mb-2 rounded-xl border border-border bg-card">
                 <Pressable
-                  onPress={() => !confirmed && setActiveRowId(isActive ? null : row.rowId)}
+                  onPress={() => !confirmed && !isReadOnly && setActiveRowId(isActive ? null : row.rowId)}
                   className="flex-row items-center px-4 py-3 active:opacity-80"
                 >
                   <View className="flex-1">
@@ -410,7 +449,7 @@ export default function DeliveryDetailScreen() {
                 </Pressable>
 
                 {/* Expanded confirmation panel */}
-                {isActive && !confirmed && (
+                {isActive && !confirmed && !isReadOnly && (
                   <View className="border-t border-border px-4 py-3">
                     {/* Quantity input (for short/damaged) */}
                     <View className="mb-3 flex-row items-center">
@@ -459,8 +498,8 @@ export default function DeliveryDetailScreen() {
           <View className="h-32" />
         </ScrollView>
 
-        {/* Finalize button */}
-        {allConfirmed && (
+        {/* Finalize button — hidden in read-only mode */}
+        {allConfirmed && !isReadOnly && (
           <View className="border-t border-border bg-card px-4 pb-8 pt-3">
             <Pressable
               onPress={handleFinalize}
