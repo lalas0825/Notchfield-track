@@ -44,11 +44,8 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
       set({ session, user: session.user });
       await get().fetchProfile(session.user.id);
       await initPowerSync();
-      // Load projects for the user's org
-      const profile = get().profile;
-      if (profile) {
-        await useProjectStore.getState().fetchProjects(profile.organization_id, profile.role);
-      }
+      // Project loading is now driven by TrackPermissionsProvider, which
+      // also fetches project_assignments to scope the project list (40C).
     }
 
     // Listen for auth changes (token refresh, sign out, etc.)
@@ -58,15 +55,11 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
       if (event === 'SIGNED_IN' && newSession?.user) {
         await get().fetchProfile(newSession.user.id);
         await initPowerSync();
-        // Load projects after profile is fetched
-        const profile = get().profile;
-        if (profile) {
-          await useProjectStore.getState().fetchProjects(profile.organization_id, profile.role);
-        }
       }
 
       if (event === 'SIGNED_OUT') {
         set({ profile: null });
+        useProjectStore.setState({ projects: [], activeProject: null, isSupervisor: false });
         await disconnectPowerSync();
       }
     });

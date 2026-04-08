@@ -2,6 +2,7 @@ import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-nati
 import { Stack, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useDelivery } from '@/features/delivery/hooks/useDelivery';
+import { useTrackPermissions } from '@/shared/lib/permissions/TrackPermissionsContext';
 
 /** Format TIME string (HH:MM:SS or HH:MM) to 12h format */
 function formatTime(time: string): string {
@@ -25,6 +26,22 @@ const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
 export default function DeliveryListScreen() {
   const router = useRouter();
   const { rows, loading, counts } = useDelivery();
+  const { canUseFeature } = useTrackPermissions();
+
+  // Sprint 40C: gate the delivery screen for roles that don't have access
+  if (!canUseFeature('delivery_confirmation')) {
+    return (
+      <>
+        <Stack.Screen options={{ title: 'Deliveries' }} />
+        <View className="flex-1 items-center justify-center bg-background px-8">
+          <Ionicons name="lock-closed-outline" size={42} color="#64748B" />
+          <Text className="mt-4 text-center text-base text-slate-400">
+            Delivery confirmation is not available for your role.
+          </Text>
+        </View>
+      </>
+    );
+  }
 
   return (
     <>

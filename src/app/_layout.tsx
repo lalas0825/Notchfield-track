@@ -9,6 +9,8 @@ import { StatusBar } from 'expo-status-bar';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { SyncStatusBar } from '@/shared/components/SyncStatusBar';
 import { ErrorBoundary } from '@/shared/components/ErrorBoundary';
+import { RoleGate } from '@/shared/components/RoleGate';
+import { TrackPermissionsProvider } from '@/shared/lib/permissions/TrackPermissionsContext';
 import { startPhotoWorker } from '@/features/photos/services/photo-worker';
 
 /**
@@ -70,13 +72,17 @@ export default function RootLayout() {
 
   return (
     <PowerSyncProvider>
-      <StatusBar style="light" />
-      <SyncStatusBar />
-      <AuthGate>
-        <ErrorBoundary>
-          <Slot />
-        </ErrorBoundary>
-      </AuthGate>
+      <TrackPermissionsProvider>
+        <StatusBar style="light" />
+        <SyncStatusBar />
+        <AuthGate>
+          <RoleGate>
+            <ErrorBoundary>
+              <Slot />
+            </ErrorBoundary>
+          </RoleGate>
+        </AuthGate>
+      </TrackPermissionsProvider>
     </PowerSyncProvider>
   );
 }

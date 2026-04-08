@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from 'react';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { useProjectStore } from '@/features/projects/store/project-store';
+import { useTrackPermissions } from '@/shared/lib/permissions/TrackPermissionsContext';
 import { useProductionStore } from '../store/production-store';
 
 /**
@@ -10,6 +11,7 @@ import { useProductionStore } from '../store/production-store';
 export function useProduction() {
   const profile = useAuthStore((s) => s.profile);
   const activeProject = useProjectStore((s) => s.activeProject);
+  const { role } = useTrackPermissions();
   const fetchAll = useProductionStore((s) => s.fetchAll);
 
   // Use selectors for stable references (no infinite loop)
@@ -31,8 +33,10 @@ export function useProduction() {
 
   const reload = useCallback(async () => {
     if (!profile || !activeProject) return;
-    await fetchAll(activeProject.id, profile.organization_id);
-  }, [profile?.organization_id, activeProject?.id, fetchAll]);
+    // Sprint 40C: workers see only their assigned areas (via crew_assignments)
+    const workerUserId = role === 'worker' ? profile.id : null;
+    await fetchAll(activeProject.id, profile.organization_id, workerUserId);
+  }, [profile?.id, profile?.organization_id, activeProject?.id, role, fetchAll]);
 
   useEffect(() => {
     reload();

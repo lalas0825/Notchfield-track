@@ -444,6 +444,20 @@ const delivery_ticket_item_checks = new TableV2({
   updated_at: column.text,
 });
 
+// Sprint 40C — Track role enforcement
+const project_assignments = new TableV2({
+  organization_id: column.text,
+  user_id: column.text,
+  project_id: column.text,
+  assigned_role: column.text,
+  assigned_by: column.text,
+  assigned_at: column.text,
+  is_active: column.integer, // boolean 0/1
+  notes: column.text,
+  created_at: column.text,
+  updated_at: column.text,
+});
+
 // Sprint 39B — Shipments
 const delivery_shipments = new TableV2({
   organization_id: column.text,
@@ -588,6 +602,8 @@ export const AppSchema = new Schema({
   delivery_shipments,
   delivery_shipment_items,
   material_consumption,
+  // Sprint 40C
+  project_assignments,
 });
 
 export type Database = (typeof AppSchema)['types'];

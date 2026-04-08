@@ -54,3 +54,4 @@ bucket_definitions:
       - SELECT * FROM delivery_ticket_item_checks WHERE organization_id = bucket.organization_id
       - SELECT * FROM delivery_shipments WHERE organization_id = bucket.organization_id
       - SELECT * FROM delivery_shipment_items WHERE organization_id = bucket.organization_id
+      - SELECT * FROM project_assignments WHERE organization_id = bucket.organization_id

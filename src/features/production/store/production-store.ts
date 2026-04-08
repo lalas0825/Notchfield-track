@@ -69,7 +69,11 @@ type ProductionState = {
 };
 
 type ProductionActions = {
-  fetchAll: (projectId: string, organizationId: string) => Promise<void>;
+  fetchAll: (
+    projectId: string,
+    organizationId: string,
+    workerUserId?: string | null,
+  ) => Promise<void>;
   markAreaStatus: (areaId: string, status: string, blockedReason?: string, userId?: string) => Promise<{ success: boolean; error?: string }>;
   completePhase: (progressId: string, userId: string) => Promise<{ success: boolean; error?: string }>;
   blockPhase: (progressId: string, areaId: string, reason: string, userId: string) => Promise<{ success: boolean; error?: string }>;
@@ -137,7 +141,11 @@ export const useProductionStore = create<ProductionState & ProductionActions>((s
   totalGates: 0,
   completedGates: 0,
 
-  fetchAll: async (projectId: string, organizationId: string) => {
+  fetchAll: async (
+    projectId: string,
+    organizationId: string,
+    workerUserId?: string | null,
+  ) => {
     set({ loading: true });
     const [areasRes, progressRes, templatePhasesRes] = await Promise.all([
       supabase.from('production_areas').select('*').eq('project_id', projectId).order('floor').order('name'),
@@ -145,7 +153,20 @@ export const useProductionStore = create<ProductionState & ProductionActions>((s
       supabase.from('production_template_phases').select('*').eq('organization_id', organizationId).order('sequence'),
     ]);
 
-    const areas = (areasRes.data ?? []) as ProductionArea[];
+    let areas = (areasRes.data ?? []) as ProductionArea[];
+
+    // Sprint 40C: workers see only areas where they are currently assigned
+    // via crew_assignments. If they have no assignments, fall back to showing
+    // an empty list (rather than the whole project, to avoid leaking scope).
+    if (workerUserId) {
+      const { data: crewRows } = await supabase
+        .from('crew_assignments')
+        .select('area_id')
+        .eq('worker_id', workerUserId)
+        .eq('project_id', projectId);
+      const allowedAreaIds = new Set(((crewRows ?? []) as { area_id: string }[]).map((r) => r.area_id));
+      areas = areas.filter((a) => allowedAreaIds.has(a.id));
+    }
     const allProgress = (progressRes.data ?? []) as PhaseProgress[];
     const templatePhases = (templatePhasesRes.data ?? []) as TemplatePhase[];
 

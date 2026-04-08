@@ -2,6 +2,8 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/features/auth/store/auth-store';
+import { useTrackPermissions } from '@/shared/lib/permissions/TrackPermissionsContext';
+import type { TrackFeature } from '@/shared/lib/permissions/trackPermissions';
 
 type MenuItem = {
   icon: keyof typeof Ionicons.glyphMap;
@@ -10,19 +12,22 @@ type MenuItem = {
   route?: string;
   onPress?: () => void;
   color?: string;
+  feature?: TrackFeature; // gate this entry behind a feature permission
 };
 
 export default function MoreScreen() {
   const router = useRouter();
   const { profile, signOut } = useAuthStore();
+  const { canUseFeature } = useTrackPermissions();
 
-  const items: MenuItem[] = [
+  const allItems: MenuItem[] = [
     {
       icon: 'location',
       label: 'GPS Check-in',
       subtitle: 'Clock in/out with GPS stamp',
       route: '/(tabs)/more/checkin',
       color: '#22C55E',
+      feature: 'check_in',
     },
     {
       icon: 'people',
@@ -30,6 +35,7 @@ export default function MoreScreen() {
       subtitle: 'Assign workers to areas',
       route: '/(tabs)/more/crew',
       color: '#3B82F6',
+      feature: 'assign_crews',
     },
     {
       icon: 'cube',
@@ -37,6 +43,7 @@ export default function MoreScreen() {
       subtitle: 'Confirm material deliveries',
       route: '/(tabs)/more/delivery',
       color: '#8B5CF6',
+      feature: 'delivery_confirmation',
     },
     {
       icon: 'settings',
@@ -52,6 +59,8 @@ export default function MoreScreen() {
       color: '#EF4444',
     },
   ];
+
+  const items = allItems.filter((item) => !item.feature || canUseFeature(item.feature));
 
   return (
     <ScrollView className="flex-1 bg-background px-4 pt-4">

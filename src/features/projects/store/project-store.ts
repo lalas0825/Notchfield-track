@@ -28,7 +28,11 @@ type ProjectState = {
 };
 
 type ProjectActions = {
-  fetchProjects: (organizationId: string, userRole: string) => Promise<void>;
+  fetchProjects: (
+    organizationId: string,
+    userRole: string,
+    assignedProjectIds?: string[],
+  ) => Promise<void>;
   switchProject: (project: Project) => Promise<void>;
   fetchGeofence: (projectId: string) => Promise<void>;
 };
@@ -50,25 +54,41 @@ export const useProjectStore = create<ProjectState & ProjectActions>((set, get) 
   loading: false,
   isSupervisor: false,
 
-  fetchProjects: async (organizationId: string, userRole: string) => {
+  fetchProjects: async (
+    organizationId: string,
+    userRole: string,
+    assignedProjectIds?: string[],
+  ) => {
     set({ loading: true });
 
-    const isSupervisor = ['superintendent', 'owner', 'admin'].includes(userRole);
+    const isSupervisor = ['supervisor', 'superintendent', 'owner'].includes(userRole);
     set({ isSupervisor });
 
-    const { data } = await supabase
+    let query = supabase
       .from('projects')
       .select('id, name, address, organization_id')
       .eq('organization_id', organizationId);
 
+    // Sprint 40C: filter by project_assignments when provided
+    if (assignedProjectIds !== undefined) {
+      if (assignedProjectIds.length === 0) {
+        set({ projects: [], activeProject: null, loading: false });
+        return;
+      }
+      query = query.in('id', assignedProjectIds);
+    }
+
+    const { data } = await query;
+
     const projects = (data ?? []) as Project[];
 
-    // Auto-select for foreman (single project). Supervisor chooses.
-    const autoSelect = !isSupervisor && projects.length >= 1
-      ? projects[0]
-      : isSupervisor && projects.length === 1
+    // Supervisor with multiple projects → must pick. Foreman/worker → auto-select first.
+    const autoSelect =
+      !isSupervisor && projects.length >= 1
         ? projects[0]
-        : null;
+        : isSupervisor && projects.length === 1
+          ? projects[0]
+          : null;
 
     set({ projects, activeProject: autoSelect, loading: false });
 
