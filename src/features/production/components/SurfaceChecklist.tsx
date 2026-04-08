@@ -5,7 +5,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Image, Pressable, Text, View } from 'react-native';
+import { Alert, Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
@@ -75,6 +75,29 @@ export function SurfaceChecklist({ areaId }: Props) {
     loadSurfaces();
     loadPhotoCounts();
   }, [loadSurfaces, loadPhotoCounts]);
+
+  const handleToggle = useCallback(
+    async (surface: SurfaceObject) => {
+      if (!user) return;
+      const now = new Date().toISOString();
+      const isComplete = surface.status === 'completed' || surface.status === 'complete';
+
+      const updates = isComplete
+        ? { status: 'in_progress', completed_at: null, completed_by: null }
+        : { status: 'completed', completed_at: now, completed_by: user.id };
+
+      // Optimistic update
+      setSurfaces((prev) =>
+        prev.map((s) => (s.id === surface.id ? { ...s, ...updates } : s)),
+      );
+
+      if (isComplete) haptic.light();
+      else haptic.success();
+
+      await localUpdate('production_area_objects', surface.id, updates);
+    },
+    [user],
+  );
 
   const handleTakePhoto = useCallback(
     async (surface: SurfaceObject) => {
@@ -149,15 +172,17 @@ export function SurfaceChecklist({ areaId }: Props) {
         const count = photoCounts[surface.id] ?? 0;
 
         return (
-          <View
+          <Pressable
             key={surface.id}
-            className="mb-1.5 flex-row items-center rounded-xl border border-border bg-card px-4 py-3"
+            onPress={() => handleToggle(surface)}
+            disabled={isBlocked}
+            className="mb-1.5 flex-row items-center rounded-xl border border-border bg-card px-4 py-3 active:opacity-70"
             style={{ minHeight: 52 }}
           >
-            {/* Status icon */}
+            {/* Status icon / checkbox */}
             <Ionicons
               name={isComplete ? 'checkmark-circle' : isBlocked ? 'close-circle' : 'ellipse-outline'}
-              size={20}
+              size={24}
               color={isComplete ? '#22C55E' : isBlocked ? '#EF4444' : '#9CA3AF'}
             />
 
@@ -224,7 +249,7 @@ export function SurfaceChecklist({ areaId }: Props) {
                 </Pressable>
               </View>
             )}
-          </View>
+          </Pressable>
         );
       })}
     </View>
