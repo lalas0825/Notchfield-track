@@ -41,21 +41,27 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
     const { data: { session } } = await supabase.auth.getSession();
 
     if (session?.user) {
+      // IMPORTANT: PowerSync must be initialized BEFORE we set profile state.
+      // Otherwise TrackPermissionsContext fires its reload() with PowerSync
+      // not yet ready, localQuery returns null, and we fall through to
+      // Supabase REST which can hang on flaky networks.
+      await initPowerSync();
       set({ session, user: session.user });
       await get().fetchProfile(session.user.id);
-      await initPowerSync();
       // Project loading is now driven by TrackPermissionsProvider, which
       // also fetches project_assignments to scope the project list (40C).
     }
 
     // Listen for auth changes (token refresh, sign out, etc.)
     supabase.auth.onAuthStateChange(async (event, newSession) => {
-      set({ session: newSession, user: newSession?.user ?? null });
-
       if (event === 'SIGNED_IN' && newSession?.user) {
-        await get().fetchProfile(newSession.user.id);
         await initPowerSync();
+        set({ session: newSession, user: newSession.user });
+        await get().fetchProfile(newSession.user.id);
+        return;
       }
+
+      set({ session: newSession, user: newSession?.user ?? null });
 
       if (event === 'SIGNED_OUT') {
         set({ profile: null });

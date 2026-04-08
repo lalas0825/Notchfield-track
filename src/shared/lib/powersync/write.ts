@@ -216,7 +216,13 @@ export async function localQuery<T = Record<string, unknown>>(
   const ps = getPowerSync();
   if (!ps) return null;
   try {
-    const result = await ps.getAll(sql, params);
+    // 3-second timeout — if PowerSync isn't ready, fall back to Supabase
+    const result = await Promise.race([
+      ps.getAll(sql, params),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('localQuery timeout')), 3000),
+      ),
+    ]);
     return result as T[];
   } catch (err) {
     console.warn('[localQuery] error:', err);
