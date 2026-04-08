@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '@/shared/lib/supabase/client';
+import { localQuery } from '@/shared/lib/powersync/write';
 import { useCrewStore } from '@/features/crew/store/crew-store';
 
 type Project = {
@@ -64,24 +65,38 @@ export const useProjectStore = create<ProjectState & ProjectActions>((set, get) 
     const isSupervisor = ['supervisor', 'superintendent', 'owner'].includes(userRole);
     set({ isSupervisor });
 
-    let query = supabase
-      .from('projects')
-      .select('id, name, address, organization_id')
-      .eq('organization_id', organizationId);
-
     // Sprint 40C: filter by project_assignments when provided
-    if (assignedProjectIds !== undefined) {
-      if (assignedProjectIds.length === 0) {
-        set({ projects: [], activeProject: null, loading: false });
-        return;
-      }
-      query = query.in('id', assignedProjectIds);
+    if (assignedProjectIds !== undefined && assignedProjectIds.length === 0) {
+      set({ projects: [], activeProject: null, loading: false });
+      return;
     }
 
     try {
-      const { data } = await query;
+      // PowerSync local-first read
+      let projects: Project[] = [];
+      const localRows = await localQuery<Project>(
+        `SELECT id, name, address, organization_id FROM projects WHERE organization_id = ?`,
+        [organizationId],
+      );
 
-      const projects = (data ?? []) as Project[];
+      if (localRows !== null && localRows.length > 0) {
+        projects = localRows;
+        if (assignedProjectIds !== undefined) {
+          const allowed = new Set(assignedProjectIds);
+          projects = projects.filter((p) => allowed.has(p.id));
+        }
+      } else {
+        // Fall back to Supabase REST
+        let query = supabase
+          .from('projects')
+          .select('id, name, address, organization_id')
+          .eq('organization_id', organizationId);
+        if (assignedProjectIds !== undefined) {
+          query = query.in('id', assignedProjectIds);
+        }
+        const { data } = await query;
+        projects = (data ?? []) as Project[];
+      }
 
       // Supervisor with multiple projects → must pick. Foreman/worker → auto-select first.
       const autoSelect =

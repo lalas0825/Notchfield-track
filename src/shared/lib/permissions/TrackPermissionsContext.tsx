@@ -28,6 +28,7 @@ import {
   type ReactNode,
 } from 'react';
 import { supabase } from '@/shared/lib/supabase/client';
+import { localQuery } from '@/shared/lib/powersync/write';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { useProjectStore } from '@/features/projects/store/project-store';
 import {
@@ -69,13 +70,26 @@ export function TrackPermissionsProvider({ children }: { children: ReactNode }) 
     }
     setLoading(true);
     try {
-      const { data } = await supabase
-        .from('project_assignments')
-        .select('project_id')
-        .eq('user_id', userId)
-        .eq('is_active', true);
-      const ids = ((data ?? []) as { project_id: string }[]).map((r) => r.project_id);
+      // PowerSync local-first read — works fully offline
+      const localRows = await localQuery<{ project_id: string }>(
+        `SELECT project_id FROM project_assignments WHERE user_id = ? AND is_active = 1`,
+        [userId],
+      );
+
+      let ids: string[];
+      if (localRows !== null && localRows.length > 0) {
+        ids = localRows.map((r) => r.project_id);
+      } else {
+        // Fall back to Supabase REST (web, or when local DB is empty)
+        const { data } = await supabase
+          .from('project_assignments')
+          .select('project_id')
+          .eq('user_id', userId)
+          .eq('is_active', true);
+        ids = ((data ?? []) as { project_id: string }[]).map((r) => r.project_id);
+      }
       setAssignedProjectIds(ids);
+
       // Push the scoped project list into the project store so the rest of the
       // app sees only assigned projects.
       if (allowed) {

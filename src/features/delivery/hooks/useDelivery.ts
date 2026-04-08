@@ -26,19 +26,24 @@ export function useDelivery() {
   const reload = useCallback(async () => {
     if (!activeProject || !profile) return;
     setLoading(true);
-    const [r, t, pr, inc, m] = await Promise.all([
-      fetchDeliveryRows(activeProject.id, profile.organization_id),
-      fetchDeliveryTickets(activeProject.id, profile.organization_id),
-      fetchPendingReviews(activeProject.id, profile.organization_id),
-      fetchIncomingDeliveries(activeProject.id, profile.organization_id),
-      fetchMaterialConsumption(activeProject.id, profile.organization_id),
-    ]);
-    setRows(r);
-    setTickets(t);
-    setPendingReviews(pr);
-    setIncoming(inc);
-    setMaterials(m);
-    setLoading(false);
+    try {
+      const [r, t, pr, inc, m] = await Promise.all([
+        fetchDeliveryRows(activeProject.id, profile.organization_id),
+        fetchDeliveryTickets(activeProject.id, profile.organization_id),
+        fetchPendingReviews(activeProject.id, profile.organization_id),
+        fetchIncomingDeliveries(activeProject.id, profile.organization_id),
+        fetchMaterialConsumption(activeProject.id, profile.organization_id),
+      ]);
+      setRows(r);
+      setTickets(t);
+      setPendingReviews(pr);
+      setIncoming(inc);
+      setMaterials(m);
+    } catch (err) {
+      console.warn('[useDelivery] reload error:', err);
+    } finally {
+      setLoading(false);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeProject?.id, profile?.organization_id]);
 

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '@/shared/lib/supabase/client';
-import { localInsert, localUpdate, localUpdateWhere, generateUUID } from '@/shared/lib/powersync/write';
+import { localInsert, localUpdate, localUpdateWhere, localQuery, generateUUID } from '@/shared/lib/powersync/write';
 import { haptic } from '@/shared/lib/haptics';
 
 export type ProductionArea = {
@@ -147,51 +147,90 @@ export const useProductionStore = create<ProductionState & ProductionActions>((s
     workerUserId?: string | null,
   ) => {
     set({ loading: true });
-    const [areasRes, progressRes, templatePhasesRes] = await Promise.all([
-      supabase.from('production_areas').select('*').eq('project_id', projectId).order('floor').order('name'),
-      supabase.from('production_phase_progress').select('*').eq('organization_id', organizationId),
-      supabase.from('production_template_phases').select('*').eq('organization_id', organizationId).order('sequence'),
-    ]);
+    try {
+      // PowerSync local-first reads — work fully offline. Falls back to
+      // Supabase REST only if the local DB isn't available (web).
+      let areas: ProductionArea[] = [];
+      let allProgress: PhaseProgress[] = [];
+      let templatePhases: TemplatePhase[] = [];
 
-    let areas = (areasRes.data ?? []) as ProductionArea[];
+      const localAreas = await localQuery<ProductionArea>(
+        `SELECT * FROM production_areas WHERE project_id = ? ORDER BY floor, name`,
+        [projectId],
+      );
+      const localProgress = await localQuery<PhaseProgress>(
+        `SELECT * FROM production_phase_progress WHERE organization_id = ?`,
+        [organizationId],
+      );
+      const localTemplates = await localQuery<TemplatePhase>(
+        `SELECT * FROM production_template_phases WHERE organization_id = ? ORDER BY sequence`,
+        [organizationId],
+      );
 
-    // Sprint 40C: workers see only areas where they are currently assigned
-    // via crew_assignments. If they have no assignments, fall back to showing
-    // an empty list (rather than the whole project, to avoid leaking scope).
-    if (workerUserId) {
-      const { data: crewRows } = await supabase
-        .from('crew_assignments')
-        .select('area_id')
-        .eq('worker_id', workerUserId)
-        .eq('project_id', projectId);
-      const allowedAreaIds = new Set(((crewRows ?? []) as { area_id: string }[]).map((r) => r.area_id));
-      areas = areas.filter((a) => allowedAreaIds.has(a.id));
+      if (localAreas !== null && localProgress !== null && localTemplates !== null) {
+        areas = localAreas;
+        allProgress = localProgress;
+        templatePhases = localTemplates;
+      } else {
+        // Web fallback — direct Supabase reads
+        const [areasRes, progressRes, templatePhasesRes] = await Promise.all([
+          supabase.from('production_areas').select('*').eq('project_id', projectId).order('floor').order('name'),
+          supabase.from('production_phase_progress').select('*').eq('organization_id', organizationId),
+          supabase.from('production_template_phases').select('*').eq('organization_id', organizationId).order('sequence'),
+        ]);
+        areas = (areasRes.data ?? []) as ProductionArea[];
+        allProgress = (progressRes.data ?? []) as PhaseProgress[];
+        templatePhases = (templatePhasesRes.data ?? []) as TemplatePhase[];
+      }
+
+      // Sprint 40C: workers see only areas where they are currently assigned
+      // via crew_assignments. If they have no assignments, show empty list.
+      if (workerUserId) {
+        const localCrew = await localQuery<{ area_id: string }>(
+          `SELECT area_id FROM crew_assignments WHERE worker_id = ? AND project_id = ?`,
+          [workerUserId, projectId],
+        );
+        let crewRows: { area_id: string }[] = [];
+        if (localCrew !== null) {
+          crewRows = localCrew;
+        } else {
+          const { data } = await supabase
+            .from('crew_assignments')
+            .select('area_id')
+            .eq('worker_id', workerUserId)
+            .eq('project_id', projectId);
+          crewRows = (data ?? []) as { area_id: string }[];
+        }
+        const allowedAreaIds = new Set(crewRows.map((r) => r.area_id));
+        areas = areas.filter((a) => allowedAreaIds.has(a.id));
+      }
+
+      const phaseMap = new Map<string, PhaseProgress[]>();
+      for (const p of allProgress) {
+        if (!phaseMap.has(p.area_id)) phaseMap.set(p.area_id, []);
+        phaseMap.get(p.area_id)!.push(p);
+      }
+
+      const floors = buildFloors(areas, phaseMap, templatePhases);
+      const globalGates = computeGateHealth(areas, phaseMap, templatePhases);
+
+      set({
+        areas,
+        phases: phaseMap,
+        templatePhases,
+        floors,
+        loading: false,
+        totalAreas: areas.length,
+        completedAreas: areas.filter((a) => a.status === 'completed').length,
+        blockedAreas: areas.filter((a) => a.status === 'blocked').length,
+        inProgressAreas: areas.filter((a) => a.status === 'in_progress').length,
+        totalGates: globalGates.totalGates,
+        completedGates: globalGates.completedGates,
+      });
+    } catch (err) {
+      console.warn('[ProductionStore] fetchAll error:', err);
+      set({ loading: false });
     }
-    const allProgress = (progressRes.data ?? []) as PhaseProgress[];
-    const templatePhases = (templatePhasesRes.data ?? []) as TemplatePhase[];
-
-    const phaseMap = new Map<string, PhaseProgress[]>();
-    for (const p of allProgress) {
-      if (!phaseMap.has(p.area_id)) phaseMap.set(p.area_id, []);
-      phaseMap.get(p.area_id)!.push(p);
-    }
-
-    const floors = buildFloors(areas, phaseMap, templatePhases);
-    const globalGates = computeGateHealth(areas, phaseMap, templatePhases);
-
-    set({
-      areas,
-      phases: phaseMap,
-      templatePhases,
-      floors,
-      loading: false,
-      totalAreas: areas.length,
-      completedAreas: areas.filter((a) => a.status === 'completed').length,
-      blockedAreas: areas.filter((a) => a.status === 'blocked').length,
-      inProgressAreas: areas.filter((a) => a.status === 'in_progress').length,
-      totalGates: globalGates.totalGates,
-      completedGates: globalGates.completedGates,
-    });
   },
 
   markAreaStatus: async (areaId: string, status: string, blockedReason?: string, userId?: string) => {

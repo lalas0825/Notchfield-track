@@ -201,4 +201,27 @@ export async function localUpdateWhere(
   return { success: true };
 }
 
+/**
+ * Query rows from PowerSync local SQLite (offline-first read).
+ * Returns null on web (caller should fall back to Supabase).
+ *
+ * Use this for reads instead of `supabase.from(...).select(...)` when the
+ * data is in a synced PowerSync table — it works fully offline and is much
+ * faster than a network round-trip.
+ */
+export async function localQuery<T = Record<string, unknown>>(
+  sql: string,
+  params: unknown[] = [],
+): Promise<T[] | null> {
+  const ps = getPowerSync();
+  if (!ps) return null;
+  try {
+    const result = await ps.getAll(sql, params);
+    return result as T[];
+  } catch (err) {
+    console.warn('[localQuery] error:', err);
+    return null;
+  }
+}
+
 export { generateUUID };
