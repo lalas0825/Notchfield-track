@@ -91,6 +91,15 @@ const production_area_objects = new TableV2({
   material_code: column.text,
   quantity_sf: column.real,
   created_at: column.text,
+  // Sprint 41G — surface progress tracking
+  status: column.text, // 'not_started' | 'in_progress' | 'completed' | 'blocked'
+  started_at: column.text,
+  completed_at: column.text,
+  completed_by: column.text,
+  blocked_reason: column.text,
+  blocked_at: column.text,
+  blocked_by: column.text,
+  notes: column.text,
 });
 
 const production_templates = new TableV2({

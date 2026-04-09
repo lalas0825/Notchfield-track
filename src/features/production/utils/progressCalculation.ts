@@ -87,6 +87,13 @@ export interface SurfaceRow {
  * A 1,280 SF wall counts more than a 6 SF saddle.
  * PCS/EA items without sqft get a fixed weight of 20.
  */
+function statusWeight(status?: string): number {
+  // completed = 100%, in_progress = 50% credit, others = 0
+  if (status === 'completed' || status === 'complete') return 1;
+  if (status === 'in_progress' || status === 'started') return 0.5;
+  return 0;
+}
+
 export function calculateSurfaceProgress(surfaces: SurfaceRow[]): number {
   let totalSf = 0;
   let completedSf = 0;
@@ -95,9 +102,7 @@ export function calculateSurfaceProgress(surfaces: SurfaceRow[]): number {
     const sf = s.quantity_sf ?? 0;
     if (sf > 0) {
       totalSf += sf;
-      if (s.status === 'completed' || s.status === 'complete') {
-        completedSf += sf;
-      }
+      completedSf += sf * statusWeight(s.status);
     }
   }
 
@@ -106,7 +111,7 @@ export function calculateSurfaceProgress(surfaces: SurfaceRow[]): number {
   if (pcsItems.length > 0) {
     const PCS_WEIGHT = 20;
     totalSf += pcsItems.length * PCS_WEIGHT;
-    completedSf += pcsItems.filter((s) => s.status === 'completed' || s.status === 'complete').length * PCS_WEIGHT;
+    completedSf += pcsItems.reduce((sum, s) => sum + PCS_WEIGHT * statusWeight(s.status), 0);
   }
 
   return totalSf > 0 ? completedSf / totalSf : 0;
