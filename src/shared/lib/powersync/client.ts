@@ -27,10 +27,17 @@ export async function initPowerSync(): Promise<void> {
   if (Platform.OS === 'web' || !powerSync) return;
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { SyncStreamConnectionMethod } = require('@powersync/react-native');
+  // Open the local SQLite DB — fast, no network. We MUST await this so
+  // localQuery() works immediately after init returns.
   await powerSync.init();
-  await powerSync.connect(connector, {
-    connectionMethod: SyncStreamConnectionMethod.HTTP,
-  });
+  // Kick off the network connection in the background. We do NOT await
+  // this — on a flaky network it can hang for tens of seconds and we
+  // would block app startup. PowerSync retries automatically.
+  powerSync
+    .connect(connector, { connectionMethod: SyncStreamConnectionMethod.HTTP })
+    .catch((err: unknown) => {
+      console.warn('[PowerSync] connect error (will retry):', err);
+    });
 }
 
 export async function disconnectPowerSync(): Promise<void> {

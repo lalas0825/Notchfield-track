@@ -109,8 +109,15 @@ export const useProjectStore = create<ProjectState & ProjectActions>((set, get) 
       set({ projects, activeProject: autoSelect, loading: false });
 
       if (autoSelect) {
-        await get().fetchGeofence(autoSelect.id);
-        await loadDependentStores(autoSelect.id, organizationId);
+        // Fire-and-forget — these load home/crew data but should NOT
+        // block the project store from reporting "loaded". On flaky
+        // networks, awaiting these can hang the entire app startup.
+        get().fetchGeofence(autoSelect.id).catch((err) => {
+          console.warn('[ProjectStore] fetchGeofence error:', err);
+        });
+        loadDependentStores(autoSelect.id, organizationId).catch((err) => {
+          console.warn('[ProjectStore] loadDependentStores error:', err);
+        });
       }
     } catch (err) {
       console.warn('[ProjectStore] fetchProjects error:', err);
