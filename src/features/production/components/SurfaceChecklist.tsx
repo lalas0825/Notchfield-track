@@ -13,7 +13,7 @@ import { supabase } from '@/shared/lib/supabase/client';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { useProjectStore } from '@/features/projects/store/project-store';
 import { enqueuePhoto } from '@/features/photos/services/photo-queue';
-import { localUpdate } from '@/shared/lib/powersync/write';
+import { localUpdate, localQuery } from '@/shared/lib/powersync/write';
 import { haptic } from '@/shared/lib/haptics';
 import { calculateSurfaceProgress, type SurfaceRow } from '../utils/progressCalculation';
 
@@ -43,27 +43,44 @@ export function SurfaceChecklist({ areaId }: Props) {
 
   const loadSurfaces = useCallback(async () => {
     if (!areaId) return;
-
-    const { data } = await supabase
-      .from('production_area_objects')
-      .select('*')
-      .eq('area_id', areaId)
-      .order('created_at');
-
-    setSurfaces((data ?? []) as SurfaceObject[]);
+    const local = await localQuery<SurfaceObject>(
+      `SELECT * FROM production_area_objects WHERE area_id = ? ORDER BY created_at`,
+      [areaId],
+    );
+    if (local !== null) {
+      setSurfaces(local);
+    } else {
+      const { data } = await supabase
+        .from('production_area_objects')
+        .select('*')
+        .eq('area_id', areaId)
+        .order('created_at');
+      setSurfaces((data ?? []) as SurfaceObject[]);
+    }
     setLoading(false);
   }, [areaId]);
 
   const loadPhotoCounts = useCallback(async () => {
     if (!areaId) return;
-    const { data } = await supabase
-      .from('field_photos')
-      .select('object_id')
-      .eq('area_id', areaId)
-      .not('object_id', 'is', null);
-
+    // Read from PowerSync local DB so freshly enqueued photos are counted
+    // immediately, even before they upload to Supabase Storage.
+    const local = await localQuery<{ object_id: string | null }>(
+      `SELECT object_id FROM field_photos WHERE area_id = ? AND object_id IS NOT NULL`,
+      [areaId],
+    );
+    let rows: { object_id: string | null }[];
+    if (local !== null) {
+      rows = local;
+    } else {
+      const { data } = await supabase
+        .from('field_photos')
+        .select('object_id')
+        .eq('area_id', areaId)
+        .not('object_id', 'is', null);
+      rows = (data ?? []) as { object_id: string | null }[];
+    }
     const counts: Record<string, number> = {};
-    for (const row of (data ?? []) as any[]) {
+    for (const row of rows) {
       if (row.object_id) {
         counts[row.object_id] = (counts[row.object_id] ?? 0) + 1;
       }
@@ -128,6 +145,7 @@ export function SurfaceChecklist({ areaId }: Props) {
         organizationId: profile.organization_id,
         projectId: activeProject.id,
         areaId,
+        objectId: surface.id,
         contextType: 'progress',
         takenBy: user.id,
         gpsLat,

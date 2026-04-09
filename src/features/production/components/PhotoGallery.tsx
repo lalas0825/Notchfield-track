@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { supabase } from '@/shared/lib/supabase/client';
+import { localQuery } from '@/shared/lib/powersync/write';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { useProjectStore } from '@/features/projects/store/project-store';
 import { enqueuePhoto } from '@/features/photos/services/photo-queue';
@@ -58,6 +59,18 @@ export function PhotoGallery({ areaId }: Props) {
 
   const loadPhotos = useCallback(async () => {
     if (!areaId) return;
+
+    // PowerSync local-first — shows freshly enqueued photos immediately,
+    // even before they upload to Supabase Storage.
+    const local = await localQuery<FieldPhoto>(
+      `SELECT id, area_id, context_type, caption, local_uri, remote_url, thumbnail_url, taken_by, taken_at, gps_lat, gps_lng, sync_status
+       FROM field_photos WHERE area_id = ? ORDER BY taken_at DESC`,
+      [areaId],
+    );
+    if (local !== null) {
+      setPhotos(local);
+      return;
+    }
 
     const { data } = await supabase
       .from('field_photos')
