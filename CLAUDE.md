@@ -1,7 +1,7 @@
 # 🏗️ NotchField Track — Factory OS
 > *"Track collects, Web processes. Same database, different doors."*
-> Updated: 2026-04-06 | T1 OPERATIONAL, T2 S1-S3 DONE, T3 7/10
-> Repo: https://github.com/lalas0825/Notchfield-track (38 commits)
+> Updated: 2026-04-10 | T1 OPERATIONAL, T2 S1-S3 + Sprint 42B + 43A + 43B + 45B DONE, T3 7/10
+> Repo: https://github.com/lalas0825/Notchfield-track (41+ commits, Sprint 45B live)
 > Supabase: msmpsxalfalzinuorwlg | PowerSync: 69c72137a112d86b20541618
 > EAS: @lalas825/notchfield-track (281ade7b-a5d9-4f43-9710-d270ae4c49f4)
 
@@ -1086,6 +1086,9 @@ All 4 skills are created in `.claude/skills/` with implementation code and patte
 - Table `production_areas` NOT `areas`
 - RLS helpers: `user_org_id()` and `user_role()` NOT `get_user_org_id()`
 - Supabase project: `msmpsxalfalzinuorwlg` NOT `errxmhgqksdasxccumtz` (that's ReadyBoard)
+- `production_area_objects` SF column is `total_quantity_sf` NOT `quantity_sf` (the latter does not exist)
+- `production_area_objects.name` = surface position ("floor" / "wall" / "base" / "saddle") NOT a material description
+- **Always verify column names via `information_schema.columns` before declaring a table in PowerSync schema** — wrong names sync as null silently and you'll chase ghosts
 
 ### Critical: EAS Build (see EAS_BUILD_GUIDE.md)
 - Node 20 LTS required (Node 25 breaks metro)
@@ -1115,7 +1118,7 @@ Does NOT work: JOINs, subqueries in data, aliases in parameters.
 | create_worker_certifications | worker_certifications (cert tracking + expiry alerts) |
 | powersync publication | `CREATE PUBLICATION powersync FOR ALL TABLES` |
 
-### PowerSync Schema — 38 tables synced (as of Sprint 37)
+### PowerSync Schema — 39 tables synced (as of Sprint 42B)
 Takeoff reads: projects, organizations, profiles, units, production_areas, production_area_objects,
 production_templates, production_template_phases, production_phase_progress, classifications,
 drawing_sets, drawings, drawing_revisions, takeoff_objects, safety_documents, document_signoffs,
@@ -1124,6 +1127,8 @@ work_tickets, room_types, room_type_surfaces, phase_progress
 Track-owned: crew_assignments, area_time_entries, gps_checkins, gps_geofences, field_photos,
 daily_reports, field_messages, punch_items, production_block_logs, worker_certifications,
 delivery_tickets, delivery_ticket_items, material_consumption
+
+GC Platform synced: gc_punch_items (Sprint 42B — synced from Procore/GC platforms, offline-first)
 
 ### Key Sprints Applied
 | Sprint | What |
@@ -1134,6 +1139,12 @@ delivery_tickets, delivery_ticket_items, material_consumption
 | 29-37 | Delivery columns (ticket_number, priority, shipped_by) + status filter |
 | 34 | Pilot features: surface camera, photo gallery, sqft progress |
 | Delivery Review | pending_review flow, Home alerts, Docs tab badge |
+| 41G | Surface checklist 3-state (not_started → in_progress → completed), block with notes, progress propagation to area card |
+| 42A | Reserved for Takeoff gc_punch_items table + Edge Functions (gc-pull-items, gc-push-resolution) |
+| 42B | Track GC Punchlist UI: PowerSync schema, sync rules, permissions, list screen, detail screen, hours/notes/photos resolution workflow |
+| 43A | Surface checklist real SF progress fix — PowerSync schema corrected (`total_quantity_sf`, `name`, `surface_type`); strict SF-weighted calc (1,280 SF wall weighs more than 6 SF saddle, no partial credit); `[material_code]` badge now white-on-dark for contrast; `chk_blocked_has_reason` constraint fix in `propagateAreaStatus` |
+| 43B | Track Work Tickets — T&M tickets with digital GC signatures. Work Tickets list / create / edit / detail screens; PowerSync schema for work_tickets (Sprint 43A columns) + document_signatures; Send for Signature modal (email/share/WhatsApp) with last-GC memory per project; PDF generation via expo-print + sharing; status flow draft → pending_signature → signed/declined; sign URL `https://notch-field-takeoff.vercel.app/sign/{token}`; offline-first |
+| 45B | Work Tickets REWRITE — aligned with Takeoff Web exactly. Field names now `classification`/`regular_hours`/`overtime_hours`/`quantity` (not `class`/`reg_hrs`/`ot_hrs`/`qty`). Status enum `'pending'` not `'pending_signature'`. `signer_role` lowercase (`gc`/`pm`/...). All CRUD + signature ops switched to DIRECT Supabase (no PowerSync for signatures — battle-tested rule from Jantile Tracker). Added in-app signing route `sign/[id].tsx` (foreman hands phone to GC) with SHA-256 hash via expo-crypto. Signature upload goes to `signatures/{org_id}/{token}.png` — shared convention with Takeoff Web. Added realtime subscriptions via Supabase channels (cross-app: Web signs → Track auto-updates). Replaced SendForSignatureModal with direct `Share.share` + in-app sign flow. Zod schemas mirror Takeoff Web types. |
 
 ---
 

@@ -18,6 +18,7 @@ import { enqueuePhoto } from '@/features/photos/services/photo-queue';
 import { localUpdate, localQuery } from '@/shared/lib/powersync/write';
 import { haptic } from '@/shared/lib/haptics';
 import { calculateSurfaceProgress, type SurfaceRow } from '../utils/progressCalculation';
+import { useProductionStore, type ProductionArea } from '../store/production-store';
 
 type Status = 'not_started' | 'in_progress' | 'completed' | 'blocked';
 
@@ -26,9 +27,10 @@ interface SurfaceObject {
   area_id: string;
   takeoff_object_id: string;
   material_code?: string;
-  quantity_sf?: number;
-  name?: string;
-  label?: string;
+  name?: string;                    // surface position: "floor" | "wall" | "base" | "saddle"
+  surface_type?: string;
+  total_quantity_sf?: number | null;
+  quantity_per_unit_sf?: number | null;
   unit?: string;
   status?: Status | string;
   blocked_reason?: string | null;
@@ -61,6 +63,22 @@ const STATUS_META: Record<Status, { icon: 'ellipse-outline' | 'time-outline' | '
   completed:   { icon: 'checkmark-circle',  color: '#22C55E', label: 'Done' },
   blocked:     { icon: 'close-circle',      color: '#EF4444', label: 'Blocked' },
 };
+
+/**
+ * Derive the aggregate area status from its surfaces.
+ * - Any blocked          → 'blocked'
+ * - All completed        → 'completed'
+ * - Any in_progress/completed → 'in_progress'
+ * - Otherwise            → 'not_started'
+ */
+function deriveAreaStatus(surfaces: SurfaceObject[]): string {
+  if (surfaces.length === 0) return 'not_started';
+  const statuses = surfaces.map((s) => normalizeStatus(s.status));
+  if (statuses.some((s) => s === 'blocked')) return 'blocked';
+  if (statuses.every((s) => s === 'completed')) return 'completed';
+  if (statuses.some((s) => s === 'in_progress' || s === 'completed')) return 'in_progress';
+  return 'not_started';
+}
 
 export function SurfaceChecklist({ areaId }: Props) {
   const [surfaces, setSurfaces] = useState<SurfaceObject[]>([]);
@@ -124,6 +142,40 @@ export function SurfaceChecklist({ areaId }: Props) {
     loadPhotoCounts();
   }, [loadSurfaces, loadPhotoCounts]);
 
+  /**
+   * After any surface update, derive the aggregate area status and push it
+   * to production_areas + the in-memory production store so the Board card
+   * reflects the change immediately without a full refetch.
+   */
+  const propagateAreaStatus = useCallback(
+    async (updatedSurfaces: SurfaceObject[]) => {
+      const derived = deriveAreaStatus(updatedSurfaces);
+
+      // chk_blocked_has_reason: when status != 'blocked', blocked_reason must be null
+      const areaUpdates: Record<string, unknown> = { status: derived };
+      if (derived !== 'blocked') {
+        areaUpdates.blocked_reason = null;
+        areaUpdates.blocked_at = null;
+      }
+
+      await localUpdate('production_areas', areaId, areaUpdates);
+
+      // Optimistically update production store so ReadyBoard re-renders
+      const store = useProductionStore.getState();
+      const area = store.areas.find((a) => a.id === areaId);
+      if (!area) return;
+
+      useProductionStore.setState((s) => ({
+        areas: s.areas.map((a) =>
+          a.id === areaId ? { ...a, ...areaUpdates } as ProductionArea : a,
+        ),
+      }));
+      // Recalc floor metrics + KPI counts after the area update is committed
+      store.recalcFloor(area.floor ?? 'Unassigned');
+    },
+    [areaId],
+  );
+
   const handleCycleStatus = useCallback(
     async (surface: SurfaceObject) => {
       if (!user) return;
@@ -156,17 +208,19 @@ export function SurfaceChecklist({ areaId }: Props) {
         updates.blocked_by = null;
       }
 
-      // Optimistic update
-      setSurfaces((prev) =>
-        prev.map((s) => (s.id === surface.id ? { ...s, ...updates } as SurfaceObject : s)),
+      // Optimistic update of local surface list
+      const updatedSurfaces = surfaces.map((s) =>
+        s.id === surface.id ? { ...s, ...updates } as SurfaceObject : s,
       );
+      setSurfaces(updatedSurfaces);
 
       if (next === 'completed') haptic.success();
       else haptic.light();
 
       await localUpdate('production_area_objects', surface.id, updates);
+      await propagateAreaStatus(updatedSurfaces);
     },
-    [user],
+    [user, surfaces, propagateAreaStatus],
   );
 
   const openBlockModal = useCallback((surface: SurfaceObject) => {
@@ -195,13 +249,15 @@ export function SurfaceChecklist({ areaId }: Props) {
       blocked_by: user.id,
       notes: trimmed,
     };
-    setSurfaces((prev) =>
-      prev.map((s) => (s.id === blockSurface.id ? { ...s, ...updates } as SurfaceObject : s)),
+    const updatedSurfaces = surfaces.map((s) =>
+      s.id === blockSurface.id ? { ...s, ...updates } as SurfaceObject : s,
     );
+    setSurfaces(updatedSurfaces);
     haptic.error();
     await localUpdate('production_area_objects', blockSurface.id, updates);
+    await propagateAreaStatus(updatedSurfaces);
     closeBlockModal();
-  }, [user, blockSurface, blockReason, closeBlockModal]);
+  }, [user, blockSurface, blockReason, surfaces, propagateAreaStatus, closeBlockModal]);
 
   const handleTakePhoto = useCallback(
     async (surface: SurfaceObject) => {
@@ -280,7 +336,9 @@ export function SurfaceChecklist({ areaId }: Props) {
         const meta = STATUS_META[status];
         const showCamera = status !== 'not_started';
         const count = photoCounts[surface.id] ?? 0;
-        const surfaceName = surface.name ?? surface.label ?? 'Surface';
+        // Display: "[CT-05] wall — 288 SF" style
+        const surfaceName =
+          surface.name ?? surface.material_code ?? 'Unknown';
 
         return (
           <Pressable
@@ -299,11 +357,12 @@ export function SurfaceChecklist({ areaId }: Props) {
                   style={{
                     fontFamily: 'monospace',
                     fontSize: 10,
-                    color: '#475569',
-                    backgroundColor: 'rgba(255,255,255,0.05)',
-                    paddingHorizontal: 4,
-                    paddingVertical: 1,
-                    borderRadius: 3,
+                    fontWeight: '700',
+                    color: '#0F172A',
+                    backgroundColor: '#F8FAFC',
+                    paddingHorizontal: 5,
+                    paddingVertical: 2,
+                    borderRadius: 4,
                     marginLeft: 8,
                     overflow: 'hidden',
                   }}
@@ -317,12 +376,6 @@ export function SurfaceChecklist({ areaId }: Props) {
                   {surfaceName}
                 </Text>
               </View>
-
-              {surface.quantity_sf != null && surface.quantity_sf > 0 && (
-                <Text className="mr-2 text-xs text-slate-500">
-                  {Math.round(surface.quantity_sf)} SF
-                </Text>
-              )}
 
               {showCamera && (
                 <View className="flex-row items-center">
@@ -390,7 +443,7 @@ export function SurfaceChecklist({ areaId }: Props) {
               <Text className="ml-3 text-lg font-bold text-white">Block surface</Text>
             </View>
             <Text className="mb-3 text-sm text-slate-400">
-              {blockSurface?.name ?? blockSurface?.label ?? 'Surface'} — describe why this can&apos;t be done.
+              {blockSurface?.material_code ?? ''} {blockSurface?.name ?? 'Surface'} — describe why this can&apos;t be done.
             </Text>
             <TextInput
               value={blockReason}

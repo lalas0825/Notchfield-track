@@ -55,3 +55,5 @@ bucket_definitions:
       - SELECT * FROM delivery_shipments WHERE organization_id = bucket.organization_id
       - SELECT * FROM delivery_shipment_items WHERE organization_id = bucket.organization_id
       - SELECT * FROM project_assignments WHERE organization_id = bucket.organization_id
+      - SELECT * FROM gc_punch_items WHERE organization_id = bucket.organization_id
+      - SELECT * FROM document_signatures WHERE organization_id = bucket.organization_id

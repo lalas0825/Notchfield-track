@@ -8,7 +8,8 @@ import type { ProductionArea, FloorGroup } from '../store/production-store';
 type StatusFilter = 'all' | 'blocked' | 'in_progress' | 'completed' | 'not_started';
 
 const STATUS_CONFIG: Record<string, { color: string; icon: keyof typeof Ionicons.glyphMap; label: string }> = {
-  complete: { color: '#22C55E', icon: 'checkmark-circle', label: 'Complete' },
+  completed: { color: '#22C55E', icon: 'checkmark-circle', label: 'Completed' },
+  complete: { color: '#22C55E', icon: 'checkmark-circle', label: 'Completed' }, // legacy alias
   in_progress: { color: '#F59E0B', icon: 'ellipse', label: 'In Progress' },
   blocked: { color: '#EF4444', icon: 'close-circle', label: 'Blocked' },
   not_started: { color: '#9CA3AF', icon: 'ellipse-outline', label: 'Not Started' },
@@ -204,7 +205,7 @@ function AreaRow({ area, onPress }: { area: ProductionArea; onPress: () => void 
       <View className="ml-3 flex-1">
         <View className="flex-row items-center">
           {(area as any).area_code && (
-            <Text style={{ fontFamily: 'monospace', fontSize: 11, color: '#475569', backgroundColor: 'rgba(255,255,255,0.05)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginRight: 6, overflow: 'hidden' }}>
+            <Text style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: '700', color: '#0F172A', backgroundColor: '#F8FAFC', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginRight: 6, overflow: 'hidden' }}>
               {(area as any).area_code}
             </Text>
           )}

@@ -1,14 +1,14 @@
 # NotchField Track — TASKS_TRACK.md
-> Track native app task tracker | 105 tasks | Updated: 2026-04-06
-> 4 phases: T1 (start now) → T2 (after Takeoff 7B) → T3 (after Takeoff 9) → T4 (after Takeoff 10)
+> Track native app task tracker | 105 tasks | Updated: 2026-04-08
+> 4 phases: T1 (DONE) → T2 (DONE + Sprint 42B + 43A + 43B + 45B) → T3 (7/10) → T4 (after Takeoff 10)
 > Same Supabase as Takeoff. Expo + PowerSync. Offline-first.
 > **Supabase project:** msmpsxalfalzinuorwlg (Notchfield Takeoff — shared)
-> **PowerSync:** 69c72137a112d86b20541618.powersync.journeyapps.com (38 tables synced)
+> **PowerSync:** 69c72137a112d86b20541618.powersync.journeyapps.com (39 tables synced — +gc_punch_items Sprint 42B)
 > **EAS Project:** 281ade7b-a5d9-4f43-9710-d270ae4c49f4 (@lalas825/notchfield-track)
-> **Repo:** https://github.com/lalas0825/Notchfield-track (38 commits)
-> **APK:** Installed on device. Login + Home + Docs + Plans + More working.
+> **Repo:** https://github.com/lalas0825/Notchfield-track (41+ commits, Sprint 42B live)
+> **APK:** Installed on device. Login + Home + Docs + Plans + More working, GC Punchlist ready.
 > **Takeoff:** UNBLOCKED — all Track ↔ Takeoff data loops closed.
-> **Synced through:** Takeoff Sprint 37 + Delivery Review feature
+> **Synced through:** Takeoff Sprint 37 + Delivery Review + Sprint 42A gc_punch_items
 
 ---
 
@@ -16,14 +16,14 @@
 
 | Phase | What | Tasks | Depends On | Status |
 |-------|------|-------|-----------|--------|
-| **T1 — Foundation + Safety + GPS + Time Tracking + Plans** | Auth, navigation, GPS, safety, work tickets, crew, time entries, drawing viewer | **43** | Nothing (tables exist) | ✅ OPERATIONAL (40/43) |
-| **T2 — Production + Ready Board + Legal + Punch List + AI Agent** | Daily report, checkboxes, Ready Board, gates, NOD/REA, punch list, AI agent + voice | **38** | Takeoff Fase 7B | ✅ S1-S3 DONE + Sprint 25A/B/C + Sprint 34 |
+| **T1 — Foundation + Safety + GPS + Time Tracking + Plans** | Auth, navigation, GPS, safety, work tickets, crew, time entries, drawing viewer | **43** | Nothing (tables exist) | ✅ OPERATIONAL (43/43) |
+| **T2 — Production + Ready Board + Legal + Punch List + AI Agent** | Daily report, checkboxes, Ready Board, gates, NOD/REA, punch list, AI agent + voice | **38** | Takeoff Fase 7B | ✅ DONE (S1-S3 + Sprint 25A/B/C + Sprint 34 + Sprint 41G + Sprint 42B) |
 | **T3 — Delivery + Material Flow** | Delivery confirmation, supervisor tracker, material consumption | **10** | Takeoff Fase 9 | ✅ 9/10 DONE (1 UI screen pending) |
 | **T4 — Polish + App Store** | Role enforcement, push, performance, store submission | **10** | Takeoff Fase 10 | ⬜ After Fase 10 |
 | **Audit** | 65-check audit (AUDIT_TRACK.md) | 65 | — | ✅ B- grade, 11 FAILs fixed |
 | **EAS Build** | APK on device testing | — | — | 🟡 ~8 builds. Needs dev-client build |
 | **Seed Data** | Real production data in Supabase | — | — | ✅ 6 areas, 5 workers, template, geofence, certs |
-| **TOTAL** | | **105** | | |
+| **TOTAL** | | **105** | | **~99/105 (94%)** |
 
 ### Recent Sprints (since last TASKS update)
 
@@ -35,6 +35,9 @@
 | 29-37 | Delivery columns sync + status filter (shipped/delivered only) | ✅ |
 | 34 | Pilot features: surface camera, photo gallery, sqft progress calc | ✅ |
 | Delivery Review | pending_review → approved flow, Home alerts, Docs tab badge | ✅ |
+| 41G | Surface checklist 3-state (not_started → in_progress → completed), block with notes, area status propagation | ✅ |
+| 42A | Takeoff: gc_punch_items table + Edge Functions (gc-pull-items, gc-push-resolution) | ✅ (Takeoff side) |
+| 42B | Track: GC Punchlist UI — PowerSync schema, sync rules, permissions, list screen, detail screen (hours, notes, photos, push_pending) | ✅ |
 
 ### 🐛 Known Device Bugs (need dev-client build to debug)
 
@@ -47,6 +50,457 @@
 | Blocked reasons mismatch | P1 | `'material'` vs `'material_not_delivered'` | ✅ Fixed in code |
 
 All 5 bugs are fixed in code (commit 79b592a). Need EAS dev-client build to verify on device.
+
+---
+
+## 🎯 LATEST SPRINTS DETAILED
+
+### Sprint 41G — Surface Checklist 3-State + Area Status Propagation ✅
+**Objective:** Add in_progress state to surface checklist, enable blocking with notes, and propagate surface changes to parent area card.
+
+**Changes:**
+- [x] SurfaceChecklist: 3-state cycle (not_started → in_progress → completed → not_started)
+- [x] Long-press modal: block surface with required notes textbox + error validation
+- [x] ProgressCalculation: in_progress = 50% credit, completed = 100%, blocked/not_started = 0%
+- [x] deriveAreaStatus(): derives parent area status from surface statuses (any blocked → blocked, all complete → complete, etc.)
+- [x] propagateAreaStatus(): after each surface update, writes derived status to production_areas + production store
+- [x] Ready Board area card now reflects surface-level changes instantly (no refetch required)
+- [x] Optimistic UI: local state updates before server sync via PowerSync
+
+**Files Modified:**
+- `src/features/production/components/SurfaceChecklist.tsx` — 3-state logic + block modal + propagation
+- `src/features/production/utils/progressCalculation.ts` — statusWeight() now counts in_progress = 0.5
+- `src/features/production/store/production-store.ts` — already has recalcFloor() for instant Board updates
+
+**Impact:** Foreman can now mark surfaces in_progress (not fully complete) + block individually. Board card updates instantly without refresh.
+
+---
+
+### Sprint 42A — GC Punch Items Platform (Takeoff Side) ✅
+**Objective:** Create gc_punch_items table + Edge Functions to pull from Procore/GC platforms and push resolutions back.
+
+**Takeoff Changes (not Track scope, but context):**
+- [x] `gc_punch_items` table: platform, item_number, status, external_photos, resolution_photos, hours_logged, push_pending, etc.
+- [x] gc-pull-items Edge Function (cron 15min): fetches punch items from Procore API, upserts to gc_punch_items, syncs external_photos
+- [x] gc-push-resolution Edge Function: triggered by push_pending = 1, sends status + resolution_photos + hours back to Procore
+- [x] RLS: org-scoped, read by Track via PowerSync
+
+**Result:** Polishers can resolve punch items in Track, changes auto-push to Procore without additional steps.
+
+---
+
+### Sprint 42B — GC Punchlist UI (Track Side) ✅
+**Objective:** Build polisher workflow in Track to resolve GC punchlist items, upload resolution photos, log hours.
+
+**Changes:**
+1. PowerSync Schema:
+   - [x] Added gc_punch_items TableV2 to schema.ts (34 columns, synced org-wide)
+   - [x] Exported GcPunchItemRecord type
+
+2. Sync Rules:
+   - [x] Added `SELECT * FROM gc_punch_items WHERE organization_id = bucket.organization_id` to sync-rules.yaml
+
+3. Permissions:
+   - [x] Added `'gc_punchlist'` feature to TrackFeature type
+   - [x] All roles (supervisor, foreman, worker) can access gc_punchlist (worker filtered by assignment)
+
+4. More Tab Menu:
+   - [x] "GC Punchlist" added as first item (gated by gc_punchlist feature)
+
+5. Service + Hook:
+   - [x] `src/features/gc-punch/services/gc-punch-service.ts`
+     - fetchGcPunchItems() — localQuery-first, role-aware filtering
+     - updateGcPunchStatus() — sets push_pending = 1 to trigger server push
+     - saveGcPunchResolution() — saves hours, notes, photos to gc_punch_items
+     - uploadResolutionPhoto() — uploads to Supabase Storage field-photos bucket
+   - [x] `src/features/gc-punch/hooks/useGcPunchList.ts`
+     - Groups by floor + unit
+     - Sorts: in_progress → open → ready_for_review → closed
+     - Returns groups + closedItems + counts
+
+6. List Screen:
+   - [x] `src/app/(tabs)/more/punchlist/index.tsx`
+     - KPI bar: Open / Working / Review / Closed
+     - Status filter chips (All, Open, In Progress, Ready for Review)
+     - Priority filter chips (Any, High, Critical)
+     - Groups grouped by floor/unit with PunchCard
+     - Closed items in collapsible section
+     - Fields displayed: item #, title, location, due date (color-coded), priority (⚡ or 🔴), status badge, platform badge
+
+7. Detail Screen:
+   - [x] `src/app/(tabs)/more/punchlist/[id].tsx`
+     - Header: item #, title, location, due date (overdue warning), priority, platform badge
+     - Description section: read-only from GC
+     - GC Photos: external_photos JSON array displayed as horizontal thumbnails
+     - Resolution section (if not closed):
+       - Status selector (Open → In Progress → Ready for Review)
+       - Hours input: +/- buttons (0.5 increments) + numeric input, auto-save on blur (debounced 800ms)
+       - Resolution notes: TextInput, save on blur
+       - Resolution photos: camera button + horizontal scroll, tap ✕ to remove, optimistic upload with local URI fallback
+     - Action button: "Start Work" | "Mark Ready for Review" | "Reopen"
+     - All status changes set push_pending = 1
+
+**Files Created:**
+- `src/features/gc-punch/services/gc-punch-service.ts`
+- `src/features/gc-punch/hooks/useGcPunchList.ts`
+- `src/app/(tabs)/more/punchlist/index.tsx`
+- `src/app/(tabs)/more/punchlist/[id].tsx`
+
+**Files Modified:**
+- `src/shared/lib/powersync/schema.ts` — added gc_punch_items table definition
+- `powersync/sync-rules.yaml` — added gc_punch_items sync rule
+- `src/shared/lib/permissions/trackPermissions.ts` — added gc_punchlist feature
+- `src/app/(tabs)/more/index.tsx` — added GC Punchlist menu item
+
+**Impact:**
+- Polisher opens Track → More tab → GC Punchlist
+- Sees all open punch items from Procore, grouped by floor/unit
+- Taps item → detail screen shows what needs to be fixed (GC photos) + what was done (resolution section)
+- Logs hours + notes + resolution photos
+- Marks "Ready for Review"
+- Push_pending = 1 triggers gc-push-resolution cron 5min later → Procore gets the update
+- Supervisor can verify completion in Procore, marks as closed, closed status syncs back to Track
+
+---
+
+### Sprint 43A — Surface Checklist Real SF Progress + UX Polish ✅
+**Date:** 2026-04-09
+**Objective:** Make the surface checklist progress bar reflect the actual SF-weighted reality (a 1,280 SF wall must weigh more than a 6 SF saddle), show meaningful surface descriptions instead of "Surface", and fix two latent bugs found along the way.
+
+**Root cause discovered:** The PowerSync schema for `production_area_objects` was declaring a column `quantity_sf` that **does not exist** in the actual Supabase DB. The real column is `total_quantity_sf`. PowerSync silently syncs nothing for undeclared columns and returns null for declared-but-nonexistent ones, so every surface had `quantity_sf = null` and the SF-weighted calc returned 0%. We were chasing a ghost. We also tried JOINing `takeoff_objects.label` for a "material description" — but the real per-surface label (`name` = "floor" / "wall" / "base" / "saddle") already lived directly on `production_area_objects`; we just hadn't declared it in the schema either.
+
+**Bugs fixed:**
+1. **Progress 0% on every area** — `production_area_objects.quantity_sf` doesn't exist → declared `total_quantity_sf` instead
+2. **Surface name showing as "Surface"** — `name` column wasn't in the PowerSync schema → declared it
+3. **Material code badge invisible** — gray text on near-transparent dark background → switched to white badge with dark text + bold
+4. **`chk_blocked_has_reason` constraint violation on PATCH** — `propagateAreaStatus` was patching `{ status: 'in_progress' }` without clearing `blocked_reason`. The DB constraint requires `blocked_reason IS NULL` whenever status ≠ 'blocked'. Fix: include `blocked_reason: null` + `blocked_at: null` in the update payload whenever the derived status isn't 'blocked'.
+
+**Changes:**
+1. PowerSync Schema (`src/shared/lib/powersync/schema.ts`):
+   - [x] `production_area_objects`: removed nonexistent `quantity_sf`; added real columns `name`, `surface_type`, `total_quantity_sf`, `quantity_per_unit_sf`, `unit`
+2. Progress Calculation (`src/features/production/utils/progressCalculation.ts`):
+   - [x] `SurfaceRow` interface: added `total_quantity_sf` and `takeoff_quantity` fallback fields
+   - [x] New `surfaceSf()` helper: prefers `quantity_sf → total_quantity_sf → takeoff_quantity` (in that order)
+   - [x] `calculateSurfaceProgress()`: strict SF-weighted, only `completed`/`complete` count (no partial credit for `in_progress`); removed PCS fixed-weight fallback
+3. Surface Checklist Component (`src/features/production/components/SurfaceChecklist.tsx`):
+   - [x] `SurfaceObject` interface aligned with real DB columns
+   - [x] `loadSurfaces()` query simplified — no JOIN needed, all data on one table
+   - [x] Surface row label uses `name` (e.g., "wall") instead of fallback "Surface"
+   - [x] Material code badge: white background (#F8FAFC) + dark bold text (#0F172A) for high contrast
+   - [x] Removed per-row "X SF" display (won't fit on mobile, redundant with progress bar)
+   - [x] `propagateAreaStatus()`: clears `blocked_reason` + `blocked_at` whenever derived status ≠ 'blocked' (chk_blocked_has_reason fix)
+   - [x] Block modal description uses `material_code + name` instead of nonexistent `label`
+
+**Files Modified:**
+- `src/shared/lib/powersync/schema.ts`
+- `src/features/production/utils/progressCalculation.ts`
+- `src/features/production/components/SurfaceChecklist.tsx`
+
+**Verification with real data (VESTIBULE 02-041):**
+- 9 surfaces, 4 completed → 47% (SF-weighted, was 0% before fix)
+- saddle (3 SF) ✅, floor CT-04 (104 SF) ✅, waterproofing Hydroban (95 SF) ✅, setting_material Pre-float (95 SF) ✅
+- Remaining: base CT-05 (19 SF), wall Schluter (2 SF), waterproofing 6" upturn (22 SF), base Schluter Quadec (3 SF), wall CT-05 (288 SF) — note the 288 SF wall is the largest item, so completing it will jump progress significantly
+
+**Auto-blindaje (preventing recurrence):**
+- Added CLAUDE.md note in "Critical: Naming conventions": column is `total_quantity_sf`, `name` = surface position not material description
+- Added CLAUDE.md rule: **Always verify column names via `information_schema.columns` before declaring a table in PowerSync schema**
+- Added persistent memory (`feedback_powersync_schema_must_match_db.md`) describing the failure mode (silent null columns) so future agents don't repeat the same mistake
+
+**⚠️ Migration note:** PowerSync detects the schema change on next app start and re-syncs `production_area_objects` with the new columns. First load after the update may take a few extra seconds.
+
+---
+
+### Sprint 43B — Track Work Tickets (Foreman Field Use) ✅
+**Date:** 2026-04-09
+**Depends on:** Takeoff Sprint 43A (work_tickets columns + document_signatures table + public sign page)
+
+**Objective:** Build full T&M Work Ticket workflow in Track. Foreman creates a ticket offline, sends to GC for digital signature via email/share/WhatsApp, and sees status update via PowerSync when GC signs on the public web page.
+
+**Verification (per memory rule):** Queried `information_schema.columns` first to confirm real DB columns. Discovered the spec said `ticket_number` but the actual column is `number` (Sprint 43A added `service_date`, `work_description`, `trade`, `labor`, `materials`, `gc_notes`, `foreman_name`, `area_description`, `priority`, `signature_token` to the existing `work_tickets` table). All `jsonb` columns are stored as `column.text` in PowerSync (SQLite has no JSONB type).
+
+**Workaround for missing deps:** `expo-clipboard` and `@react-native-community/datetimepicker` not installed. Used React Native's built-in `Share.share` (system share sheet includes Copy as an option), and a quick-pick date selector (Today / Yesterday / 2d ago / 3d ago) instead of a native date picker.
+
+**Changes:**
+
+1. **PowerSync Schema** (`src/shared/lib/powersync/schema.ts`)
+   - [x] Extended `work_tickets` declaration with Sprint 43A columns: `service_date`, `work_description`, `trade`, `labor` (json text), `materials` (json text), `gc_notes`, `foreman_name`, `area_description`, `priority`, `signature_token`
+   - [x] Added `document_signatures` TableV2 with all 21 real columns
+   - [x] Exported `DocumentSignatureRecord` type
+
+2. **Sync Rules** (`powersync/sync-rules.yaml`)
+   - [x] Added `SELECT * FROM document_signatures WHERE organization_id = bucket.organization_id` (work_tickets already synced)
+
+3. **More Tab Menu** (`src/app/(tabs)/more/index.tsx`)
+   - [x] "Work Tickets" entry added after Deliveries, gated by `work_tickets` permission (already in matrix)
+
+4. **Types** (`src/features/work-tickets/types.ts`)
+   - [x] `WorkTicket`, `DocumentSignature`, `LaborEntry`, `MaterialEntry`, `WorkTicketStatus`, `DocumentSignatureStatus`
+   - [x] Constants: `TRADES`, `LABOR_CLASSES`, `MATERIAL_UNITS`
+
+5. **Service** (`src/features/work-tickets/services/work-tickets-service.ts`)
+   - [x] `fetchWorkTickets(projectId)` — local-first list with merged signature info per ticket (latest signature wins)
+   - [x] `fetchWorkTicket(id)` / `fetchSignatureForDocument(documentId)`
+   - [x] `createWorkTicket()` — generates UUID + signature_token, status='draft', JSON-stringifies labor/materials
+   - [x] `updateWorkTicket()` — patch handler with selective field updates
+   - [x] `deleteWorkTicket()` — hard delete via localDelete
+   - [x] `createSignatureRequest()` — inserts pending row in `document_signatures`, flips ticket to `pending_signature`, returns sign URL `https://notch-field-takeoff.vercel.app/sign/{token}`, sets 30-day expiration
+   - [x] `cancelSignatureRequest()` — marks pending sig as `expired`, reverts ticket to draft
+   - [x] Helpers: `parseLabor`, `parseMaterials`, `parsePhotos`, `totalHours`, `workerCount`
+
+6. **Hook** (`src/features/work-tickets/hooks/useWorkTickets.ts`)
+   - [x] List + tab filtering (draft / pending / signed / all) + counts
+   - [x] Returns `tickets` (filtered), `allTickets`, `loading`, `filter`, `setFilter`, `counts`, `reload`
+
+7. **SendForSignatureModal** (`src/components/documents/SendForSignatureModal.tsx`)
+   - [x] Reusable for any document type (work tickets now, PTP/JHA later)
+   - [x] Inputs: signer name, email, role chips (GC/PM/Inspector/Client)
+   - [x] Three delivery methods: Open Email Client (mailto), Copy/Share Link (Share.share — uses native share sheet which includes Copy), Share via WhatsApp (wa.me URL)
+   - [x] Email pre-fills subject + body with sign URL
+   - [x] Last GC contact remembered per project in AsyncStorage (`gc_contact_{project_id}`)
+   - [x] Validates email format before generating sign URL
+
+8. **PDF Generator** (`src/shared/utils/ticketPdf.ts`)
+   - [x] `generateTicketHtml({ ticket, signature?, projectName?, companyName?, companyLogo? })` returns self-contained HTML with inline CSS
+   - [x] Layout matches professional T&M ticket: header with company / "ORDER FOR ADDITIONAL WORK" / NO + DATE; job info; trade checkboxes (■/□); area; foreman; URGENT badge if priority=urgent; work description box; labor table with reg/OT hrs + total; materials table; GC notes; signature section
+   - [x] If signature exists and status=signed: overlays signature image, shows SHA-256 integrity hash with green checkmark
+   - [x] If unsigned: shows blank signature lines for printing
+   - [x] HTML-escaped, formatted for A4/Letter print
+   - [x] Used by detail screen via `expo-print` + `expo-sharing`
+
+9. **Work Tickets List** (`src/app/(tabs)/more/work-tickets/index.tsx`)
+   - [x] Tab filters: Drafts / Pending / Signed / All with counts
+   - [x] TicketCard: #number badge (white-on-dark per Sprint 43A), description, date + trade, worker count + total hours, "Signed by {name}" if signed, "Waiting for {name}" if pending, ⚡ URGENT badge if priority
+   - [x] Status badge (gray/orange/green/red)
+   - [x] FAB "+ New Ticket" + headerRight + button
+   - [x] Pull-to-refresh
+   - [x] `useFocusEffect` reload on focus (catches new/edited tickets)
+
+10. **Create / Edit Form** (`src/app/(tabs)/more/work-tickets/create.tsx`)
+    - [x] Same screen handles both new (no `?id=`) and edit (`?id={uuid}`) — only drafts editable
+    - [x] Service date with quick-pick chips (Today / Yesterday / 2d ago / 3d ago), defaults to today
+    - [x] Trade horizontal chip selector (Tile / Stone / Marble / Flooring / Polisher)
+    - [x] Area / Location text input (required)
+    - [x] Floor optional input
+    - [x] Priority radio (Normal / ⚡ Urgent)
+    - [x] Work description multiline (required)
+    - [x] Labor section: add/remove rows; per row: name, class chips (Mechanic/Helper/Apprentice/Foreman/Laborer), reg hrs + OT hrs numeric inputs
+    - [x] Materials section: add/remove rows; per row: description, qty numeric, unit chips (pcs/box/bag/sf/lf/gal/lbs)
+    - [x] GC notes optional multiline
+    - [x] Save button (header right + sticky bottom) — strips empty rows, validates required fields, navigates back on success
+    - [x] Edit mode pre-fills all fields; blocks edit if status ≠ draft
+
+11. **Detail Screen** (`src/app/(tabs)/more/work-tickets/[id].tsx`)
+    - [x] Header card with #number badge, area description, date+trade, status badge, URGENT chip
+    - [x] Status-specific banners: pending ("Waiting for {name}"), signed (signer + role + date + signature image + integrity hash), declined (decline reason)
+    - [x] Sections: work description, labor (with totals), materials, GC notes, foreman name
+    - [x] Sticky action bar at bottom — actions vary by status:
+      - **draft**: "Send for Signature" (primary) + Edit + Delete
+      - **pending_signature**: Resend + Cancel Request
+      - **signed**: PDF (downloads + shares via expo-sharing) + Verify Hash (shows hash details)
+      - **declined**: Edit & Resend (reverts to draft + opens edit form)
+    - [x] Send for Signature → opens SendForSignatureModal → on submit creates signature request + flips status to pending_signature
+    - [x] Auto-reload via `useFocusEffect`
+
+**Files Created:**
+- `src/features/work-tickets/types.ts`
+- `src/features/work-tickets/services/work-tickets-service.ts`
+- `src/features/work-tickets/hooks/useWorkTickets.ts`
+- `src/components/documents/SendForSignatureModal.tsx`
+- `src/shared/utils/ticketPdf.ts`
+- `src/app/(tabs)/more/work-tickets/index.tsx`
+- `src/app/(tabs)/more/work-tickets/create.tsx`
+- `src/app/(tabs)/more/work-tickets/[id].tsx`
+
+**Files Modified:**
+- `src/shared/lib/powersync/schema.ts` — extended work_tickets, added document_signatures
+- `powersync/sync-rules.yaml` — added document_signatures sync rule
+- `src/app/(tabs)/more/index.tsx` — added Work Tickets menu entry
+
+**Permissions:** `work_tickets` already in feature matrix (supervisor: true, foreman: true, worker: false). No changes needed.
+
+**Flow:**
+1. Foreman opens Track → More → Work Tickets → +
+2. Fills date / trade / area / description / labor / materials → Save
+3. Tap ticket → Send for Signature → enters GC name + email → Open Email Client (or Copy/WhatsApp)
+4. Signature row created in `document_signatures` (status=pending), ticket flips to pending_signature, push_pending via PowerSync upload
+5. GC opens email → clicks `https://notch-field-takeoff.vercel.app/sign/{token}` → signs on public page (Takeoff web side)
+6. Server updates `document_signatures.status = 'signed'` + `signed_at` + `signature_url` + `content_hash`, AND updates `work_tickets.status = 'signed'`
+7. PowerSync syncs back to Track → foreman sees status change to "Signed" with signer name + signature image + integrity hash
+8. Foreman taps PDF → expo-print generates PDF with signature overlay → expo-sharing opens share sheet
+
+**Offline-first:** All ticket creates / edits / signature requests go through PowerSync local SQLite first. Foreman can build tickets without internet — they sync (and the GC email link becomes valid) when connection returns. The mailto link itself works offline (opens in default email client which queues until online).
+
+**TypeScript:** `npx tsc --noEmit` passes clean.
+
+---
+
+### Sprint 45B — Work Tickets REWRITE (Align with Takeoff Web + In-App Signing) ✅
+**Date:** 2026-04-10
+**Depends on:** Takeoff Sprint 43A (work_tickets columns + document_signatures + public sign page + signatures storage bucket)
+**Supersedes:** Sprint 43B (major refactor — different field names, different architecture)
+
+**Objective:** Rewrite the entire Work Tickets system to mirror Takeoff Web exactly. Sprint 43B used wrong field names (`class`/`reg_hrs`/`ot_hrs`/`qty`) and wrong status enums, so tickets created in Track would not interop with Takeoff Web's PDF renderer, Block Analysis, or sign page. Sprint 45B fixes this by mirroring Takeoff Web's `src/shared/types/documents.ts` exactly. It also adds in-app signing (foreman hands phone to GC) and realtime subscriptions.
+
+**Critical rules enforced (from Jantile Tracker / FIXES_WORK_TICKET_SIGNATURES.md):**
+1. **NEVER use PowerSync for `document_signatures` or signature uploads.** PowerSync sync delay breaks signing flows. All signature ops go through direct Supabase client. Work ticket CRUD also switched to direct Supabase (bonus: the `number` SERIAL trigger returns the assigned number immediately instead of waiting for sync).
+2. **Storage path convention:** `signatures/{organization_id}/{token}.png` — must match Takeoff Web or cross-app signature loading breaks.
+3. **Signature upload MUST check error response.** The bug in FIXES_WORK_TICKET_SIGNATURES.md was silent upload failures. `signTicketInApp` throws with a clear message if `storage.upload()` returns an error.
+4. **PDF signature embed via `<img src>` tag**, not fetch+base64. The `signatures` bucket is public with `Access-Control-Allow-Origin: *`, so the `expo-print` HTML renderer loads the image directly.
+5. **Types match Takeoff Web exactly.** `classification` (not `class`), `regular_hours` (not `reg_hrs`), `overtime_hours` (not `ot_hrs`), `quantity` (not `qty`). Status enum `'pending'` not `'pending_signature'`. `signer_role` lowercase (`gc`/`supervisor`/`foreman`/`pm`/`worker`).
+6. **Number is SERIAL** — trigger `trg_work_ticket_number` on `work_tickets` assigns it on INSERT. Don't compute in app, just INSERT and read back.
+
+**Changes:**
+
+1. **Types + Zod schemas** (`src/features/work-tickets/types.ts`) — FULL REWRITE
+   - [x] Zod schemas: `LaborEntrySchema`, `MaterialEntrySchema`, `WorkTicketSchema`, `DocumentSignatureSchema`, `SignerRoleSchema`, `WorkTicketStatusSchema`
+   - [x] Field names mirror Takeoff Web: `classification`, `regular_hours`, `overtime_hours`, `quantity`
+   - [x] Status enum: `'draft' | 'pending' | 'signed' | 'declined'`
+   - [x] `SignerRole`: `'gc' | 'supervisor' | 'foreman' | 'pm' | 'worker'`
+   - [x] Inferred types exported: `LaborEntry`, `MaterialEntry`, `WorkTicket`, `WorkTicketDraft`, `DocumentSignature`
+   - [x] Helpers: `totalHours`, `workerCount`, `TRADES`, `LABOR_CLASSIFICATIONS`, `MATERIAL_UNITS`
+
+2. **Service** (`src/features/work-tickets/services/work-tickets-service.ts`) — FULL REWRITE
+   - [x] All methods use direct Supabase client (NO PowerSync)
+   - [x] `listWorkTickets(projectId)` — single query + separate signatures query, merged in-memory (latest sig per ticket)
+   - [x] `getWorkTicket(id)`, `getSignatureForTicket(ticketId)`
+   - [x] `createWorkTicket(input)` — returns `WorkTicket` with `number` populated by the trigger
+   - [x] `updateWorkTicket(id, patch)`, `deleteWorkTicketDraft(id)` (safety: only drafts)
+   - [x] `createSignatureRequest({ ticketId, signer_role })` — inserts pending row + flips ticket to 'pending'
+   - [x] `cancelSignatureRequest(ticketId)` — marks pending sig as declined + reverts to draft
+   - [x] **`signTicketInApp({ signatureId, token, organizationId, signerName, signerTitle, signatureDataUrl, gcNotes })`** — decodes base64, uploads to `signatures/{org}/{token}.png`, computes SHA-256 via `expo-crypto`, updates `document_signatures` + parent `work_tickets`, throws on any error
+   - [x] `getSigningUrl(token)` — returns `https://notch-field-takeoff.vercel.app/sign/{token}`
+   - [x] Helpers: `ensureLabor`, `ensureMaterials`, `base64ToBytes` (with atob fallback)
+
+3. **PDF Generator** (`src/features/work-tickets/services/workTicketPdf.ts`) — NEW
+   - [x] `generateWorkTicketPdf(ticket, signature, projectName, company)` → local file URI via `expo-print`
+   - [x] `shareWorkTicketPdf(uri, dialogTitle?)` → `expo-sharing`
+   - [x] HTML template matches Takeoff Web's `workTicketPdfRenderer.ts` layout: header logo + "ORDER FOR ADDITIONAL WORK" + T&M #, meta grid (project/service date/trade/priority/location/foreman), work description, labor table with reg/OT/total hrs + total, materials table, GC notes, signature section with `<img src crossorigin>` + SHA-256 hash, footer
+   - [x] Blank signature lines for unsigned tickets (printable)
+
+4. **List hook** (`src/features/work-tickets/hooks/useWorkTickets.ts`) — REWRITE
+   - [x] Uses `listWorkTickets` from service (direct Supabase)
+   - [x] Tab filter (all/draft/pending/signed) + search by number/description/area/trade
+   - [x] **Realtime subscription** via Supabase channels — listens on `work_tickets` AND `document_signatures` filtered by `project_id=eq.{projectId}`, reloads on any change
+   - [x] Unsubscribes on unmount (no leaks)
+
+5. **Single-ticket hook** (`src/features/work-tickets/hooks/useWorkTicket.ts`) — NEW
+   - [x] Returns `{ ticket, signature, loading, reload }`
+   - [x] Parallel fetches of ticket + signature
+   - [x] **Realtime subscription** filtered by `id=eq.{ticketId}` (ticket) + `document_id=eq.{ticketId}` (signature)
+   - [x] Cross-app reactive: GC signs on web → Track detail screen auto-updates
+
+6. **Create / Edit form** (`src/app/(tabs)/more/work-tickets/create.tsx`) — REWRITE
+   - [x] All field names updated to `classification`/`regular_hours`/`overtime_hours`/`quantity`
+   - [x] Labor class chips: Mechanic/Helper/Apprentice/Foreman (4 values matching Takeoff)
+   - [x] Material units: pcs/box/bag/sqft/lf/gal/lbs
+   - [x] Direct Supabase create/update (waits for `number` from trigger)
+   - [x] Edit mode via `?id=xxx` query param (drafts only)
+   - [x] Quick-pick date chips (Today/Yesterday/2d ago/3d ago)
+
+7. **List screen** (`src/app/(tabs)/more/work-tickets/index.tsx`) — REWRITE
+   - [x] Search input + tab filter chips (All/Drafts/Pending/Signed)
+   - [x] Card shows #number badge (white-on-dark), work_description, service_date + trade, floor + area_description, worker count + hours, ⚡ URGENT badge, signer name if signed, "Waiting for..." if pending
+   - [x] Status colors gray/amber/green/red
+   - [x] ProjectSwitcher inline in empty state
+   - [x] FAB hidden when no project; realtime list updates cross-app
+
+8. **Detail screen** (`src/app/(tabs)/more/work-tickets/[id].tsx`) — REWRITE
+   - [x] Uses `useWorkTicket` (realtime)
+   - [x] Header card with status badge + URGENT chip
+   - [x] Pending banner shows "Waiting for {signer_name}" and email if set
+   - [x] Signed banner: signer name + role + date + signature image (`<Image>`) + SHA-256 hash box
+   - [x] Read-only sections: work description, labor (with regular_hours/overtime_hours display), materials (quantity/unit), GC notes, foreman
+   - [x] **Sticky action bar with status-specific buttons:**
+     - **draft**: Sign Now (opens signature pad screen) + Send Link (creates pending sig + native Share sheet) + Edit + Delete
+     - **pending**: Sign Now + Resend Link + Cancel Request
+     - **signed**: PDF (generate + share via expo-sharing) + Verify Hash (shows SHA-256 details)
+     - **declined**: Edit & Resend (reverts to draft + opens create form)
+   - [x] Removed SendForSignatureModal — no longer needed
+
+9. **SignaturePadScreen** (`src/app/(tabs)/more/work-tickets/sign/[id].tsx`) — NEW
+   - [x] Dedicated route for in-app signing (foreman hands device to GC)
+   - [x] Amber banner: "Hand phone to GC"
+   - [x] Ticket summary (read-only)
+   - [x] Signer name input (required) + title (optional)
+   - [x] GC notes for foreman (optional multiline)
+   - [x] Reuses existing `src/features/safety/components/SignaturePad.tsx` component
+   - [x] On Submit:
+     - Validates name + signature present
+     - Calls `signTicketInApp` (uploads PNG → updates DB)
+     - Shows success alert → navigates back
+     - Catches network errors with clear offline message
+   - [x] Requires online (signature upload cannot be deferred)
+
+10. **Removed old files:**
+    - [x] `src/shared/utils/ticketPdf.ts` — replaced by `features/work-tickets/services/workTicketPdf.ts`
+    - [x] `src/components/documents/SendForSignatureModal.tsx` — replaced by direct Share.share + in-app sign flow
+    - [x] `src/components/documents/` directory removed (empty)
+
+**Files Created:**
+- `src/features/work-tickets/hooks/useWorkTicket.ts`
+- `src/features/work-tickets/services/workTicketPdf.ts`
+- `src/app/(tabs)/more/work-tickets/sign/[id].tsx`
+
+**Files Rewritten:**
+- `src/features/work-tickets/types.ts`
+- `src/features/work-tickets/services/work-tickets-service.ts`
+- `src/features/work-tickets/hooks/useWorkTickets.ts`
+- `src/app/(tabs)/more/work-tickets/create.tsx`
+- `src/app/(tabs)/more/work-tickets/index.tsx`
+- `src/app/(tabs)/more/work-tickets/[id].tsx`
+
+**Files Deleted:**
+- `src/shared/utils/ticketPdf.ts`
+- `src/components/documents/SendForSignatureModal.tsx`
+
+**Schema changes:** NONE. Takeoff already created the schema in Sprint 43A. PowerSync schema for `work_tickets` + `document_signatures` stays as declared (still synced for read-only offline viewing of existing tickets in case user is offline in the list screen), but all writes now go direct Supabase.
+
+**Flow (end-to-end):**
+
+**Track → Web (cross-app realtime):**
+1. Foreman opens Track → More → Work Tickets → +
+2. Fills form → Save → direct Supabase INSERT → `number` returned immediately from trigger
+3. Tap ticket → status=draft → Sign Now or Send Link
+
+**Sign Now (in-app):**
+1. Creates pending signature row (status=pending, token generated by DB default)
+2. Navigates to `sign/[id]?sigId=xxx&token=yyy`
+3. Foreman hands phone to GC
+4. GC signs with finger on `SignaturePad` component
+5. GC taps Confirm (locks in signature) → GC taps Submit
+6. `signTicketInApp`:
+   - Base64 → bytes via atob
+   - Upload to `signatures/{org_id}/{token}.png`
+   - SHA-256 hash of `{signatureId, signerName, signerTitle, signedAt}`
+   - Update `document_signatures` → status=signed + signature_url + content_hash + hash_algorithm + hashed_at
+   - Update `work_tickets` → status=signed + gc_notes (if provided)
+7. Navigate back to detail → realtime subscription fires → UI updates with signature image + hash
+
+**Send Link (remote GC):**
+1. Creates pending signature row
+2. Gets sign URL via `getSigningUrl(token)` → `https://notch-field-takeoff.vercel.app/sign/{token}`
+3. Opens native `Share.share` sheet (iOS/Android) with message + URL
+4. Foreman sends to GC via iMessage/WhatsApp/email
+5. GC opens link in browser → signs on public web page (Takeoff Web side)
+6. Server updates DB → PowerSync/Realtime channel fires → Track detail screen auto-refreshes → shows signed status
+
+**Web → Track (reverse cross-app):**
+1. PM creates ticket in Takeoff Web
+2. Track realtime subscription on `work_tickets` fires → list auto-refreshes
+3. Ticket visible in Track instantly
+
+**Dependencies used:** expo-print, expo-sharing, expo-crypto, react-native-signature-canvas, zod, @supabase/supabase-js (all already installed).
+
+**TypeScript:** `npx tsc --noEmit` passes clean.
+
+**Testing checklist:**
+- [ ] Create ticket in Track → appears in Takeoff Web PM dashboard with correct number + labor (using `classification`/`regular_hours`)
+- [ ] In-app sign → signature PNG visible at `signatures/{org}/{token}.png` in Supabase Storage
+- [ ] Signed ticket in Track shows signature image + SHA-256 hash
+- [ ] PDF from Track opens in native share sheet with signature embedded
+- [ ] Track offline + try Sign Now → clear offline error
+- [ ] Web signs link → Track detail auto-refreshes (realtime)
+- [ ] Ticket created in Web → Track list shows it (realtime)
 
 ---
 
@@ -161,14 +615,16 @@ All 5 bugs are fixed in code (commit 79b592a). Need EAS dev-client build to veri
 - [ ] TT2.15 Area notes UI — ⬜ T2-S3
 - [ ] TT2.16 Photo annotations — ⬜ T2-S3
 
-### Punch List (internal — supervisor → foreman)
-- [x] TT2.26 `punch_items` table — created via migration with RLS
-- [ ] TT2.27 Create punch item — ⬜ T2-S3
-- [ ] TT2.28 Punch list view — ⬜ T2-S3
-- [ ] TT2.29 Foreman resolves punch — ⬜ T2-S3
-- [ ] TT2.30 Supervisor verifies — ⬜ T2-S3
-- [ ] TT2.31 Punch item on plan — ⬜ T2-S3
-- [ ] TT2.32 Punch summary KPIs — ⬜ T2-S3
+### Punch List (GC Platform Integration — Sprint 42B) ✅
+- [x] TT2.26 `gc_punch_items` table — synced from Procore/GC platforms via Sprint 42A
+- [x] TT2.27 GC Punchlist view — Sprint 42B: grouped by floor/unit, status filters (open, in_progress, ready_for_review, closed)
+- [x] TT2.28 Polisher workflow — Sprint 42B: Start Work → log hours + notes + resolution photos → Mark Ready for Review
+- [x] TT2.29 Resolution photos — Sprint 42B: camera button, upload to field-photos bucket, append to resolution_photos JSON
+- [x] TT2.30 Push to Procore — Sprint 42B: status change sets push_pending = 1, cron triggers gc-push-resolution Edge Function
+- [x] TT2.31 Hours logging — Sprint 42B: numeric input (0.5 increments), auto-save debounced, does NOT push to Procore (internal only)
+- [x] TT2.32 Punch summary KPIs — Sprint 42B: KPI bar on list screen (Open / Working / Review / Closed)
+
+**Note:** Internal punch_items table from T2-S3 is SEPARATE from GC punch items. GC items flow Procore → Track → Procore. Internal items are supervisor-to-foreman QC notes.
 
 ### AI Agent + Voice Commands (Future — Post-Pilot)
 - [ ] TT2.20 AI Agent chat UI — ⬜ T2-S4

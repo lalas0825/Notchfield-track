@@ -22,6 +22,14 @@ export default function MoreScreen() {
 
   const allItems: MenuItem[] = [
     {
+      icon: 'list-circle',
+      label: 'GC Punchlist',
+      subtitle: 'Resolve punch items from the GC',
+      route: '/(tabs)/more/punchlist',
+      color: '#F97316',
+      feature: 'gc_punchlist',
+    },
+    {
       icon: 'location',
       label: 'GPS Check-in',
       subtitle: 'Clock in/out with GPS stamp',
@@ -44,6 +52,14 @@ export default function MoreScreen() {
       route: '/(tabs)/more/delivery',
       color: '#8B5CF6',
       feature: 'delivery_confirmation',
+    },
+    {
+      icon: 'document-text',
+      label: 'Work Tickets',
+      subtitle: 'T&M tickets + GC signatures',
+      route: '/(tabs)/more/work-tickets',
+      color: '#0EA5E9',
+      feature: 'work_tickets',
     },
     {
       icon: 'settings',

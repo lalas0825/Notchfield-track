@@ -89,7 +89,12 @@ const production_area_objects = new TableV2({
   takeoff_object_id: column.text,
   organization_id: column.text,
   material_code: column.text,
-  quantity_sf: column.real,
+  name: column.text,                  // surface position: "floor" | "wall" | "base" | "saddle" | etc
+  surface_type: column.text,
+  quantity_sf: column.real,           // DEPRECATED — kept for SQLite migration compatibility (was Sprint 41G)
+  total_quantity_sf: column.real,     // SF for progress calc (real DB column, Sprint 43A)
+  quantity_per_unit_sf: column.real,
+  unit: column.text,
   created_at: column.text,
   // Sprint 41G — surface progress tracking
   status: column.text, // 'not_started' | 'in_progress' | 'completed' | 'blocked'
@@ -296,21 +301,55 @@ const document_signoffs = new TableV2({
 const work_tickets = new TableV2({
   project_id: column.text,
   organization_id: column.text,
-  number: column.integer,
+  number: column.integer,           // real column is `number` not `ticket_number`
   title: column.text,
   description: column.text,
-  status: column.text,
+  status: column.text,               // 'draft' | 'pending_signature' | 'signed' | 'declined'
   floor: column.text,
   area: column.text,
-  photos: column.text, // JSONB
+  photos: column.text,               // JSONB as text
   signed_at: column.text,
   created_by: column.text,
   signed_by_id: column.text,
   signature_url: column.text,
   related_drawing_id: column.text,
   related_rfi_id: column.text,
+  // Sprint 43B — T&M fields
+  service_date: column.text,
+  work_description: column.text,
+  trade: column.text,
+  labor: column.text,                // JSONB array [{ name, class, reg_hrs, ot_hrs }]
+  materials: column.text,            // JSONB array [{ description, qty, unit }]
+  gc_notes: column.text,
+  foreman_name: column.text,
+  area_description: column.text,
+  priority: column.text,             // 'normal' | 'urgent'
+  signature_token: column.text,
   created_at: column.text,
   updated_at: column.text,
+});
+
+const document_signatures = new TableV2({
+  organization_id: column.text,
+  document_type: column.text,        // 'work_ticket' | 'ptp' | 'jha' | ...
+  document_id: column.text,
+  project_id: column.text,
+  signer_name: column.text,
+  signer_email: column.text,
+  signer_role: column.text,
+  signature_url: column.text,
+  status: column.text,               // 'pending' | 'signed' | 'declined' | 'expired'
+  token: column.text,
+  content_hash: column.text,
+  hash_algorithm: column.text,
+  hashed_at: column.text,
+  ip_address: column.text,
+  user_agent: column.text,
+  signed_at: column.text,
+  declined_at: column.text,
+  decline_reason: column.text,
+  expires_at: column.text,
+  created_at: column.text,
 });
 
 // ============================================================
@@ -523,6 +562,44 @@ const material_consumption = new TableV2({
   updated_at: column.text,
 });
 
+// Sprint 42B — GC Punch Items (synced from Procore / GC platforms)
+const gc_punch_items = new TableV2({
+  organization_id: column.text,
+  gc_project_id: column.text,
+  project_id: column.text,
+  external_item_id: column.text,
+  platform: column.text,
+  title: column.text,
+  description: column.text,
+  item_number: column.text,
+  location_description: column.text,
+  floor: column.text,
+  unit: column.text,
+  status: column.text, // 'open' | 'in_progress' | 'ready_for_review' | 'closed'
+  external_status: column.text,
+  priority: column.text, // 'low' | 'medium' | 'high' | 'critical'
+  assigned_to_user_id: column.text,
+  assigned_to_name: column.text,
+  external_assignee_id: column.text,
+  external_assignee_name: column.text,
+  due_date: column.text,
+  created_externally_at: column.text,
+  closed_at: column.text,
+  hours_logged: column.real,
+  resolution_notes: column.text,
+  completed_at: column.text,
+  completed_by: column.text,
+  external_photos: column.text,    // JSON string (array of URLs from GC)
+  resolution_photos: column.text,  // JSON string (array of URLs from polisher)
+  external_data: column.text,      // JSON string (raw GC payload)
+  synced_at: column.text,
+  push_pending: column.integer,    // boolean as int — triggers gc-push-resolution
+  last_push_at: column.text,
+  last_push_status: column.text,
+  created_at: column.text,
+  updated_at: column.text,
+});
+
 // Sprint 23 — Room types + phase progress
 const room_types = new TableV2({
   organization_id: column.text,
@@ -613,6 +690,10 @@ export const AppSchema = new Schema({
   material_consumption,
   // Sprint 40C
   project_assignments,
+  // Sprint 42B
+  gc_punch_items,
+  // Sprint 43B — Work Tickets with digital signatures
+  document_signatures,
 });
 
 export type Database = (typeof AppSchema)['types'];
@@ -633,3 +714,5 @@ export type PunchItemRecord = Database['punch_items'];
 export type DrawingRecord = Database['drawings'];
 export type DrawingSetRecord = Database['drawing_sets'];
 export type ProductionBlockLogRecord = Database['production_block_logs'];
+export type GcPunchItemRecord = Database['gc_punch_items'];
+export type DocumentSignatureRecord = Database['document_signatures'];

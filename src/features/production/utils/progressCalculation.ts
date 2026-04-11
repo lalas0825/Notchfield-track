@@ -79,42 +79,36 @@ export interface SurfaceRow {
   id: string;
   status?: string;
   quantity_sf?: number | null;
+  total_quantity_sf?: number | null;
+  takeoff_quantity?: number | null; // joined from takeoff_objects.quantity
   unit?: string | null;
 }
 
 /**
- * Calculate surface progress using sqft-weighted formula.
- * A 1,280 SF wall counts more than a 6 SF saddle.
- * PCS/EA items without sqft get a fixed weight of 20.
+ * Resolve the SF for a surface. Prefers production_area_objects.quantity_sf,
+ * then total_quantity_sf, then the joined takeoff_objects.quantity.
  */
-function statusWeight(status?: string): number {
-  // completed = 100%, in_progress = 50% credit, others = 0
-  if (status === 'completed' || status === 'complete') return 1;
-  if (status === 'in_progress' || status === 'started') return 0.5;
-  return 0;
+function surfaceSf(s: SurfaceRow): number {
+  return (
+    (s.quantity_sf && s.quantity_sf > 0 ? s.quantity_sf : 0) ||
+    (s.total_quantity_sf && s.total_quantity_sf > 0 ? s.total_quantity_sf : 0) ||
+    (s.takeoff_quantity && s.takeoff_quantity > 0 ? s.takeoff_quantity : 0)
+  );
 }
 
+/**
+ * Calculate surface progress using strict SF-weighted formula.
+ * Only fully completed surfaces count — no partial credit for in_progress.
+ * A 1,280 SF wall counts more than a 6 SF saddle.
+ */
 export function calculateSurfaceProgress(surfaces: SurfaceRow[]): number {
-  let totalSf = 0;
-  let completedSf = 0;
+  const totalSf = surfaces.reduce((sum, s) => sum + surfaceSf(s), 0);
+  if (totalSf === 0) return 0;
 
-  for (const s of surfaces) {
-    const sf = s.quantity_sf ?? 0;
-    if (sf > 0) {
-      totalSf += sf;
-      completedSf += sf * statusWeight(s.status);
-    }
-  }
-
-  // PCS/EA items without sqft get fixed weight
-  const pcsItems = surfaces.filter((s) => !s.quantity_sf || s.quantity_sf <= 0);
-  if (pcsItems.length > 0) {
-    const PCS_WEIGHT = 20;
-    totalSf += pcsItems.length * PCS_WEIGHT;
-    completedSf += pcsItems.reduce((sum, s) => sum + PCS_WEIGHT * statusWeight(s.status), 0);
-  }
-
-  return totalSf > 0 ? completedSf / totalSf : 0;
+  const completedSf = surfaces
+    .filter((s) => s.status === 'completed' || s.status === 'complete')
+    .reduce((sum, s) => sum + surfaceSf(s), 0);
+  return completedSf / totalSf;
 }
 
 /**

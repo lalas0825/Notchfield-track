@@ -24,7 +24,8 @@ export type TrackFeature =
   | 'work_tickets'
   | 'safety_docs'
   | 'daily_reports'
-  | 'plans_drawings';
+  | 'plans_drawings'
+  | 'gc_punchlist';
 
 export type ProjectScope =
   | { kind: 'all_assigned' } // supervisor — multi-project
@@ -69,6 +70,7 @@ const FEATURE_MATRIX: Record<TrackRole, Record<TrackFeature, boolean>> = {
     safety_docs: true,
     daily_reports: true,
     plans_drawings: true,
+    gc_punchlist: true,
   },
   foreman: {
     check_in: true,
@@ -81,6 +83,7 @@ const FEATURE_MATRIX: Record<TrackRole, Record<TrackFeature, boolean>> = {
     safety_docs: true,
     daily_reports: true,
     plans_drawings: true,
+    gc_punchlist: true,
   },
   worker: {
     check_in: true,
@@ -93,6 +96,7 @@ const FEATURE_MATRIX: Record<TrackRole, Record<TrackFeature, boolean>> = {
     safety_docs: false,
     daily_reports: false,
     plans_drawings: true,
+    gc_punchlist: true, // workers see only items assigned to them (enforced by query)
   },
 };
 
