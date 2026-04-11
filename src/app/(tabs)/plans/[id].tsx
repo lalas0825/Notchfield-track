@@ -199,6 +199,25 @@ export default function PlanViewerScreen() {
     [],
   );
 
+  // User swiped horizontally inside react-native-pdf — sync `current` to the
+  // new page so hyperlinks/pins/title/nav bar all stay consistent with what
+  // the PDF is actually showing. Silent no-op if the page didn't change or
+  // no sibling matches (e.g. siblings still loading on first render).
+  const handlePdfPageChanged = useCallback(
+    (newPage: number) => {
+      if (newPage === current.pageNumber) return;
+      const match = siblings.find((s) => s.page_number === newPage);
+      if (!match) return;
+      setCurrent({
+        id: match.id,
+        filePath: match.file_path,
+        pageNumber: match.page_number,
+        label: match.label ?? `Page ${match.page_number}`,
+      });
+    },
+    [current.pageNumber, siblings],
+  );
+
   // Overlays visible only at fit-to-page (scale close to 1)
   const overlaysVisible = Math.abs(scale - 1) < 0.05;
 
@@ -389,6 +408,7 @@ export default function PlanViewerScreen() {
             onPageBounds={setPageBounds}
             onScaleChanged={setScale}
             onViewportSize={setViewport}
+            onPageChanged={handlePdfPageChanged}
             overlay={overlay}
           />
         )}

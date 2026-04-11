@@ -7,6 +7,7 @@ type Props = {
   onPageBounds?: (bounds: { pageWidth: number; pageHeight: number }) => void;
   onScaleChanged?: (scale: number) => void;
   onViewportSize?: (size: { width: number; height: number }) => void;
+  onPageChanged?: (page: number) => void;
   overlay?: ReactNode;
 };
 

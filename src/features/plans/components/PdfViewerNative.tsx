@@ -16,6 +16,8 @@ type Props = {
   onScaleChanged?: (scale: number) => void;
   /** Called when the viewport dimensions change. */
   onViewportSize?: (size: { width: number; height: number }) => void;
+  /** Called when the user swipes to a different page (1-indexed). */
+  onPageChanged?: (page: number) => void;
   /** Overlay layer rendered absolutely above the PDF. */
   overlay?: ReactNode;
 };
@@ -26,6 +28,7 @@ export function PdfViewerNative({
   onPageBounds,
   onScaleChanged,
   onViewportSize,
+  onPageChanged,
   overlay,
 }: Props) {
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
@@ -57,6 +60,9 @@ export function PdfViewerNative({
         }}
         onScaleChanged={(scale) => {
           onScaleChanged?.(scale);
+        }}
+        onPageChanged={(pageNum: number) => {
+          onPageChanged?.(pageNum);
         }}
         onError={(err: unknown) => {
           console.error('[Plans] PDF render error:', err);
