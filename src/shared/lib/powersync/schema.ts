@@ -562,6 +562,33 @@ const material_consumption = new TableV2({
   updated_at: column.text,
 });
 
+// Sprint 45B — Feedback reports (bug/feature/feedback from field)
+const feedback_reports = new TableV2({
+  organization_id: column.text,
+  project_id: column.text,
+  reported_by: column.text,
+  reporter_name: column.text,
+  reporter_role: column.text,
+  type: column.text,              // 'bug' | 'feature' | 'feedback'
+  severity: column.text,          // 'low' | 'medium' | 'high' | 'critical' (bugs only)
+  title: column.text,
+  description: column.text,
+  page_url: column.text,
+  page_name: column.text,
+  app_source: column.text,        // 'mobile' | 'web'
+  device_info: column.text,
+  browser_info: column.text,
+  screen_size: column.text,
+  screenshots: column.text,       // JSON array of storage paths
+  status: column.text,            // 'new' | 'reviewing' | 'resolved' | 'declined'
+  admin_notes: column.text,
+  admin_response: column.text,
+  resolved_at: column.text,
+  resolved_by: column.text,
+  created_at: column.text,
+  updated_at: column.text,
+});
+
 // Sprint 42B — GC Punch Items (synced from Procore / GC platforms)
 const gc_punch_items = new TableV2({
   organization_id: column.text,
@@ -694,6 +721,8 @@ export const AppSchema = new Schema({
   gc_punch_items,
   // Sprint 43B — Work Tickets with digital signatures
   document_signatures,
+  // Sprint 45B — Feedback reports
+  feedback_reports,
 });
 
 export type Database = (typeof AppSchema)['types'];
@@ -716,3 +745,4 @@ export type DrawingSetRecord = Database['drawing_sets'];
 export type ProductionBlockLogRecord = Database['production_block_logs'];
 export type GcPunchItemRecord = Database['gc_punch_items'];
 export type DocumentSignatureRecord = Database['document_signatures'];
+export type FeedbackReportRecord = Database['feedback_reports'];

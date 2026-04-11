@@ -57,3 +57,4 @@ bucket_definitions:
       - SELECT * FROM project_assignments WHERE organization_id = bucket.organization_id
       - SELECT * FROM gc_punch_items WHERE organization_id = bucket.organization_id
       - SELECT * FROM document_signatures WHERE organization_id = bucket.organization_id
+      - SELECT * FROM feedback_reports WHERE organization_id = bucket.organization_id

@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { useTrackPermissions } from '@/shared/lib/permissions/TrackPermissionsContext';
 import type { TrackFeature } from '@/shared/lib/permissions/trackPermissions';
+import { FeedbackModal } from '@/shared/components/FeedbackModal';
 
 type MenuItem = {
   icon: keyof typeof Ionicons.glyphMap;
@@ -19,6 +21,7 @@ export default function MoreScreen() {
   const router = useRouter();
   const { profile, signOut } = useAuthStore();
   const { canUseFeature } = useTrackPermissions();
+  const [showFeedback, setShowFeedback] = useState(false);
 
   const allItems: MenuItem[] = [
     {
@@ -62,6 +65,20 @@ export default function MoreScreen() {
       feature: 'work_tickets',
     },
     {
+      icon: 'bug',
+      label: 'Report Issue',
+      subtitle: 'Bug, feature request, or feedback',
+      onPress: () => setShowFeedback(true),
+      color: '#F97316',
+    },
+    {
+      icon: 'clipboard',
+      label: 'My Reports',
+      subtitle: 'View your submitted reports',
+      route: '/(tabs)/more/my-reports',
+      color: '#A855F7',
+    },
+    {
       icon: 'settings',
       label: 'Settings',
       subtitle: 'Language, notifications, profile',
@@ -79,6 +96,7 @@ export default function MoreScreen() {
   const items = allItems.filter((item) => !item.feature || canUseFeature(item.feature));
 
   return (
+    <>
     <ScrollView className="flex-1 bg-background px-4 pt-4">
       {/* Profile card */}
       <View className="mb-6 items-center rounded-2xl border border-border bg-card px-4 py-5">
@@ -128,5 +146,8 @@ export default function MoreScreen() {
 
       <View className="h-24" />
     </ScrollView>
+
+    <FeedbackModal visible={showFeedback} onClose={() => setShowFeedback(false)} />
+    </>
   );
 }

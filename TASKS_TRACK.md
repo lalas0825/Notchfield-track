@@ -504,6 +504,90 @@ All 5 bugs are fixed in code (commit 79b592a). Need EAS dev-client build to veri
 
 ---
 
+### Sprint 45B-F — Track Feedback Reporting ✅
+**Date:** 2026-04-10
+**Depends on:** Takeoff Sprint 45A (feedback_reports table + feedback-screenshots bucket)
+
+**Objective:** Let any user (foreman / supervisor / worker) report bugs, request features, or leave feedback directly from the field app. Context (route, device, screen size, role, project) is auto-captured so the admin doesn't need to ask "where / on what device?".
+
+**Verification (memory rule):** Queried `information_schema.columns` first. Real columns match the spec with a few extras (`admin_notes`, `resolved_at`, `resolved_by`). Also confirmed the `feedback-screenshots` bucket exists and is PRIVATE — so screenshots must be served via `createSignedUrl`, not public URLs.
+
+**Changes:**
+
+1. **PowerSync Schema** (`src/shared/lib/powersync/schema.ts`)
+   - [x] Added `feedback_reports` TableV2 with all 20 real columns (including `admin_notes`, `resolved_at`, `resolved_by` not in the original spec)
+   - [x] `screenshots` stored as `column.text` (JSONB → text in SQLite)
+   - [x] Exported `FeedbackReportRecord` type
+
+2. **Sync Rules** (`powersync/sync-rules.yaml`)
+   - [x] Added `SELECT * FROM feedback_reports WHERE organization_id = bucket.organization_id`
+
+3. **Service** (`src/features/feedback/services/feedback-service.ts`)
+   - [x] `fetchMyReports(userId)` — local-first, falls back to Supabase REST
+   - [x] `createFeedbackReport(input)` — PowerSync localInsert (offline-first text writes)
+   - [x] `uploadFeedbackScreenshot({ localUri, organizationId, reportId, index })` — direct Supabase storage, returns the storage path (not URL, bucket is private)
+   - [x] `getScreenshotSignedUrl(path)` — 1h signed URL for display
+   - [x] `parseScreenshots(json)` helper
+   - [x] Types: `FeedbackType`, `FeedbackSeverity`, `FeedbackStatus`, `FeedbackReport`
+
+4. **FeedbackModal Component** (`src/shared/components/FeedbackModal.tsx`)
+   - [x] Slide-up sheet modal, field-first design
+   - [x] **Type selector**: Bug 🐛 / Feature 💡 / Feedback 💬 — large toggle buttons with icon + color
+   - [x] **Severity chips** (only when type=bug): Low / Medium / High / Critical — color-coded
+   - [x] Title TextInput (required)
+   - [x] Description multiline TextInput (required) with smart placeholder per type
+   - [x] **Screenshots** (0–3): Take Photo + Gallery buttons; thumbnails with ✕ to remove
+   - [x] **Auto-captured context card** (muted): page name from `usePathname`, device = `Platform.OS Platform.Version`, screen size from `Dimensions`, role from `useTrackPermissions`, active project
+   - [x] Submit flow:
+     - Create report via PowerSync (works offline)
+     - Upload screenshots to `feedback-screenshots/{org}/{reportId}/{idx}_{timestamp}.{ext}`
+     - Patch row with uploaded paths via direct Supabase
+     - Show success alert; on upload failures, note "will retry when online"
+     - Reset + close modal
+   - [x] Keyboard-avoiding view for text inputs
+   - [x] Expo-device NOT required — uses `Platform.OS` + `Platform.Version` (no new dep)
+
+5. **My Reports Screen** (`src/app/(tabs)/more/my-reports/index.tsx`)
+   - [x] Query: `fetchMyReports(userId)` → reports where `reported_by = currentUserId`
+   - [x] Report card: type icon + label, severity (bugs only), title, time ago, page name, screenshot count, status badge (color-coded)
+   - [x] Admin response shown in highlighted box when present
+   - [x] Empty state with CTA "Report an Issue" button → opens FeedbackModal
+   - [x] FAB "New Report" → opens FeedbackModal
+   - [x] `useFocusEffect` reload + pull-to-refresh
+   - [x] Embedded FeedbackModal (on close → reload to show new report)
+   - [x] `timeAgo()` helper for "2h ago" / "3d ago" / dates
+
+6. **More Menu entries** (`src/app/(tabs)/more/index.tsx`)
+   - [x] "Report Issue" 🐛 (bug icon, orange) → opens FeedbackModal directly (no route)
+   - [x] "My Reports" 📋 (clipboard icon, purple) → navigates to `/(tabs)/more/my-reports`
+   - [x] Both visible to ALL roles (no permission gating — feedback is universal)
+   - [x] Wrapped return in fragment to render FeedbackModal alongside ScrollView
+
+**Files Created:**
+- `src/features/feedback/services/feedback-service.ts`
+- `src/shared/components/FeedbackModal.tsx`
+- `src/app/(tabs)/more/my-reports/index.tsx`
+
+**Files Modified:**
+- `src/shared/lib/powersync/schema.ts`
+- `powersync/sync-rules.yaml`
+- `src/app/(tabs)/more/index.tsx`
+- `CLAUDE.md`
+- `TASKS_TRACK.md`
+
+**Offline behavior:**
+- Text fields (type, severity, title, description, context) save via PowerSync → works fully offline, syncs when online
+- Screenshot uploads require internet → if offline, the text report is saved without them and the user is notified via the success alert
+- Existing reports load from local SQLite → My Reports screen works offline
+
+**Permissions:** Universal feature — no gating. All roles see "Report Issue" and "My Reports" in the More menu.
+
+**TypeScript:** `npx tsc --noEmit` passes clean.
+
+**⚠️ Deploy note:** PowerSync sync rules must be deployed to the PowerSync instance (dashboard or CLI) before the client can sync `feedback_reports`. Until then, local inserts succeed but rows stay queued.
+
+---
+
 ## 📱 PHASE T1 — Foundation + Safety + GPS — ✅ OPERATIONAL
 > 39 of 43 tasks complete. 4 deferred to T2 (require data from Takeoff 7B).
 > 5 Supabase migrations applied. PowerSync sync rules deployed. 6 locales.
