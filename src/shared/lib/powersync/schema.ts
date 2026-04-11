@@ -246,6 +246,42 @@ const drawing_revisions = new TableV2({
   created_at: column.text,
 });
 
+// Sprint 47B — Hyperlinks between sheets (detected from PDF refs)
+// Columns match real DB (verified via information_schema).
+const drawing_hyperlinks = new TableV2({
+  organization_id: column.text,
+  source_drawing_id: column.text,
+  target_sheet_number: column.text,
+  target_drawing_id: column.text,      // nullable — may be resolved lazily
+  position_x: column.real,              // PDF-point coords
+  position_y: column.real,
+  width: column.real,
+  height: column.real,
+  reference_text: column.text,          // e.g. "See A-501/3"
+  detection_type: column.text,          // 'regex' | 'manual' | ...
+  created_at: column.text,
+});
+
+// Sprint 47B — Pin annotations (notes, photos, RFI links)
+const drawing_pins = new TableV2({
+  organization_id: column.text,
+  drawing_id: column.text,
+  project_id: column.text,
+  pin_type: column.text,                // 'note' | 'photo' | 'rfi'
+  position_x: column.real,
+  position_y: column.real,
+  title: column.text,
+  description: column.text,
+  color: column.text,                   // hex like '#F59E0B'
+  linked_rfi_id: column.text,
+  photos: column.text,                  // JSONB as text (array of storage paths)
+  created_by: column.text,
+  resolved: column.integer,             // boolean 0/1
+  resolved_at: column.text,
+  created_at: column.text,
+  updated_at: column.text,
+});
+
 const units = new TableV2({
   organization_id: column.text,
   project_id: column.text,
@@ -688,6 +724,8 @@ export const AppSchema = new Schema({
   drawing_sets,
   drawings,
   drawing_revisions,
+  drawing_hyperlinks,
+  drawing_pins,
   takeoff_objects,
   safety_documents,
   document_signoffs,
@@ -746,3 +784,5 @@ export type ProductionBlockLogRecord = Database['production_block_logs'];
 export type GcPunchItemRecord = Database['gc_punch_items'];
 export type DocumentSignatureRecord = Database['document_signatures'];
 export type FeedbackReportRecord = Database['feedback_reports'];
+export type DrawingHyperlinkRecord = Database['drawing_hyperlinks'];
+export type DrawingPinRecord = Database['drawing_pins'];
