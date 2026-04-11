@@ -21,8 +21,10 @@ import { HyperlinkOverlay } from '@/features/plans/components/HyperlinkOverlay';
 import { PinOverlay } from '@/features/plans/components/PinOverlay';
 import { PinDetailSheet } from '@/features/plans/components/PinDetailSheet';
 import { AddPinSheet } from '@/features/plans/components/AddPinSheet';
+import { SheetNavBar } from '@/features/plans/components/SheetNavBar';
 import { useHyperlinks, type DrawingHyperlink } from '@/features/plans/hooks/useHyperlinks';
 import { usePins } from '@/features/plans/hooks/usePins';
+import { useSheetSiblings, type SheetSibling } from '@/features/plans/hooks/useSheetSiblings';
 import type { DrawingPin } from '@/features/plans/services/pin-service';
 import { haptic } from '@/shared/lib/haptics';
 
@@ -68,13 +70,18 @@ export default function PlanViewerScreen() {
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
   const [scale, setScale] = useState(1);
 
-  // Hyperlinks + pins
+  // Hyperlinks + pins + siblings
   const { links } = useHyperlinks(current.id);
   const { pins, reload: reloadPins } = usePins(current.id);
+  const { siblings } = useSheetSiblings(current.id);
 
   // UI state
   const [selectedPin, setSelectedPin] = useState<DrawingPin | null>(null);
   const [showAddPin, setShowAddPin] = useState(false);
+
+  // Drop-pin mode: long-press the FAB to arm → tap the PDF to place
+  const [dropPinMode, setDropPinMode] = useState(false);
+  const [pendingPinCoords, setPendingPinCoords] = useState<{ x: number; y: number } | null>(null);
 
   // Load PDF whenever current sheet changes
   useEffect(() => {
@@ -177,22 +184,91 @@ export default function PlanViewerScreen() {
     }
   }, [sheetStack, router]);
 
+  // Navigate to a sibling (prev/next from the nav bar) — does NOT push onto
+  // the back stack, since this is lateral in-set movement, not a drill-down.
+  const navigateToSibling = useCallback(
+    (target: SheetSibling) => {
+      haptic.light();
+      setCurrent({
+        id: target.id,
+        filePath: target.file_path,
+        pageNumber: target.page_number,
+        label: target.label ?? `Page ${target.page_number}`,
+      });
+    },
+    [],
+  );
+
   // Overlays visible only at fit-to-page (scale close to 1)
   const overlaysVisible = Math.abs(scale - 1) < 0.05;
 
-  // Pin-add FAB target: center of viewport mapped to PDF coords
-  const addPinAtCenter = useCallback(() => {
-    if (!canAddPins) return;
+  // Can the user create a pin right now?
+  const canOpenAddPin = () => {
+    if (!canAddPins) return false;
     if (!profile || !activeProject || !user) {
       Alert.alert('Not ready', 'Missing user or project context.');
-      return;
+      return false;
     }
     if (pageBounds.pageWidth <= 0 || pageBounds.pageHeight <= 0) {
       Alert.alert('PDF not loaded', 'Wait for the plan to finish loading.');
-      return;
+      return false;
     }
+    return true;
+  };
+
+  // Short-tap FAB: drop pin at page center
+  const addPinAtCenter = useCallback(() => {
+    if (!canOpenAddPin()) return;
+    setPendingPinCoords({
+      x: pageBounds.pageWidth / 2,
+      y: pageBounds.pageHeight / 2,
+    });
     setShowAddPin(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canAddPins, profile, activeProject, user, pageBounds]);
+
+  // Long-press FAB: arm drop-pin mode (next tap on PDF places the pin)
+  const armDropPinMode = useCallback(() => {
+    if (!canOpenAddPin()) return;
+    setDropPinMode(true);
+    haptic.light();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canAddPins, profile, activeProject, user, pageBounds]);
+
+  // When the drop-pin overlay catches a tap, convert screen → PDF coords
+  const handleDropTap = useCallback(
+    (screenX: number, screenY: number) => {
+      if (pageBounds.pageWidth <= 0 || pageBounds.pageHeight <= 0) return;
+      // Same fit-inside-viewport math as the overlays
+      const scaleFit = Math.min(
+        viewport.width / pageBounds.pageWidth,
+        viewport.height / pageBounds.pageHeight,
+      );
+      const renderedW = pageBounds.pageWidth * scaleFit;
+      const renderedH = pageBounds.pageHeight * scaleFit;
+      const offsetX = (viewport.width - renderedW) / 2;
+      const offsetY = (viewport.height - renderedH) / 2;
+
+      // Guard: tap outside the rendered page
+      if (
+        screenX < offsetX ||
+        screenX > offsetX + renderedW ||
+        screenY < offsetY ||
+        screenY > offsetY + renderedH
+      ) {
+        return;
+      }
+
+      const pdfX = (screenX - offsetX) / scaleFit;
+      const pdfY = (screenY - offsetY) / scaleFit;
+
+      setPendingPinCoords({ x: pdfX, y: pdfY });
+      setDropPinMode(false);
+      setShowAddPin(true);
+      haptic.success();
+    },
+    [pageBounds, viewport],
+  );
 
   const overlay = useMemo(() => {
     if (!pdfUri || viewport.width === 0) return null;
@@ -204,7 +280,7 @@ export default function PlanViewerScreen() {
           pageHeight={pageBounds.pageHeight}
           viewportWidth={viewport.width}
           viewportHeight={viewport.height}
-          visible={overlaysVisible}
+          visible={overlaysVisible && !dropPinMode}
           onLinkPress={navigateToSheet}
         />
         <PinOverlay
@@ -213,15 +289,46 @@ export default function PlanViewerScreen() {
           pageHeight={pageBounds.pageHeight}
           viewportWidth={viewport.width}
           viewportHeight={viewport.height}
-          visible={overlaysVisible}
+          visible={overlaysVisible && !dropPinMode}
           onPinPress={setSelectedPin}
         />
+
+        {/* Drop-pin tap catcher: full-viewport transparent Pressable that
+            captures the next tap and places a pin there. */}
+        {dropPinMode && (
+          <Pressable
+            onPress={(e) => {
+              const { locationX, locationY } = e.nativeEvent;
+              handleDropTap(locationX, locationY);
+            }}
+            style={{
+              position: 'absolute',
+              top: 0, left: 0, right: 0, bottom: 0,
+              backgroundColor: 'rgba(15, 23, 42, 0.35)',
+            }}
+          >
+            <View className="flex-1 items-center justify-center">
+              <View className="flex-row items-center rounded-full bg-brand-orange px-4 py-2.5">
+                <Ionicons name="add-circle" size={18} color="#FFFFFF" />
+                <Text className="ml-2 text-sm font-bold text-white">
+                  Tap anywhere to place pin
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => setDropPinMode(false)}
+                className="mt-3 rounded-full border border-border bg-slate-800/90 px-4 py-1.5"
+              >
+                <Text className="text-xs font-semibold text-slate-300">Cancel</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        )}
       </>
     );
-  }, [pdfUri, links, pins, pageBounds, viewport, overlaysVisible, navigateToSheet]);
-
-  const centerPinX = pageBounds.pageWidth / 2;
-  const centerPinY = pageBounds.pageHeight / 2;
+  }, [
+    pdfUri, links, pins, pageBounds, viewport, overlaysVisible,
+    navigateToSheet, dropPinMode, handleDropTap,
+  ]);
 
   return (
     <>
@@ -328,11 +435,25 @@ export default function PlanViewerScreen() {
           </View>
         )}
 
-        {/* FAB — add pin (foreman + supervisor only) */}
+        {/* Sheet navigation bar — prev / current / next within the same set */}
+        {pdfUri && !downloading && (
+          <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
+            <SheetNavBar
+              siblings={siblings}
+              currentId={current.id}
+              onNavigate={navigateToSibling}
+            />
+          </View>
+        )}
+
+        {/* FAB — tap: pin at center · long-press: drop-pin mode */}
         {canAddPins && pdfUri && !downloading && (
           <Pressable
             onPress={addPinAtCenter}
-            className="absolute bottom-6 right-4 h-14 w-14 items-center justify-center rounded-full bg-brand-orange shadow-lg active:opacity-80"
+            onLongPress={armDropPinMode}
+            delayLongPress={400}
+            className="absolute right-4 h-14 w-14 items-center justify-center rounded-full bg-brand-orange shadow-lg active:opacity-80"
+            style={{ bottom: siblings.length > 0 ? 74 : 24 }}
           >
             <Ionicons name="add" size={28} color="#FFFFFF" />
           </Pressable>
@@ -347,17 +468,17 @@ export default function PlanViewerScreen() {
         />
 
         {/* Add pin */}
-        {profile && activeProject && user && (
+        {profile && activeProject && user && pendingPinCoords && (
           <AddPinSheet
             visible={showAddPin}
-            onClose={() => setShowAddPin(false)}
+            onClose={() => { setShowAddPin(false); setPendingPinCoords(null); }}
             onCreated={reloadPins}
             organizationId={profile.organization_id}
             projectId={activeProject.id}
             drawingId={current.id}
             createdBy={profile.id ?? user.id}
-            positionX={centerPinX}
-            positionY={centerPinY}
+            positionX={pendingPinCoords.x}
+            positionY={pendingPinCoords.y}
           />
         )}
       </View>
