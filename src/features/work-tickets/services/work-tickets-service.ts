@@ -23,7 +23,7 @@ import type {
   MaterialEntry,
 } from '../types';
 
-const SIGN_BASE_URL = 'https://notch-field-takeoff.vercel.app/sign';
+const SIGN_BASE_URL = 'https://notchfield.com/en/sign';
 
 // ─── Read ─────────────────────────────────────────────────────
 
@@ -98,11 +98,16 @@ export async function getSignatureForTicket(
 export interface CreateTicketInput extends WorkTicketDraft {}
 
 export async function createWorkTicket(input: CreateTicketInput): Promise<WorkTicket> {
+  // title is NOT NULL in DB — auto-generate from trade + area_description
+  const autoTitle = [input.trade, input.area_description].filter(Boolean).join(' — ') || 'Work Ticket';
+
   const { data, error } = await supabase
     .from('work_tickets')
     .insert({
       organization_id: input.organization_id,
       project_id: input.project_id,
+      title: autoTitle,
+      area: input.area_description,           // legacy column kept in DB
       service_date: input.service_date,
       trade: input.trade,
       area_description: input.area_description,
@@ -170,7 +175,7 @@ export async function createSignatureRequest(params: {
       document_id: params.ticketId,
       organization_id: params.organization_id,
       project_id: params.project_id,
-      signer_name: params.signer_name ?? null,
+      signer_name: params.signer_name ?? 'Pending',
       signer_role: params.signer_role,
       status: 'pending',
     })

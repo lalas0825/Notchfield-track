@@ -351,7 +351,7 @@ export const workTicketService = {
 
   // Link share mode — just returns the URL to share
   getSigningUrl(token: string): string {
-    const baseUrl = process.env.EXPO_PUBLIC_APP_URL ?? 'https://notch-field-takeoff.vercel.app';
+    const baseUrl = process.env.EXPO_PUBLIC_APP_URL ?? 'https://notchfield.com';
     return `${baseUrl}/sign/${token}`;
   },
 };

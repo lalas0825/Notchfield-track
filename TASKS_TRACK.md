@@ -243,7 +243,7 @@ All 5 bugs are fixed in code (commit 79b592a). Need EAS dev-client build to veri
    - [x] `createWorkTicket()` — generates UUID + signature_token, status='draft', JSON-stringifies labor/materials
    - [x] `updateWorkTicket()` — patch handler with selective field updates
    - [x] `deleteWorkTicket()` — hard delete via localDelete
-   - [x] `createSignatureRequest()` — inserts pending row in `document_signatures`, flips ticket to `pending_signature`, returns sign URL `https://notch-field-takeoff.vercel.app/sign/{token}`, sets 30-day expiration
+   - [x] `createSignatureRequest()` — inserts pending row in `document_signatures`, flips ticket to `pending_signature`, returns sign URL `https://notchfield.com/sign/{token}`, sets 30-day expiration
    - [x] `cancelSignatureRequest()` — marks pending sig as `expired`, reverts ticket to draft
    - [x] Helpers: `parseLabor`, `parseMaterials`, `parsePhotos`, `totalHours`, `workerCount`
 
@@ -323,7 +323,7 @@ All 5 bugs are fixed in code (commit 79b592a). Need EAS dev-client build to veri
 2. Fills date / trade / area / description / labor / materials → Save
 3. Tap ticket → Send for Signature → enters GC name + email → Open Email Client (or Copy/WhatsApp)
 4. Signature row created in `document_signatures` (status=pending), ticket flips to pending_signature, push_pending via PowerSync upload
-5. GC opens email → clicks `https://notch-field-takeoff.vercel.app/sign/{token}` → signs on public page (Takeoff web side)
+5. GC opens email → clicks `https://notchfield.com/sign/{token}` → signs on public page (Takeoff web side)
 6. Server updates `document_signatures.status = 'signed'` + `signed_at` + `signature_url` + `content_hash`, AND updates `work_tickets.status = 'signed'`
 7. PowerSync syncs back to Track → foreman sees status change to "Signed" with signer name + signature image + integrity hash
 8. Foreman taps PDF → expo-print generates PDF with signature overlay → expo-sharing opens share sheet
@@ -368,7 +368,7 @@ All 5 bugs are fixed in code (commit 79b592a). Need EAS dev-client build to veri
    - [x] `createSignatureRequest({ ticketId, signer_role })` — inserts pending row + flips ticket to 'pending'
    - [x] `cancelSignatureRequest(ticketId)` — marks pending sig as declined + reverts to draft
    - [x] **`signTicketInApp({ signatureId, token, organizationId, signerName, signerTitle, signatureDataUrl, gcNotes })`** — decodes base64, uploads to `signatures/{org}/{token}.png`, computes SHA-256 via `expo-crypto`, updates `document_signatures` + parent `work_tickets`, throws on any error
-   - [x] `getSigningUrl(token)` — returns `https://notch-field-takeoff.vercel.app/sign/{token}`
+   - [x] `getSigningUrl(token)` — returns `https://notchfield.com/sign/{token}`
    - [x] Helpers: `ensureLabor`, `ensureMaterials`, `base64ToBytes` (with atob fallback)
 
 3. **PDF Generator** (`src/features/work-tickets/services/workTicketPdf.ts`) — NEW
@@ -478,7 +478,7 @@ All 5 bugs are fixed in code (commit 79b592a). Need EAS dev-client build to veri
 
 **Send Link (remote GC):**
 1. Creates pending signature row
-2. Gets sign URL via `getSigningUrl(token)` → `https://notch-field-takeoff.vercel.app/sign/{token}`
+2. Gets sign URL via `getSigningUrl(token)` → `https://notchfield.com/sign/{token}`
 3. Opens native `Share.share` sheet (iOS/Android) with message + URL
 4. Foreman sends to GC via iMessage/WhatsApp/email
 5. GC opens link in browser → signs on public web page (Takeoff Web side)

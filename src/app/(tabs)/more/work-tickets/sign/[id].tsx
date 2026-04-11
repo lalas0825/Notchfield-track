@@ -33,13 +33,14 @@ export default function SignTicketScreen() {
   const signatureId = params.sigId;
   const token = params.token;
 
-  const { ticket, signature, loading } = useWorkTicket(ticketId ?? null);
+  const { ticket, loading } = useWorkTicket(ticketId ?? null);
 
   const [signerName, setSignerName] = useState('');
   const [signerTitle, setSignerTitle] = useState('');
   const [gcNotes, setGcNotes] = useState('');
   const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [drawing, setDrawing] = useState(false);
 
   const handleSubmit = useCallback(async () => {
     if (!signerName.trim()) {
@@ -116,7 +117,11 @@ export default function SignTicketScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         className="flex-1 bg-background"
       >
-        <ScrollView className="flex-1 px-4 pt-4" keyboardShouldPersistTaps="handled">
+        <ScrollView
+          className="flex-1 px-4 pt-4"
+          keyboardShouldPersistTaps="handled"
+          scrollEnabled={!drawing}
+        >
 
           {/* Intro */}
           <View className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
@@ -192,6 +197,8 @@ export default function SignTicketScreen() {
           <SignaturePad
             signerName={signerName || 'Signer'}
             captured={!!signatureDataUrl}
+            onBegin={() => setDrawing(true)}
+            onEnd={() => setDrawing(false)}
             onCapture={(base64) => {
               // SignaturePad returns "data:image/png;base64,..." via onOK
               setSignatureDataUrl(base64);

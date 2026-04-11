@@ -328,7 +328,7 @@ Reusable for any document type (work tickets now, PTP/JHA later).
 1. User fills signer name + email
 2. Taps "Open Email Client":
    a. Create signature request via PowerSync → Supabase
-   b. Generate sign URL: `https://notch-field-takeoff.vercel.app/sign/{token}`
+   b. Generate sign URL: `https://notchfield.com/sign/{token}`
    c. Generate mailto link with pre-filled subject/body
    d. Open with Linking.openURL(mailtoLink)
 3. Or "Copy Sign Link" — copies URL to clipboard

@@ -3,12 +3,11 @@ import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-nati
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafetyDocs } from '@/features/safety/hooks/useSafetyDocs';
-import { useTickets } from '@/features/tickets/hooks/useTickets';
 import { usePunchList } from '@/features/punch/hooks/usePunchList';
 import { useLegalDocs } from '@/features/legal/hooks/useLegalDocs';
 import { DOC_TYPE_LABELS } from '@/features/safety/types/schemas';
 
-type Tab = 'safety' | 'tickets' | 'punch' | 'legal';
+type Tab = 'safety' | 'punch' | 'legal';
 
 const STATUS_COLORS: Record<string, string> = {
   draft: '#94A3B8',
@@ -20,25 +19,24 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function DocsScreen() {
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>('tickets');
+  const [tab, setTab] = useState<Tab>('safety');
   const { docs: safetyDocs, loading: safetyLoading } = useSafetyDocs();
-  const { tickets, loading: ticketsLoading } = useTickets();
   const { items: punchItems, loading: punchLoading, counts: punchCounts } = usePunchList();
   const { docs: legalDocs, counts: legalCounts, isSupervisor, pendingNods } = useLegalDocs();
   const [fabOpen, setFabOpen] = useState(false);
 
-  const loading = tab === 'safety' ? safetyLoading : tab === 'punch' ? punchLoading : tab === 'legal' ? false : ticketsLoading;
+  const loading = tab === 'safety' ? safetyLoading : tab === 'punch' ? punchLoading : false;
 
   return (
     <View className="flex-1 bg-background">
       {/* Tab bar */}
       <View className="flex-row border-b border-border">
         <Pressable
-          onPress={() => setTab('tickets')}
-          className={`flex-1 items-center py-3 ${tab === 'tickets' ? 'border-b-2 border-brand-orange' : ''}`}
+          onPress={() => setTab('safety')}
+          className={`flex-1 items-center py-3 ${tab === 'safety' ? 'border-b-2 border-brand-orange' : ''}`}
         >
-          <Text className={`text-base font-medium ${tab === 'tickets' ? 'text-brand-orange' : 'text-slate-400'}`}>
-            Tickets ({tickets.length})
+          <Text className={`text-base font-medium ${tab === 'safety' ? 'text-brand-orange' : 'text-slate-400'}`}>
+            Safety
           </Text>
         </Pressable>
         <Pressable
@@ -55,14 +53,6 @@ export default function DocsScreen() {
               </View>
             )}
           </View>
-        </Pressable>
-        <Pressable
-          onPress={() => setTab('safety')}
-          className={`flex-1 items-center py-3 ${tab === 'safety' ? 'border-b-2 border-brand-orange' : ''}`}
-        >
-          <Text className={`text-base font-medium ${tab === 'safety' ? 'text-brand-orange' : 'text-slate-400'}`}>
-            Safety
-          </Text>
         </Pressable>
         {isSupervisor && (
           <Pressable
@@ -89,30 +79,35 @@ export default function DocsScreen() {
         </View>
       ) : (
         <ScrollView className="flex-1 px-4 pt-4">
-          {/* ─── Tickets tab ─── */}
-          {tab === 'tickets' && (
+
+          {/* ─── Safety tab ─── */}
+          {tab === 'safety' && (
             <>
-              {tickets.length === 0 ? (
-                <EmptyState icon="construct-outline" message="No work tickets yet." />
+              {safetyDocs.length === 0 ? (
+                <EmptyState icon="shield-outline" message="No safety documents yet." />
               ) : (
-                tickets.map((t) => (
+                safetyDocs.map((doc) => (
                   <Pressable
-                    key={t.id}
-                    onPress={() => router.push(`/(tabs)/docs/tickets/${t.id}` as any)}
+                    key={doc.id}
+                    onPress={() => router.push(`/(tabs)/docs/safety/${doc.id}` as any)}
                     className="mb-2 flex-row items-center rounded-xl border border-border bg-card px-4 py-4 active:opacity-80"
                   >
-                    <View className="h-10 w-10 items-center justify-center rounded-lg bg-blue-500/20">
-                      <Ionicons name="construct" size={20} color="#3B82F6" />
+                    <View className="h-10 w-10 items-center justify-center rounded-lg bg-brand-orange/20">
+                      <Ionicons
+                        name={doc.doc_type === 'jha' ? 'warning' : doc.doc_type === 'ptp' ? 'clipboard' : 'chatbubbles'}
+                        size={20}
+                        color="#F97316"
+                      />
                     </View>
                     <View className="ml-3 flex-1">
                       <Text className="text-base font-medium text-white" numberOfLines={1}>
-                        {t.title}
+                        {doc.title}
                       </Text>
                       <Text className="mt-0.5 text-sm text-slate-400">
-                        #{t.number} · {[t.floor, t.area].filter(Boolean).join(' · ') || 'No area'}
+                        {DOC_TYPE_LABELS[doc.doc_type as keyof typeof DOC_TYPE_LABELS]} · #{doc.number}
                       </Text>
                     </View>
-                    <StatusBadge status={t.status} />
+                    <StatusBadge status={doc.status} />
                   </Pressable>
                 ))
               )}
@@ -149,39 +144,6 @@ export default function DocsScreen() {
             </>
           )}
 
-          {/* ─── Safety tab ─── */}
-          {tab === 'safety' && (
-            <>
-              {safetyDocs.length === 0 ? (
-                <EmptyState icon="shield-outline" message="No safety documents yet." />
-              ) : (
-                safetyDocs.map((doc) => (
-                  <Pressable
-                    key={doc.id}
-                    onPress={() => router.push(`/(tabs)/docs/safety/${doc.id}` as any)}
-                    className="mb-2 flex-row items-center rounded-xl border border-border bg-card px-4 py-4 active:opacity-80"
-                  >
-                    <View className="h-10 w-10 items-center justify-center rounded-lg bg-brand-orange/20">
-                      <Ionicons
-                        name={doc.doc_type === 'jha' ? 'warning' : doc.doc_type === 'ptp' ? 'clipboard' : 'chatbubbles'}
-                        size={20}
-                        color="#F97316"
-                      />
-                    </View>
-                    <View className="ml-3 flex-1">
-                      <Text className="text-base font-medium text-white" numberOfLines={1}>
-                        {doc.title}
-                      </Text>
-                      <Text className="mt-0.5 text-sm text-slate-400">
-                        {DOC_TYPE_LABELS[doc.doc_type as keyof typeof DOC_TYPE_LABELS]} · #{doc.number}
-                      </Text>
-                    </View>
-                    <StatusBadge status={doc.status} />
-                  </Pressable>
-                ))
-              )}
-            </>
-          )}
           {/* ─── Legal tab ─── */}
           {tab === 'legal' && isSupervisor && (
             <>
@@ -214,18 +176,9 @@ export default function DocsScreen() {
         </ScrollView>
       )}
 
-      {/* ─── FAB (Floating Action Button) ─── */}
+      {/* ─── FAB — Safety docs only (Work Tickets moved to More tab) ─── */}
       {fabOpen && (
         <View className="absolute bottom-28 right-4">
-          <FabOption
-            icon="construct"
-            label="Work Ticket"
-            color="#3B82F6"
-            onPress={() => {
-              setFabOpen(false);
-              router.push('/(tabs)/docs/tickets/new' as any);
-            }}
-          />
           <FabOption
             icon="warning"
             label="JHA"

@@ -7,9 +7,13 @@ type Props = {
   onCapture: (base64: string) => void;
   onClear: () => void;
   captured: boolean;
+  /** Called when the user starts drawing — use to disable parent ScrollView. */
+  onBegin?: () => void;
+  /** Called when the user lifts their finger. */
+  onEnd?: () => void;
 };
 
-export function SignaturePad({ signerName, onCapture, onClear, captured }: Props) {
+export function SignaturePad({ signerName, onCapture, onClear, captured, onBegin, onEnd }: Props) {
   const signatureRef = useRef<any>(null);
   const [signing, setSigning] = useState(false);
 
@@ -79,9 +83,9 @@ export function SignaturePad({ signerName, onCapture, onClear, captured }: Props
         Signature — {signerName}
       </Text>
       {/*
-        Key fix: onStartShouldSetResponder + onMoveShouldSetResponder
-        prevents the parent ScrollView from stealing touch events.
-        This allows finger drawing in the signature canvas.
+        No responder handlers on the wrapper — they would steal touchmove
+        events from the WebView child and leave the canvas drawing only dots.
+        Parent ScrollView scroll is disabled while drawing via onBegin/onEnd.
       */}
       <View
         style={{
@@ -92,16 +96,13 @@ export function SignaturePad({ signerName, onCapture, onClear, captured }: Props
           borderColor: signing ? '#F97316' : '#475569',
           backgroundColor: 'white',
         }}
-        onStartShouldSetResponder={() => true}
-        onMoveShouldSetResponder={() => true}
-        onResponderTerminationRequest={() => false}
       >
         <SignatureCanvas
           ref={signatureRef}
           onOK={handleOK}
           onEmpty={() => {}}
-          onBegin={() => setSigning(true)}
-          onEnd={() => setSigning(false)}
+          onBegin={() => { setSigning(true); onBegin?.(); }}
+          onEnd={() => { setSigning(false); onEnd?.(); }}
           webStyle={`
             .m-signature-pad { box-shadow: none; border: none; height: 100%; width: 100%; margin: 0; }
             .m-signature-pad--body { border: none; height: 100%; width: 100%; }

@@ -2,6 +2,7 @@
  * Work Ticket Create / Edit — Sprint 45B
  * Field names mirror Takeoff Web exactly:
  *   classification, regular_hours, overtime_hours, quantity
+ * GC Notes removed from create — GC adds notes at signing time.
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -34,23 +35,7 @@ import {
   type MaterialEntry,
 } from '@/features/work-tickets/types';
 import { haptic } from '@/shared/lib/haptics';
-
-function todayISO(): string {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
-function fmtDateLabel(iso: string): string {
-  try {
-    const d = new Date(iso + 'T00:00:00');
-    return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
-  } catch {
-    return iso;
-  }
-}
+import { DatePickerField, todayISO } from '@/shared/components/DatePickerModal';
 
 function emptyLabor(): LaborEntry {
   return { name: '', classification: 'Mechanic', regular_hours: 8, overtime_hours: 0 };
@@ -79,7 +64,6 @@ export default function WorkTicketCreateScreen() {
   const [workDescription, setWorkDescription] = useState('');
   const [labor, setLabor] = useState<LaborEntry[]>([emptyLabor()]);
   const [materials, setMaterials] = useState<MaterialEntry[]>([]);
-  const [gcNotes, setGcNotes] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -101,7 +85,6 @@ export default function WorkTicketCreateScreen() {
         const parsedLabor = ensureLabor(t.labor);
         if (parsedLabor.length > 0) setLabor(parsedLabor);
         setMaterials(ensureMaterials(t.materials));
-        if (t.gc_notes) setGcNotes(t.gc_notes);
       })
       .catch((err) => {
         console.warn('[create] load failed', err);
@@ -109,16 +92,6 @@ export default function WorkTicketCreateScreen() {
         router.back();
       });
   }, [editId, router]);
-
-  const dateOffset = (offset: number) => {
-    const d = new Date();
-    d.setDate(d.getDate() - offset);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    setServiceDate(`${y}-${m}-${day}`);
-    haptic.light();
-  };
 
   const addLaborRow = () => { setLabor((l) => [...l, emptyLabor()]); haptic.light(); };
   const updateLaborRow = (i: number, patch: Partial<LaborEntry>) => {
@@ -142,16 +115,15 @@ export default function WorkTicketCreateScreen() {
       Alert.alert('No project selected', 'Select a project from the Work Tickets screen first.');
       return;
     }
-    if (!workDescription.trim()) {
-      Alert.alert('Description required', 'Please enter a work description.');
-      return;
-    }
     if (!areaDescription.trim()) {
       Alert.alert('Area required', 'Please enter the area / location.');
       return;
     }
+    if (!workDescription.trim()) {
+      Alert.alert('Description required', 'Please enter a work description.');
+      return;
+    }
 
-    // Strip empty rows
     const cleanLabor = labor.filter((l) => l.name.trim().length > 0);
     const cleanMaterials = materials.filter((m) => m.description.trim().length > 0);
 
@@ -167,7 +139,7 @@ export default function WorkTicketCreateScreen() {
           work_description: workDescription.trim(),
           labor: cleanLabor,
           materials: cleanMaterials,
-          gc_notes: gcNotes.trim() || null,
+          gc_notes: null,
         });
       } else {
         await createWorkTicket({
@@ -182,7 +154,7 @@ export default function WorkTicketCreateScreen() {
           work_description: workDescription.trim(),
           labor: cleanLabor,
           materials: cleanMaterials,
-          gc_notes: gcNotes.trim() || null,
+          gc_notes: null,
           created_by: userId,
         });
       }
@@ -196,7 +168,7 @@ export default function WorkTicketCreateScreen() {
     }
   }, [
     user, profile, activeProject, isEdit, editId, serviceDate, trade,
-    areaDescription, floor, priority, workDescription, labor, materials, gcNotes, router,
+    areaDescription, floor, priority, workDescription, labor, materials, router,
   ]);
 
   return (
@@ -220,34 +192,18 @@ export default function WorkTicketCreateScreen() {
       >
         <ScrollView className="flex-1 px-4 pt-4" keyboardShouldPersistTaps="handled">
 
+          {/* Date picker */}
           <Section label="Service Date">
-            <View className="rounded-xl border border-border bg-card px-4 py-3">
-              <Text className="text-base font-semibold text-white">{fmtDateLabel(serviceDate)}</Text>
-              <View className="mt-2 flex-row gap-2">
-                {[
-                  { offset: 0, label: 'Today' },
-                  { offset: 1, label: 'Yesterday' },
-                  { offset: 2, label: '2d ago' },
-                  { offset: 3, label: '3d ago' },
-                ].map((opt) => (
-                  <Pressable
-                    key={opt.offset}
-                    onPress={() => dateOffset(opt.offset)}
-                    className="rounded-full border border-border bg-background px-3 py-1.5"
-                  >
-                    <Text className="text-xs font-semibold text-slate-300">{opt.label}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            </View>
+            <DatePickerField value={serviceDate} onChange={setServiceDate} />
           </Section>
 
+          {/* Trade */}
           <Section label="Trade">
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
               {TRADES.map((t) => (
                 <Pressable
                   key={t}
-                  onPress={() => setTrade(t)}
+                  onPress={() => { setTrade(t); haptic.light(); }}
                   className={`rounded-full px-4 py-2 ${
                     trade === t ? 'bg-brand-orange' : 'border border-border bg-card'
                   }`}
@@ -261,6 +217,7 @@ export default function WorkTicketCreateScreen() {
             </ScrollView>
           </Section>
 
+          {/* Area */}
           <Section label="Area / Location *">
             <TextInput
               value={areaDescription}
@@ -272,6 +229,7 @@ export default function WorkTicketCreateScreen() {
             />
           </Section>
 
+          {/* Floor */}
           <Section label="Floor (optional)">
             <TextInput
               value={floor}
@@ -283,12 +241,13 @@ export default function WorkTicketCreateScreen() {
             />
           </Section>
 
+          {/* Priority */}
           <Section label="Priority">
             <View className="flex-row gap-3">
               {(['normal', 'urgent'] as const).map((p) => (
                 <Pressable
                   key={p}
-                  onPress={() => setPriority(p)}
+                  onPress={() => { setPriority(p); haptic.light(); }}
                   className={`flex-1 flex-row items-center justify-center rounded-xl border px-4 py-3 ${
                     priority === p
                       ? p === 'urgent'
@@ -315,6 +274,7 @@ export default function WorkTicketCreateScreen() {
             </View>
           </Section>
 
+          {/* Work Description */}
           <Section label="Work Description *">
             <TextInput
               value={workDescription}
@@ -329,6 +289,7 @@ export default function WorkTicketCreateScreen() {
             />
           </Section>
 
+          {/* Labor */}
           <Section
             label="Labor"
             right={
@@ -408,6 +369,7 @@ export default function WorkTicketCreateScreen() {
             ))}
           </Section>
 
+          {/* Materials */}
           <Section
             label="Materials"
             right={
@@ -471,20 +433,6 @@ export default function WorkTicketCreateScreen() {
                 </View>
               </View>
             ))}
-          </Section>
-
-          <Section label="GC Notes (optional)">
-            <TextInput
-              value={gcNotes}
-              onChangeText={setGcNotes}
-              placeholder="(optional)"
-              placeholderTextColor="#64748B"
-              multiline
-              numberOfLines={3}
-              textAlignVertical="top"
-              className="rounded-xl border border-border bg-card px-4 py-3 text-base text-white"
-              style={{ minHeight: 80 }}
-            />
           </Section>
 
           <Pressable
