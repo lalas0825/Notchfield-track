@@ -1098,6 +1098,9 @@ All 4 skills are created in `.claude/skills/` with implementation code and patte
 - PowerSync sync rules: NO JOINs, NO subqueries, NO aliases in parameters
 - Platform-split files (.web.tsx) for native-only modules (react-native-pdf, PowerSync, maps)
 
+### Critical: PowerSync `.connect()` — use default WebSocket, NOT HTTP
+**Never pass `{ connectionMethod: SyncStreamConnectionMethod.HTTP }` to `powerSync.connect()`.** The HTTP long-polling transport hangs silently in handshake on real devices: `currentStatus.connecting` stays `true` forever, `connected` never flips, no error propagates back, app shows "Offline" banner indefinitely. The default (WebSocket) is the supported path. Correct call: `powerSync.connect(connector).catch(...)`. Also confirm `EXPO_PUBLIC_POWERSYNC_URL` points to the actual PowerSync host (e.g. `https://69c72137a112d86b20541618.powersync.journeyapps.com`) — if it points to the web app domain, the request to the wrong host fails the same silent way.
+
 ### Critical: PowerSync Sync Rules
 Working pattern (org-scoped, single table per query):
 ```yaml
