@@ -200,7 +200,6 @@ export default function SignTicketScreen() {
             onBegin={() => setDrawing(true)}
             onEnd={() => setDrawing(false)}
             onCapture={(base64) => {
-              // SignaturePad returns "data:image/png;base64,..." via onOK
               setSignatureDataUrl(base64);
               haptic.light();
             }}

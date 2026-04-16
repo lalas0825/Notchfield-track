@@ -261,14 +261,40 @@ export async function signTicketInApp(params: {
   const { data: urlData } = supabase.storage.from('signatures').getPublicUrl(filePath);
   const publicUrl = urlData.publicUrl;
 
-  // 4) SHA-256 integrity hash of the signed payload
+  // 4) SHA-256 integrity hash — includes sorted photo URLs for
+  //    deterministic hashing across Track and Takeoff Web.
   const signedAt = new Date().toISOString();
+
+  // Resolve ticket ID from signature, then fetch evidence_photos for hash
+  const { data: sigDoc } = await supabase
+    .from('document_signatures')
+    .select('document_id')
+    .eq('id', signatureId)
+    .single();
+  let photoUrls = '';
+  if (sigDoc) {
+    const { data: tkt } = await supabase
+      .from('work_tickets')
+      .select('evidence_photos')
+      .eq('id', sigDoc.document_id)
+      .single();
+    if (tkt?.evidence_photos) {
+      const photos: { url?: string; pending_upload?: boolean }[] =
+        Array.isArray(tkt.evidence_photos) ? tkt.evidence_photos : [];
+      photoUrls = photos
+        .filter((p) => !p.pending_upload && p.url)
+        .map((p) => p.url!)
+        .sort()
+        .join('|');
+    }
+  }
+
   const payload = JSON.stringify({
     signatureId,
     signerName,
     signerTitle: signerTitle ?? '',
     signedAt,
-  });
+  }) + (photoUrls ? `|photos:${photoUrls}` : '');
   const contentHash = await Crypto.digestStringAsync(
     Crypto.CryptoDigestAlgorithm.SHA256,
     payload,

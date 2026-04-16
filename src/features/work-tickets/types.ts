@@ -25,6 +25,28 @@ export const MaterialEntrySchema = z.object({
 });
 export type MaterialEntry = z.infer<typeof MaterialEntrySchema>;
 
+// ─── Evidence Photos ───────────────────────────────────────────
+// Mirror Takeoff Web's `WorkTicketPhoto` exactly. `local_uri` and
+// `pending_upload` are Track-only fields that persist only in the
+// local SQLite row — they're stripped before a ticket is sent for
+// signature (see `workTicketPhotoService.processPendingUploads`).
+
+export const WorkTicketPhotoSchema = z.object({
+  id: z.string(),
+  url: z.string(),                       // public URL; '' while pending_upload
+  thumbnail_url: z.string().optional(),
+  caption: z.string().optional(),
+  taken_at: z.string(),
+  taken_by: z.string(),
+  taken_by_name: z.string(),
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
+  // Track-only (offline support):
+  local_uri: z.string().optional(),
+  pending_upload: z.boolean().optional(),
+});
+export type WorkTicketPhoto = z.infer<typeof WorkTicketPhotoSchema>;
+
 // ─── Ticket ────────────────────────────────────────────────────
 
 export const WorkTicketPrioritySchema = z.enum(['normal', 'urgent']);

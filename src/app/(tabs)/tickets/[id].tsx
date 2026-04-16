@@ -35,6 +35,10 @@ import {
   shareWorkTicketPdf,
 } from '@/features/work-tickets/services/workTicketPdf';
 import { haptic } from '@/shared/lib/haptics';
+import { useAuthStore } from '@/features/auth/store/auth-store';
+import { WorkTicketPhotos } from '@/features/work-tickets/components/WorkTicketPhotos';
+import { parsePhotos } from '@/features/work-tickets/services/workTicketPhotoService';
+import type { WorkTicketPhoto } from '@/features/work-tickets/types';
 
 const STATUS_CONFIG: Record<
   string,
@@ -64,6 +68,8 @@ export default function WorkTicketDetailScreen() {
   const activeProject = useProjectStore((s) => s.activeProject);
 
   const { ticket, signature, loading, reload } = useWorkTicket(id ?? null);
+  const user = useAuthStore((s) => s.user);
+  const profile = useAuthStore((s) => s.profile);
   const [busy, setBusy] = useState(false);
 
   // ── Actions ────────────────────────────────────────────────────
@@ -122,68 +128,94 @@ export default function WorkTicketDetailScreen() {
     );
   }, [ticket, reload]);
 
+  const checkPhotosBeforeSign = useCallback(
+    (proceed: () => void) => {
+      if (!ticket) return;
+      const photos: WorkTicketPhoto[] = parsePhotos((ticket as any).evidence_photos);
+      if (photos.some((p) => p.pending_upload)) {
+        Alert.alert(
+          'Photos Still Uploading',
+          'Some photos haven\'t uploaded yet. Please wait for uploads to complete or check your internet connection.',
+        );
+        return;
+      }
+      if (photos.length === 0) {
+        Alert.alert('No Evidence Photos', 'This ticket has no evidence photos attached. Send anyway?', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Send Without Photos', onPress: proceed },
+        ]);
+        return;
+      }
+      proceed();
+    },
+    [ticket],
+  );
+
   const handleSignNow = useCallback(async () => {
     if (!ticket) return;
-    try {
-      setBusy(true);
-      // If there's no pending signature, create one first
-      let sig = signature;
-      if (!sig || sig.status !== 'pending') {
-        sig = await createSignatureRequest({
-          ticketId: ticket.id,
-          organization_id: ticket.organization_id,
-          project_id: ticket.project_id,
-          signer_role: 'gc',
-        });
+    checkPhotosBeforeSign(async () => {
+      try {
+        setBusy(true);
+        let sig = signature;
+        if (!sig || sig.status !== 'pending') {
+          sig = await createSignatureRequest({
+            ticketId: ticket.id,
+            organization_id: ticket.organization_id,
+            project_id: ticket.project_id,
+            signer_role: 'gc',
+          });
+        }
+        router.push(
+          `/(tabs)/tickets/sign/${ticket.id}?sigId=${sig.id}&token=${sig.token}` as any,
+        );
+      } catch (err) {
+        Alert.alert(
+          'Cannot start signing',
+          (err as Error).message ?? 'Signing requires an internet connection.',
+        );
+      } finally {
+        setBusy(false);
       }
-      router.push(
-        `/(tabs)/more/work-tickets/sign/${ticket.id}?sigId=${sig.id}&token=${sig.token}` as any,
-      );
-    } catch (err) {
-      Alert.alert(
-        'Cannot start signing',
-        (err as Error).message ?? 'Signing requires an internet connection.',
-      );
-    } finally {
-      setBusy(false);
-    }
-  }, [ticket, signature, router]);
+    });
+  }, [ticket, signature, router, checkPhotosBeforeSign]);
 
   const handleSendLink = useCallback(async () => {
     if (!ticket) return;
-    try {
-      setBusy(true);
-      let sig = signature;
-      if (!sig || sig.status !== 'pending') {
-        sig = await createSignatureRequest({
-          ticketId: ticket.id,
-          organization_id: ticket.organization_id,
-          project_id: ticket.project_id,
-          signer_role: 'gc',
+    checkPhotosBeforeSign(async () => {
+      try {
+        setBusy(true);
+        let sig = signature;
+        if (!sig || sig.status !== 'pending') {
+          sig = await createSignatureRequest({
+            ticketId: ticket.id,
+            organization_id: ticket.organization_id,
+            project_id: ticket.project_id,
+            signer_role: 'gc',
+          });
+        }
+        const url = getSigningUrl(sig.token);
+        const projectName = activeProject?.name ?? '';
+        await Share.share({
+          message: `Please sign Work Ticket #${ticket.number ?? ''}${projectName ? ` for ${projectName}` : ''}:\n\n${url}`,
+          url,
+          title: `Work Ticket #${ticket.number ?? ''}`,
         });
+        haptic.success();
+        await reload();
+      } catch (err) {
+        Alert.alert('Failed', (err as Error).message ?? 'Could not share sign link.');
+      } finally {
+        setBusy(false);
       }
-      const url = getSigningUrl(sig.token);
-      const projectName = activeProject?.name ?? '';
-      await Share.share({
-        message: `Please sign Work Ticket #${ticket.number ?? ''}${projectName ? ` for ${projectName}` : ''}:\n\n${url}`,
-        url,
-        title: `Work Ticket #${ticket.number ?? ''}`,
-      });
-      haptic.success();
-      await reload();
-    } catch (err) {
-      Alert.alert('Failed', (err as Error).message ?? 'Could not share sign link.');
-    } finally {
-      setBusy(false);
-    }
-  }, [ticket, signature, activeProject, reload]);
+    });
+  }, [ticket, signature, activeProject, reload, checkPhotosBeforeSign]);
 
   const handleEditAndResend = useCallback(async () => {
     if (!ticket) return;
     try {
       setBusy(true);
       await updateWorkTicket(ticket.id, { status: 'draft' });
-      router.push(`/(tabs)/more/work-tickets/create?id=${ticket.id}` as any);
+      router.push(`/(tabs)/tickets/create?id=${ticket.id}` as any);
     } catch (err) {
       Alert.alert('Failed', (err as Error).message ?? 'Unknown error');
     } finally {
@@ -413,6 +445,17 @@ export default function WorkTicketDetailScreen() {
             )}
           </Section>
 
+          {/* Evidence Photos */}
+          <WorkTicketPhotos
+            ticketId={ticket.id}
+            organizationId={ticket.organization_id}
+            status={ticket.status}
+            userId={profile?.id ?? user?.id ?? ''}
+            userName={profile?.full_name ?? 'Foreman'}
+            photos={(ticket as any).evidence_photos}
+            onChange={reload}
+          />
+
           {ticket.gc_notes && (
             <Section label="GC Notes">
               <View className="rounded-xl border border-border bg-card p-3">
@@ -454,7 +497,7 @@ export default function WorkTicketDetailScreen() {
               </View>
               <View className="flex-row gap-2">
                 <Pressable
-                  onPress={() => router.push(`/(tabs)/more/work-tickets/create?id=${ticket.id}` as any)}
+                  onPress={() => router.push(`/(tabs)/tickets/create?id=${ticket.id}` as any)}
                   className="flex-1 flex-row items-center justify-center rounded-xl border border-border bg-card py-3 active:opacity-80"
                   style={{ minHeight: 48 }}
                 >

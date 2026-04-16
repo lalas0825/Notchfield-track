@@ -101,7 +101,7 @@ export default function DeliveryListScreen() {
                 <Pressable
                   key={row.id}
                   onPress={() =>
-                    router.push(`/(tabs)/more/delivery/${row.id}?type=${row.type}` as any)
+                    router.push(`/(tabs)/deliveries/${row.id}?type=${row.type}` as any)
                   }
                   className="mb-2 rounded-xl border border-border bg-card px-4 py-4 active:opacity-80"
                 >

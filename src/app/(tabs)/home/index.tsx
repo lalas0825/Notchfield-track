@@ -1,22 +1,26 @@
-import { ScrollView, Text, View } from 'react-native';
+import { useCallback, useState } from 'react';
+import { RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 
-// Stores — reactive via Zustand selectors (no useEffect needed)
+// Stores — reactive via Zustand selectors
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { useProjectStore } from '@/features/projects/store/project-store';
 import { useCrewStore } from '@/features/crew/store/crew-store';
+
+// Feature hooks
+import { useDelivery } from '@/features/delivery/hooks/useDelivery';
+import { useWorkTickets } from '@/features/work-tickets/hooks/useWorkTickets';
+import { useGcPunchList } from '@/features/gc-punch/hooks/useGcPunchList';
 
 // Dashboard components
 import { GpsStatusCard } from '@/features/home/components/GpsStatusCard';
 import { CrewCard } from '@/features/home/components/CrewCard';
 import { SafetyCard } from '@/features/home/components/SafetyCard';
-import { TicketsCard } from '@/features/home/components/TicketsCard';
 import { QuickActions } from '@/features/home/components/QuickActions';
 import { AlertsList, type Alert } from '@/features/home/components/AlertsList';
 import { ProjectSwitcher } from '@/features/projects/components/ProjectSwitcher';
-import { useDelivery } from '@/features/delivery/hooks/useDelivery';
 
 export default function HomeScreen() {
   const { t } = useTranslation();
@@ -24,18 +28,30 @@ export default function HomeScreen() {
   const profile = useAuthStore((s) => s.profile);
   const { activeProject, geofence } = useProjectStore();
   const { workers, assignments, timeEntries } = useCrewStore();
-  const { pendingReviews, incoming } = useDelivery();
+  const { pendingReviews, incoming, reload: reloadDelivery } = useDelivery();
+  const { tickets, reload: reloadTickets } = useWorkTickets(activeProject?.id ?? null);
+  const { counts: punchCounts, reload: reloadPunch } = useGcPunchList();
+
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([reloadDelivery(), reloadTickets(), reloadPunch()]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [reloadDelivery, reloadTickets, reloadPunch]);
 
   // ─── No project selected → Welcome state ───
   if (!activeProject) {
     return <WelcomeState name={profile?.full_name ?? null} />;
   }
 
-  // ─── Compute stats from stores (no API calls) ───
+  // ─── Compute stats ───
   const assignedCount = assignments.length;
   const totalWorkers = workers.length;
 
-  // Today's hours from time entries
   const todayHours = timeEntries.reduce((sum, e) => {
     if (e.hours) return sum + e.hours;
     if (!e.ended_at) {
@@ -45,10 +61,13 @@ export default function HomeScreen() {
     return sum;
   }, 0);
 
-  // Build alerts from current state
+  const draftTicketCount = tickets.filter((tk) => tk.status === 'draft').length;
+  const openPunchCount = punchCounts.open + punchCounts.in_progress;
+
+  // ─── Build dynamic PENDING list ───
   const alerts: Alert[] = [];
 
-  if (assignedCount === 0 && totalWorkers > 0) {
+  if (assignedCount === 0) {
     alerts.push({
       id: 'no-assignments',
       icon: 'people-outline',
@@ -64,7 +83,7 @@ export default function HomeScreen() {
       icon: 'cube',
       message: `${pendingReviews.length} Delivery Ticket${pendingReviews.length > 1 ? 's' : ''} Need Your Review`,
       color: '#8B5CF6',
-      onPress: () => router.push('/(tabs)/more/delivery/reviews' as any),
+      onPress: () => router.push('/(tabs)/deliveries/reviews' as any),
     });
   }
 
@@ -72,9 +91,29 @@ export default function HomeScreen() {
     alerts.push({
       id: 'incoming-deliveries',
       icon: 'car',
-      message: `${incoming.length} Delivery${incoming.length > 1 ? 'ies' : ''} In Transit`,
+      message: `${incoming.length} ${incoming.length === 1 ? 'Delivery' : 'Deliveries'} In Transit`,
       color: '#3B82F6',
-      onPress: () => router.push('/(tabs)/more/delivery' as any),
+      onPress: () => router.push('/(tabs)/deliveries' as any),
+    });
+  }
+
+  if (draftTicketCount > 0) {
+    alerts.push({
+      id: 'draft-tickets',
+      icon: 'document-text-outline',
+      message: `${draftTicketCount} Ticket${draftTicketCount > 1 ? 's' : ''} in Draft`,
+      color: '#0EA5E9',
+      onPress: () => router.push('/(tabs)/tickets?filter=draft' as any),
+    });
+  }
+
+  if (openPunchCount > 0) {
+    alerts.push({
+      id: 'open-punch',
+      icon: 'hammer-outline',
+      message: `${openPunchCount} Open Punch Item${openPunchCount > 1 ? 's' : ''}`,
+      color: '#F97316',
+      onPress: () => router.push('/(tabs)/more/punchlist' as any),
     });
   }
 
@@ -87,12 +126,6 @@ export default function HomeScreen() {
       onPress: () => router.push('/(tabs)/more/checkin' as any),
     },
     {
-      icon: 'construct' as const,
-      label: t('home.quick_new_ticket'),
-      color: '#3B82F6',
-      onPress: () => router.push('/(tabs)/docs/tickets/new' as any),
-    },
-    {
       icon: 'shield' as const,
       label: t('home.quick_safety_doc'),
       color: '#F97316',
@@ -101,10 +134,20 @@ export default function HomeScreen() {
   ];
 
   const hour = new Date().getHours();
-  const greeting = hour < 12 ? t('home.greeting_morning') : hour < 17 ? t('home.greeting_afternoon') : t('home.greeting_evening');
+  const greeting =
+    hour < 12
+      ? t('home.greeting_morning')
+      : hour < 17
+      ? t('home.greeting_afternoon')
+      : t('home.greeting_evening');
 
   return (
-    <ScrollView className="flex-1 bg-background px-4 pt-4">
+    <ScrollView
+      className="flex-1 bg-background px-4 pt-4"
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#F97316" />
+      }
+    >
       {/* Header */}
       <View className="mb-6">
         <View className="flex-row items-start justify-between">
@@ -114,7 +157,6 @@ export default function HomeScreen() {
               {profile?.full_name ?? 'Foreman'}
             </Text>
           </View>
-          {/* Supervisor: project switcher. Foreman: hidden */}
           <ProjectSwitcher />
         </View>
         <View className="mt-1 flex-row items-center">
@@ -126,8 +168,12 @@ export default function HomeScreen() {
       {/* Quick Actions */}
       <QuickActions actions={quickActions} />
 
-      {/* Alerts */}
-      <AlertsList alerts={alerts} />
+      {/* PENDING — dynamic */}
+      {alerts.length > 0 ? (
+        <AlertsList alerts={alerts} />
+      ) : (
+        <AllCaughtUpCard />
+      )}
 
       {/* GPS Status */}
       <GpsStatusCard
@@ -145,18 +191,11 @@ export default function HomeScreen() {
         onPress={() => router.push('/(tabs)/more/crew' as any)}
       />
 
-      {/* Safety — reads from store */}
+      {/* Safety */}
       <SafetyCard
         totalDocs={0}
         activeDocs={0}
         unsignedCount={0}
-        onPress={() => router.push('/(tabs)/docs' as any)}
-      />
-
-      {/* Tickets */}
-      <TicketsCard
-        openCount={0}
-        last24hCount={0}
         onPress={() => router.push('/(tabs)/docs' as any)}
       />
 
@@ -165,11 +204,17 @@ export default function HomeScreen() {
   );
 }
 
-/**
- * Welcome state — shown when no project is selected.
- * For supervisors with multiple projects, shows the ProjectSwitcher
- * so they can pick a project without being stuck.
- */
+function AllCaughtUpCard() {
+  return (
+    <View className="mb-4 flex-row items-center rounded-xl border border-success/30 bg-success/10 px-4 py-3">
+      <Ionicons name="checkmark-circle" size={20} color="#22C55E" />
+      <Text className="ml-3 text-sm font-medium text-success">
+        All caught up — no pending items
+      </Text>
+    </View>
+  );
+}
+
 function WelcomeState({ name }: { name: string | null }) {
   const { t } = useTranslation();
   return (
@@ -178,10 +223,13 @@ function WelcomeState({ name }: { name: string | null }) {
         <Ionicons name="construct" size={40} color="#F97316" />
       </View>
       <Text className="text-2xl font-bold text-white">
-        {t('home.welcome')}{name ? `, ${name.split(' ')[0]}` : ''}
+        {t('home.welcome')}
+        {name ? `, ${name.split(' ')[0]}` : ''}
       </Text>
       <Text className="mt-3 text-center text-base leading-6 text-slate-400">
-        {t('home.no_project')}{'\n'}{t('home.no_project_hint')}
+        {t('home.no_project')}
+        {'\n'}
+        {t('home.no_project_hint')}
       </Text>
       <View className="mt-6">
         <ProjectSwitcher />

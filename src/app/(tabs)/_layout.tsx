@@ -1,6 +1,5 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useDelivery } from '@/features/delivery/hooks/useDelivery';
 
 const TAB_BAR_STYLE = {
   backgroundColor: '#0F172A',
@@ -13,14 +12,13 @@ const ACTIVE_COLOR = '#F97316';
 const INACTIVE_COLOR = '#94A3B8';
 
 export default function TabsLayout() {
-  const { badgeCount } = useDelivery();
-
   return (
     <Tabs
       screenOptions={{
         tabBarStyle: TAB_BAR_STYLE,
         tabBarActiveTintColor: ACTIVE_COLOR,
         tabBarInactiveTintColor: INACTIVE_COLOR,
+        tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
         headerStyle: { backgroundColor: '#0F172A' },
         headerTintColor: '#F8FAFC',
       }}
@@ -53,14 +51,21 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="docs"
+        name="tickets"
         options={{
-          title: 'Docs',
+          title: 'Tickets',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="document-text" size={size} color={color} />
+            <Ionicons name="receipt" size={size} color={color} />
           ),
-          tabBarBadge: badgeCount > 0 ? badgeCount : undefined,
-          tabBarBadgeStyle: { backgroundColor: '#8B5CF6', fontSize: 10 },
+        }}
+      />
+      <Tabs.Screen
+        name="deliveries"
+        options={{
+          title: 'Delivery',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="car" size={size} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
@@ -72,6 +77,7 @@ export default function TabsLayout() {
           ),
         }}
       />
+      <Tabs.Screen name="docs" options={{ tabBarButton: () => null }} />
     </Tabs>
   );
 }

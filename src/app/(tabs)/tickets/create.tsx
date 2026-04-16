@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -18,6 +19,7 @@ import {
 } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { useProjectStore } from '@/features/projects/store/project-store';
 import {
@@ -28,11 +30,15 @@ import {
   ensureMaterials,
 } from '@/features/work-tickets/services/work-tickets-service';
 import {
+  uploadPhotoFromUri as takeTicketPhotoFromUri,
+} from '@/features/work-tickets/services/workTicketPhotoService';
+import {
   TRADES,
   LABOR_CLASSIFICATIONS,
   MATERIAL_UNITS,
   type LaborEntry,
   type MaterialEntry,
+  type WorkTicketPhoto,
 } from '@/features/work-tickets/types';
 import { haptic } from '@/shared/lib/haptics';
 import { DatePickerField, todayISO } from '@/shared/components/DatePickerModal';
@@ -64,6 +70,7 @@ export default function WorkTicketCreateScreen() {
   const [workDescription, setWorkDescription] = useState('');
   const [labor, setLabor] = useState<LaborEntry[]>([emptyLabor()]);
   const [materials, setMaterials] = useState<MaterialEntry[]>([]);
+  const [photoUris, setPhotoUris] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -105,6 +112,34 @@ export default function WorkTicketCreateScreen() {
   };
   const removeMaterialRow = (i: number) => { setMaterials((m) => m.filter((_, idx) => idx !== i)); haptic.light(); };
 
+  const handleTakePhoto = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') { Alert.alert('Camera permission required'); return; }
+    const result = await ImagePicker.launchCameraAsync({ quality: 0.8, exif: true });
+    if (!result.canceled) {
+      setPhotoUris((prev) => [...prev, ...result.assets.map((a) => a.uri)]);
+      haptic.light();
+    }
+  };
+
+  const handlePickPhotos = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') { Alert.alert('Gallery permission required'); return; }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+      allowsMultipleSelection: true,
+      selectionLimit: 10,
+      legacy: true,
+    } as any);
+    if (!result.canceled) {
+      setPhotoUris((prev) => [...prev, ...result.assets.map((a) => a.uri)]);
+      haptic.light();
+    }
+  };
+
+  const removePhotoUri = (idx: number) => { setPhotoUris((p) => p.filter((_, i) => i !== idx)); haptic.light(); };
+
   const handleSave = useCallback(async () => {
     const userId = profile?.id ?? user?.id;
     if (!profile || !userId) {
@@ -112,7 +147,7 @@ export default function WorkTicketCreateScreen() {
       return;
     }
     if (!activeProject) {
-      Alert.alert('No project selected', 'Select a project from the Work Tickets screen first.');
+      Alert.alert('No project selected', 'Select a project from the Tickets screen first.');
       return;
     }
     if (!areaDescription.trim()) {
@@ -141,8 +176,14 @@ export default function WorkTicketCreateScreen() {
           materials: cleanMaterials,
           gc_notes: null,
         });
+        // Upload any new photos for edited ticket
+        if (photoUris.length > 0) {
+          for (const uri of photoUris) {
+            await takeTicketPhotoFromUri(editId, profile.organization_id, userId, profile.full_name ?? 'Foreman', uri);
+          }
+        }
       } else {
-        await createWorkTicket({
+        const newTicket = await createWorkTicket({
           organization_id: profile.organization_id,
           project_id: activeProject.id,
           service_date: serviceDate,
@@ -157,6 +198,12 @@ export default function WorkTicketCreateScreen() {
           gc_notes: null,
           created_by: userId,
         });
+        // Upload photos in the background after ticket is saved
+        if (photoUris.length > 0 && newTicket?.id) {
+          for (const uri of photoUris) {
+            await takeTicketPhotoFromUri(newTicket.id, profile.organization_id, userId, profile.full_name ?? 'Foreman', uri);
+          }
+        }
       }
       haptic.success();
       router.back();
@@ -168,7 +215,7 @@ export default function WorkTicketCreateScreen() {
     }
   }, [
     user, profile, activeProject, isEdit, editId, serviceDate, trade,
-    areaDescription, floor, priority, workDescription, labor, materials, router,
+    areaDescription, floor, priority, workDescription, labor, materials, photoUris, router,
   ]);
 
   return (
@@ -433,6 +480,53 @@ export default function WorkTicketCreateScreen() {
                 </View>
               </View>
             ))}
+          </Section>
+
+          {/* Evidence Photos */}
+          <Section label={`Evidence Photos (${photoUris.length})`}>
+            {photoUris.length > 0 && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
+                className="mb-2"
+              >
+                {photoUris.map((uri, idx) => (
+                  <View key={uri + idx} className="relative">
+                    <Image
+                      source={{ uri }}
+                      style={{ width: 96, height: 96, borderRadius: 8 }}
+                      resizeMode="cover"
+                    />
+                    <Pressable
+                      onPress={() => removePhotoUri(idx)}
+                      className="absolute -right-2 -top-2 h-6 w-6 items-center justify-center rounded-full bg-red-500"
+                      hitSlop={8}
+                    >
+                      <Ionicons name="close" size={14} color="#FFF" />
+                    </Pressable>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+            <View className="flex-row gap-2">
+              <Pressable
+                onPress={handleTakePhoto}
+                className="flex-1 flex-row items-center justify-center rounded-xl bg-blue-600 py-3 active:opacity-80"
+                style={{ minHeight: 48 }}
+              >
+                <Ionicons name="camera" size={18} color="#FFFFFF" />
+                <Text className="ml-2 text-sm font-bold text-white">Take Photo</Text>
+              </Pressable>
+              <Pressable
+                onPress={handlePickPhotos}
+                className="flex-1 flex-row items-center justify-center rounded-xl border border-border bg-card py-3 active:opacity-80"
+                style={{ minHeight: 48 }}
+              >
+                <Ionicons name="images-outline" size={18} color="#F8FAFC" />
+                <Text className="ml-2 text-sm font-bold text-white">Gallery</Text>
+              </Pressable>
+            </View>
           </Section>
 
           <Pressable

@@ -3,7 +3,7 @@
  * Realtime subscription auto-refreshes when tickets/signatures change.
  */
 
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -13,7 +13,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { Stack, useRouter, useFocusEffect } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useProjectStore } from '@/features/projects/store/project-store';
 import { ProjectSwitcher } from '@/features/projects/components/ProjectSwitcher';
@@ -143,10 +143,19 @@ function TicketCard({
 
 export default function WorkTicketsListScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ filter?: string }>();
   const activeProject = useProjectStore((s) => s.activeProject);
   const { tickets, loading, filter, setFilter, search, setSearch, counts, reload } = useWorkTickets(
     activeProject?.id ?? null,
   );
+
+  // Honor ?filter=draft|pending|signed|all from deep links (e.g. Home's pending list)
+  useEffect(() => {
+    const q = params.filter;
+    if (q === 'draft' || q === 'pending' || q === 'signed' || q === 'all') {
+      setFilter(q as TicketFilter);
+    }
+  }, [params.filter, setFilter]);
 
   useFocusEffect(
     useCallback(() => {
@@ -169,7 +178,7 @@ export default function WorkTicketsListScreen() {
           headerRight: () =>
             activeProject ? (
               <Pressable
-                onPress={() => router.push('/(tabs)/more/work-tickets/create' as any)}
+                onPress={() => router.push('/(tabs)/tickets/create' as any)}
                 hitSlop={12}
               >
                 <Ionicons name="add-circle" size={28} color="#0EA5E9" />
@@ -193,20 +202,18 @@ export default function WorkTicketsListScreen() {
               />
             </View>
 
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              className="border-b border-border px-3 py-2"
-              contentContainerStyle={{ gap: 8 }}
+            <View
+              className="flex-row border-b border-border px-3 py-2"
+              style={{ gap: 8 }}
             >
               {filterTabs.map((t) => (
                 <Pressable
                   key={t.value}
                   onPress={() => setFilter(t.value)}
-                  className={`rounded-full px-3 py-1.5 ${
+                  className={`flex-row items-center justify-center rounded-full px-3 ${
                     filter === t.value ? 'bg-brand-orange' : 'border border-border bg-card'
                   }`}
-                  style={{ minHeight: 36 }}
+                  style={{ height: 36 }}
                 >
                   <Text
                     className={`text-xs font-bold ${
@@ -217,7 +224,7 @@ export default function WorkTicketsListScreen() {
                   </Text>
                 </Pressable>
               ))}
-            </ScrollView>
+            </View>
           </>
         )}
 
@@ -253,7 +260,7 @@ export default function WorkTicketsListScreen() {
               <TicketCard
                 key={ticket.id}
                 ticket={ticket}
-                onPress={() => router.push(`/(tabs)/more/work-tickets/${ticket.id}` as any)}
+                onPress={() => router.push(`/(tabs)/tickets/${ticket.id}` as any)}
               />
             ))}
             <View className="h-24" />
@@ -262,7 +269,7 @@ export default function WorkTicketsListScreen() {
 
         {activeProject && (
           <Pressable
-            onPress={() => router.push('/(tabs)/more/work-tickets/create' as any)}
+            onPress={() => router.push('/(tabs)/tickets/create' as any)}
             className="absolute bottom-6 right-4 h-14 flex-row items-center rounded-full bg-success px-5 shadow-lg active:opacity-80"
           >
             <Ionicons name="add" size={22} color="#FFFFFF" />

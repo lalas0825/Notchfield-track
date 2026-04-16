@@ -25,7 +25,7 @@ export default function MoreScreen() {
 
   const allItems: MenuItem[] = [
     {
-      icon: 'list-circle',
+      icon: 'checkmark-circle',
       label: 'GC Punchlist',
       subtitle: 'Resolve punch items from the GC',
       route: '/(tabs)/more/punchlist',
@@ -49,30 +49,14 @@ export default function MoreScreen() {
       feature: 'assign_crews',
     },
     {
-      icon: 'cube',
-      label: 'Deliveries',
-      subtitle: 'Confirm material deliveries',
-      route: '/(tabs)/more/delivery',
-      color: '#8B5CF6',
-      feature: 'delivery_confirmation',
+      icon: 'shield-checkmark',
+      label: 'Safety & Docs',
+      subtitle: 'JHA, PTP, Toolbox Talk, Legal',
+      route: '/(tabs)/docs',
+      color: '#0EA5E9',
     },
     {
       icon: 'document-text',
-      label: 'Work Tickets',
-      subtitle: 'T&M tickets + GC signatures',
-      route: '/(tabs)/more/work-tickets',
-      color: '#0EA5E9',
-      feature: 'work_tickets',
-    },
-    {
-      icon: 'bug',
-      label: 'Report Issue',
-      subtitle: 'Bug, feature request, or feedback',
-      onPress: () => setShowFeedback(true),
-      color: '#F97316',
-    },
-    {
-      icon: 'clipboard',
       label: 'My Reports',
       subtitle: 'View your submitted reports',
       route: '/(tabs)/more/my-reports',
@@ -83,6 +67,13 @@ export default function MoreScreen() {
       label: 'Settings',
       subtitle: 'Language, notifications, profile',
       color: '#94A3B8',
+    },
+    {
+      icon: 'warning',
+      label: 'Report Issue',
+      subtitle: 'Bug, feature request, or feedback',
+      onPress: () => setShowFeedback(true),
+      color: '#F97316',
     },
     {
       icon: 'log-out',

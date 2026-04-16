@@ -361,6 +361,7 @@ const work_tickets = new TableV2({
   area_description: column.text,
   priority: column.text,             // 'normal' | 'urgent'
   signature_token: column.text,
+  evidence_photos: column.text,       // JSONB — WorkTicketPhoto[]
   created_at: column.text,
   updated_at: column.text,
 });
