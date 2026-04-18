@@ -150,20 +150,56 @@ export function SurfaceChecklist({ areaId }: Props) {
   const propagateAreaStatus = useCallback(
     async (updatedSurfaces: SurfaceObject[]) => {
       const derived = deriveAreaStatus(updatedSurfaces);
+      const now = new Date().toISOString();
+
+      // Look up current area so we only transition timestamps on actual state changes
+      const store = useProductionStore.getState();
+      const currentArea = store.areas.find((a) => a.id === areaId);
+      const previousStatus = currentArea?.status;
 
       // chk_blocked_has_reason: when status != 'blocked', blocked_reason must be null
       const areaUpdates: Record<string, unknown> = { status: derived };
-      if (derived !== 'blocked') {
+
+      // Takeoff Estimator Feedback Loop requires completed_at to flag the area
+      // as "done" — without this the area is ignored by the feedback loop.
+      if (derived === 'completed' && previousStatus !== 'completed') {
+        areaUpdates.completed_at = now;
+        areaUpdates.completed_by = user?.id ?? null;
         areaUpdates.blocked_reason = null;
         areaUpdates.blocked_at = null;
+      } else if (derived === 'in_progress') {
+        // First time the area is touched after being not_started → stamp started_at
+        if (!currentArea?.started_at) {
+          areaUpdates.started_at = now;
+        }
+        // If we are transitioning out of 'blocked', clear blocked fields and
+        // stamp the resolution so Takeoff Block Analysis closes the log.
+        if (previousStatus === 'blocked') {
+          areaUpdates.blocked_reason = null;
+          areaUpdates.blocked_at = null;
+          areaUpdates.blocked_resolved_at = now;
+        }
+        // Revert accidental completion (e.g., user cycled a surface back)
+        if (previousStatus === 'completed') {
+          areaUpdates.completed_at = null;
+          areaUpdates.completed_by = null;
+        }
+      } else if (derived === 'not_started') {
+        // Full reset — the area no longer has any active work
+        areaUpdates.started_at = null;
+        areaUpdates.completed_at = null;
+        areaUpdates.completed_by = null;
+        areaUpdates.blocked_reason = null;
+        areaUpdates.blocked_at = null;
+      } else if (derived === 'blocked') {
+        // blocked_reason / blocked_at are set at the area level by the
+        // block-surface modal or markAreaStatus — don't overwrite them here.
       }
 
       await localUpdate('production_areas', areaId, areaUpdates);
 
       // Optimistically update production store so ReadyBoard re-renders
-      const store = useProductionStore.getState();
-      const area = store.areas.find((a) => a.id === areaId);
-      if (!area) return;
+      if (!currentArea) return;
 
       useProductionStore.setState((s) => ({
         areas: s.areas.map((a) =>
@@ -171,9 +207,9 @@ export function SurfaceChecklist({ areaId }: Props) {
         ),
       }));
       // Recalc floor metrics + KPI counts after the area update is committed
-      store.recalcFloor(area.floor ?? 'Unassigned');
+      store.recalcFloor(currentArea.floor ?? 'Unassigned');
     },
-    [areaId],
+    [areaId, user],
   );
 
   const handleCycleStatus = useCallback(
