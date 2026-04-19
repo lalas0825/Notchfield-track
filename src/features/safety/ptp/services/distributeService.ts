@@ -65,37 +65,41 @@ async function callDistribute(
   docId: string,
   labels: PtpPdfLabels,
   recipients: string[],
-): Promise<DistributeResult> {
+): Promise<DistributeResult & { wasNetworkError?: boolean }> {
   const { data: sessionData } = await supabase.auth.getSession();
   const accessToken = sessionData.session?.access_token;
   if (!accessToken) {
     return { success: false, error: 'Not authenticated' };
   }
 
+  const url = `${WEB_BASE_URL}/api/pm/safety-documents/${docId}/distribute`;
   try {
-    const res = await fetch(
-      `${WEB_BASE_URL}/api/pm/safety-documents/${docId}/distribute`,
-      {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ labels, recipients }),
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
       },
-    );
+      body: JSON.stringify({ labels, recipients }),
+    });
 
     if (!res.ok) {
       let body: { message?: string; error?: string } = {};
+      let raw = '';
       try {
-        body = await res.json();
+        raw = await res.text();
+        body = JSON.parse(raw);
       } catch {
-        /* ignore non-JSON */
+        /* non-JSON response */
       }
-      return {
-        success: false,
-        error: body.message ?? body.error ?? `HTTP ${res.status}`,
-      };
+      const msg = body.message ?? body.error ?? `HTTP ${res.status} ${res.statusText}`;
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[distribute] endpoint rejected — POST ${url}\n` +
+          `  status: ${res.status}\n` +
+          `  body:   ${raw.slice(0, 300)}`,
+      );
+      return { success: false, error: msg };
     }
 
     const json = (await res.json()) as {
@@ -112,9 +116,14 @@ async function callDistribute(
     };
   } catch (err) {
     // Network or CORS error — treat as offline
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[distribute] network error — POST ${url}\n  ${err instanceof Error ? err.message : err}`,
+    );
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Network error',
+      wasNetworkError: true,
     };
   }
 }
@@ -147,7 +156,13 @@ export async function distributePtp(
     return result;
   }
 
-  // Fallback — enqueue for retry
+  // Only queue for auto-retry when the failure looks like a transient
+  // network issue. If the server actively rejected (4xx/5xx), queueing is
+  // a lie — the request will fail the same way on retry. Surface the error.
+  if (!result.wasNetworkError) {
+    return { success: false, error: result.error };
+  }
+
   await enqueue({
     queue_id: `${docId}:${Date.now()}`,
     doc_id: docId,
