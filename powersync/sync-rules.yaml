@@ -67,10 +67,15 @@ bucket_definitions:
       - SELECT * FROM toolbox_schedule_overrides WHERE organization_id = bucket.organization_id
 
   # Global toolbox topics (organization_id IS NULL) — every authenticated
-  # user syncs the same library regardless of org. Keyed on user_id as a
-  # dummy bucket parameter so PowerSync accepts the constant-filter query.
+  # user syncs the same library regardless of org. PowerSync requires every
+  # bucket parameter to appear in the data query's WHERE clause, so we tack
+  # on `bucket.user_id = bucket.user_id` as a tautology-filter to satisfy
+  # the validator without actually filtering rows.
   toolbox_global:
     parameters:
       - SELECT id AS user_id FROM profiles WHERE id = token_parameters.user_id
     data:
-      - SELECT * FROM toolbox_library WHERE organization_id IS NULL AND active = true
+      - SELECT * FROM toolbox_library
+        WHERE organization_id IS NULL
+          AND active = true
+          AND bucket.user_id = bucket.user_id
