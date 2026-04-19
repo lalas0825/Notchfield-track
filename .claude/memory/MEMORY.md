@@ -10,7 +10,7 @@
 - [Build progress](project_build-progress.md) — T1 operational, T2 S1-S3 done. EAS build #2 pending. Key: no JOINs in sync rules, <Redirect> not router.replace, quick-sqlite peer dep
 
 ## feedback/ — Correcciones y preferencias
-(vacio)
+- [PowerSync bucket-param rules](feedback_powersync_bucket_param_rules.md) — 3 validator rules + constant-marker pattern for global/shared-data buckets
 
 ## reference/ — Donde encontrar cosas
 (vacio)
