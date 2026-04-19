@@ -89,7 +89,15 @@ export default function DocsScreen() {
                 safetyDocs.map((doc) => (
                   <Pressable
                     key={doc.id}
-                    onPress={() => router.push(`/(tabs)/docs/safety/${doc.id}` as any)}
+                    onPress={() => {
+                      // PTPs in draft resume in the wizard; everything else
+                      // opens the read-only detail view.
+                      const route =
+                        doc.doc_type === 'ptp' && doc.status === 'draft'
+                          ? `/(tabs)/docs/safety/ptp/${doc.id}`
+                          : `/(tabs)/docs/safety/${doc.id}`;
+                      router.push(route as any);
+                    }}
                     className="mb-2 flex-row items-center rounded-xl border border-border bg-card px-4 py-4 active:opacity-80"
                   >
                     <View className="h-10 w-10 items-center justify-center rounded-lg bg-brand-orange/20">
@@ -194,7 +202,7 @@ export default function DocsScreen() {
             color="#F59E0B"
             onPress={() => {
               setFabOpen(false);
-              router.push('/(tabs)/docs/safety/new?type=ptp' as any);
+              router.push('/(tabs)/docs/safety/ptp/new' as any);
             }}
           />
           <FabOption
