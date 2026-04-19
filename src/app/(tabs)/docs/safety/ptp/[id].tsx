@@ -157,14 +157,20 @@ export default function PtpWizardScreen() {
   };
 
   const handleReviewContinue = async (trimmedTasks: PtpSelectedTask[]) => {
+    // eslint-disable-next-line no-console
+    console.warn('[PTP] Continue to Signatures tapped — tasks:', trimmedTasks.length);
     // Persist any hazard deletions the foreman made in the Review step
     const next: PtpContent = { ...content, selected_tasks: trimmedTasks };
     const result = await saveContent(next);
+    // eslint-disable-next-line no-console
+    console.warn('[PTP] saveContent result:', result);
     if (!result.success) {
       Alert.alert('Save failed', result.error ?? 'Could not save review');
       return;
     }
     setStep('signatures');
+    // eslint-disable-next-line no-console
+    console.warn('[PTP] Moved to signatures step');
   };
 
   const handleToggleOsha = async (value: boolean) => {
