@@ -60,9 +60,8 @@ const profiles = new TableV2({
   is_active: column.integer, // boolean
   created_at: column.text,
   updated_at: column.text,
-  // Sprint PTP — NYC Local Law 196 SST card tracking
-  sst_card_number: column.text,
-  sst_expires_at: column.text,
+  // sst_card_number + sst_expires_at moved to workers (Sprint MANPOWER).
+  // Reading them from profiles errors out in production.
 });
 
 const production_areas = new TableV2({
@@ -315,6 +314,61 @@ const takeoff_objects = new TableV2({
   unit: column.text,
   label: column.text,
   created_at: column.text,
+});
+
+// Sprint MANPOWER — workers (field crew HR, Takeoff PM curates)
+// Foremen are linked via workers.profile_id. Walk-in workers have profile_id NULL.
+const workers = new TableV2({
+  organization_id: column.text,
+  profile_id: column.text,
+  first_name: column.text,
+  last_name: column.text,
+  phone: column.text,
+  email: column.text,
+  date_of_birth: column.text,
+  photo_url: column.text,
+  hire_date: column.text,
+  active: column.integer, // boolean
+  trade: column.text,
+  trade_level: column.text, // 'mechanic' | 'helper' | 'apprentice' | 'foreman' | 'other'
+  years_experience: column.integer,
+  daily_rate_cents: column.integer,
+  // Certs — NYC Local Law 196 compliance
+  sst_card_number: column.text,
+  sst_expires_at: column.text,
+  osha_10_cert_number: column.text,
+  osha_10_expires_at: column.text,
+  osha_30_cert_number: column.text,
+  osha_30_expires_at: column.text,
+  swac_cert_number: column.text,
+  swac_expires_at: column.text,
+  silica_trained: column.integer, // boolean
+  silica_trained_at: column.text,
+  i9_verified: column.integer, // boolean
+  i9_verified_at: column.text,
+  // ICE
+  emergency_contact_name: column.text,
+  emergency_contact_phone: column.text,
+  emergency_contact_relation: column.text,
+  notes: column.text,
+  created_by: column.text,
+  created_at: column.text,
+  updated_at: column.text,
+});
+
+// Sprint MANPOWER — project_workers (M:N assignment; supervisor writes, foreman reads)
+const project_workers = new TableV2({
+  organization_id: column.text,
+  project_id: column.text,
+  worker_id: column.text,
+  assigned_at: column.text,
+  assigned_by: column.text,
+  removed_at: column.text,
+  removed_by: column.text,
+  active: column.integer, // boolean
+  notes: column.text,
+  created_at: column.text,
+  updated_at: column.text,
 });
 
 // Sprint PTP — JHA library (Takeoff PM curates; Track reads)
@@ -763,6 +817,8 @@ export const AppSchema = new Schema({
   takeoff_objects,
   safety_documents,
   jha_library,
+  workers,
+  project_workers,
   document_signoffs,
   work_tickets,
   // Track-owned tables (T1)

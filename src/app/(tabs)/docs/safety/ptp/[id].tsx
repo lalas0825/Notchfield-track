@@ -16,13 +16,15 @@ import { supabase } from '@/shared/lib/supabase/client';
 import { localQuery } from '@/shared/lib/powersync/write';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { useProjectStore } from '@/features/projects/store/project-store';
-import { useCrewStore } from '@/features/crew/store/crew-store';
+import { useMyWorker } from '@/features/workers/hooks/useMyWorker';
+import { workerFullName } from '@/features/workers/types';
 import { usePtp } from '@/features/safety/ptp/hooks/usePtp';
 import { useJhaLibrary } from '@/features/safety/ptp/hooks/useJhaLibrary';
 import { PtpTaskPicker } from '@/features/safety/ptp/components/PtpTaskPicker';
 import { PtpReview } from '@/features/safety/ptp/components/PtpReview';
 import { PtpSignatures } from '@/features/safety/ptp/components/PtpSignatures';
 import { PtpDistribute } from '@/features/safety/ptp/components/PtpDistribute';
+import { OnboardingBlocker } from '@/features/workers/components/OnboardingBlocker';
 import { buildPtpLabels } from '@/features/safety/ptp/services/buildPtpLabels';
 import {
   PtpContentSchema,
@@ -58,7 +60,7 @@ export default function PtpWizardScreen() {
   const router = useRouter();
   const { profile } = useAuthStore();
   const { activeProject } = useProjectStore();
-  const { assignments } = useCrewStore();
+  const { worker: myWorker, loading: myWorkerLoading, needsOnboarding } = useMyWorker();
 
   const { doc, loading, saveContent, addSignature, removeSignatureAt } = usePtp(id);
 
@@ -131,7 +133,7 @@ export default function PtpWizardScreen() {
     setSelectedIds(new Set(content.selected_tasks.map((t) => t.jha_library_id)));
   }, [content, doc?.signatures, initialStep]);
 
-  if (loading || !content || !doc || !profile || !activeProject) {
+  if (loading || myWorkerLoading || !content || !doc || !profile || !activeProject) {
     return (
       <View className="flex-1 items-center justify-center bg-background">
         <ActivityIndicator color="#F97316" />
@@ -139,14 +141,10 @@ export default function PtpWizardScreen() {
     );
   }
 
-  // Crew = workers assigned to the PTP's area (falling back to any worker on the project)
-  const crewWorkerIds = (() => {
-    const targetArea = content.area_id;
-    const matched = assignments
-      .filter((a) => (targetArea ? a.area_id === targetArea : true))
-      .map((a) => a.worker_id);
-    return [...new Set(matched)];
-  })();
+  // PM hasn't added this foreman to Manpower yet — block the whole flow.
+  if (needsOnboarding || !myWorker) {
+    return <OnboardingBlocker />;
+  }
 
   const handleTasksContinue = async (selected: PtpSelectedTask[]) => {
     const next: PtpContent = { ...content, selected_tasks: selected };
@@ -228,10 +226,12 @@ export default function PtpWizardScreen() {
         {step === 'signatures' ? (
           <PtpSignatures
             docId={doc.id}
-            foremanId={content.foreman_id}
-            foremanName={content.foreman_name}
-            crewWorkerIds={crewWorkerIds}
+            projectId={activeProject.id}
+            foremanWorkerId={myWorker.id}
+            foremanWorkerName={workerFullName(myWorker)}
+            foremanSstCardNumber={myWorker.sst_card_number ?? null}
             organizationId={profile.organization_id}
+            createdBy={profile.id}
             signatures={doc.signatures ?? []}
             onAddSignature={addSignature}
             onRemoveSignature={removeSignatureAt}

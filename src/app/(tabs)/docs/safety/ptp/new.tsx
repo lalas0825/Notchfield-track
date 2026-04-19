@@ -14,6 +14,9 @@ import { localQuery } from '@/shared/lib/powersync/write';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { useProjectStore } from '@/features/projects/store/project-store';
 import { useCrewStore } from '@/features/crew/store/crew-store';
+import { useMyWorker } from '@/features/workers/hooks/useMyWorker';
+import { workerFullName } from '@/features/workers/types';
+import { OnboardingBlocker } from '@/features/workers/components/OnboardingBlocker';
 import {
   createDraftPtp,
   getYesterdaysPtp,
@@ -61,6 +64,7 @@ export default function NewPtpScreen() {
   const { user, profile } = useAuthStore();
   const { activeProject } = useProjectStore();
   const { areas, assignments } = useCrewStore();
+  const { worker: myWorker, loading: myWorkerLoading, needsOnboarding } = useMyWorker();
 
   const [project, setProject] = useState<ProjectEmergencyRow | null>(null);
   const [availableTrades, setAvailableTrades] = useState<Trade[]>([]);
@@ -131,13 +135,21 @@ export default function NewPtpScreen() {
     lookup();
   }, [user, areaId]);
 
-  if (loading || !profile || !user || !activeProject) {
+  if (loading || myWorkerLoading || !profile || !user || !activeProject) {
     return (
       <View className="flex-1 items-center justify-center bg-background">
         <ActivityIndicator color="#F97316" />
       </View>
     );
   }
+
+  // PM hasn't added this foreman to Manpower yet — block before creating
+  // an orphan draft row.
+  if (needsOnboarding || !myWorker) {
+    return <OnboardingBlocker />;
+  }
+
+  const resolvedForemanName = workerFullName(myWorker) || profile.full_name || user.email || 'Foreman';
 
   const buildEmergencySnapshot = (): PtpEmergencySnapshot | null => {
     if (!project) return null;
@@ -169,8 +181,8 @@ export default function NewPtpScreen() {
     const result = await createDraftPtp({
       organizationId: profile.organization_id,
       projectId: activeProject.id,
-      foremanId: user.id,
-      foremanName: profile.full_name ?? user.email ?? 'Foreman',
+      foremanId: myWorker.id, // workers.id — signatures reference this
+      foremanName: resolvedForemanName,
       trade,
       areaId,
       areaLabel,
@@ -195,8 +207,8 @@ export default function NewPtpScreen() {
     const fresh = await createDraftPtp({
       organizationId: profile.organization_id,
       projectId: activeProject.id,
-      foremanId: user.id,
-      foremanName: profile.full_name ?? user.email ?? 'Foreman',
+      foremanId: myWorker.id,
+      foremanName: resolvedForemanName,
       trade: trade ?? ('tile' as Trade),
       areaId,
       areaLabel: '',
@@ -226,8 +238,8 @@ export default function NewPtpScreen() {
         selected_tasks: prevContent.selected_tasks ?? [],
         additional_hazards: prevContent.additional_hazards ?? [],
         emergency: buildEmergencySnapshot() ?? null,
-        foreman_id: user.id,
-        foreman_name: profile.full_name ?? user.email ?? 'Foreman',
+        foreman_id: myWorker.id,
+        foreman_name: resolvedForemanName,
         foreman_gps: null,
         additional_notes: prevContent.additional_notes ?? '',
         photo_urls: [],
