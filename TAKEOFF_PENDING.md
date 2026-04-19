@@ -150,31 +150,34 @@ real data). Walk-in workers (profile_id NULL) are now assignable.
 
 ---
 
-## 4. 🟢 Toolbox library seed
+## 4. 🟢 Toolbox library seed — IN PROGRESS
 
-`toolbox_library` table has **0 rows** in production. PM must seed
-topics via `/pm/safety-documents/toolbox-library` UI (if it exists) or
-SQL inserts. Track's empty-library fallback handles it gracefully but
-the scheduler has nothing to suggest until topics are seeded.
+**Status (2026-04-19):** Takeoff team actively curating topics. Scope
+revised from ~110 → ~30 high-quality global topics after the initial
+bulk pass produced low-quality content. Quality-over-quantity direction.
 
-Sprint 50A was supposed to seed ~110 global topics (`organization_id
-IS NULL`). That seed hasn't run. Same RLS pattern as `jha_library`
-which successfully seeded 149 tasks — repeat for toolbox_library.
+Track's empty-library fallback handles the 0-row state gracefully. The
+scheduler engine works the same whether there are 30 or 110 topics —
+rotation is 8 weeks, so 30 topics cover ~7 months of weekly rotation
+without repeats. Plenty for pilot.
+
+Nothing to do on Track side until seed lands. When it does, the
+WeeklyToolboxCard and wizard auto-populate on next PowerSync pull.
 
 ---
 
 ## Summary for handoff
 
-| # | Priority | Owner | Blocker for |
-|---|---|---|---|
-| 1 | 🔴 P0 | Takeoff backend | All PTP + Toolbox sends |
-| 2 | 🟡 P1 | Takeoff backend | Toolbox-to-prod correctness |
-| 3 | 🟡 P1 | Takeoff DevOps | Future migration drift |
-| 4 | 🟢 P2 | PM / content team | Toolbox scheduler usefulness |
+| # | Priority | Owner | Status | Blocker for |
+|---|---|---|---|---|
+| 1 | 🔴 P0 | Takeoff backend | ⬜ Pending | All PTP + Toolbox sends |
+| 2 | 🟡 P1 | Takeoff backend | ⬜ Pending | Toolbox-to-prod correctness |
+| 3 | 🟡 P1 | Takeoff DevOps | ⬜ Pending | Future migration drift |
+| 4 | 🟢 P2 | PM / content team | 🔄 In progress (~30 curated) | Toolbox scheduler usefulness |
 
-Once #1 + #4 are done, Jantile's pilot can run the full safety flow on
+Once #1 ships, Jantile's pilot can run the full PTP flow on
 production. #2 is required before Toolbox PDFs look right. #3 is
-hygiene.
+hygiene. #4 is actively being curated.
 
 ---
 

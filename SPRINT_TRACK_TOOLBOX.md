@@ -1,6 +1,6 @@
 # Sprint Track — Toolbox Talks (Foreman Flow)
 
-> **Context:** Takeoff Sprint 50A + 50B ship the Toolbox Talk infrastructure — library table (3-tier with ~110 global topics), scheduler engine, PM override UI, distribute endpoint. Track owns the foreman delivery flow.
+> **Context:** Takeoff Sprint 50A + 50B ship the Toolbox Talk infrastructure — library table (3-tier with ~30 curated global topics, quality-over-quantity after an initial bulk pass produced low-quality content), scheduler engine, PM override UI, distribute endpoint. Track owns the foreman delivery flow.
 >
 > **What Track builds:** 4 mobile screens that let a foreman deliver a weekly safety talk in under 3 minutes with zero typing. Reuses most patterns from Track's PTP sprint — signatures, distribute queue, workers integration.
 >
@@ -14,7 +14,7 @@
 
 ```
 READY (Takeoff Sprint 50A + 50B):
-  ✅ toolbox_library           — ~110 topics, 3-tier (global/org/project)
+  ✅ toolbox_library           — ~30 curated topics, 3-tier (global/org/project)
   ✅ toolbox_schedule_overrides — PM force-assign a topic to a week
   ✅ scheduler engine           — pure function, port it to Track verbatim
   ✅ distribute endpoint        — reuse /api/pm/safety-documents/[docId]/distribute
