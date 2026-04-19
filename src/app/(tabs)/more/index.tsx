@@ -48,13 +48,7 @@ export default function MoreScreen() {
       color: '#3B82F6',
       feature: 'assign_crews',
     },
-    {
-      icon: 'shield-checkmark',
-      label: 'Safety & Docs',
-      subtitle: 'JHA, PTP, Toolbox Talk, Legal',
-      route: '/(tabs)/docs',
-      color: '#0EA5E9',
-    },
+    // "Safety & Docs" removed — now lives as its own "Safety" top tab.
     {
       icon: 'document-text',
       label: 'My Reports',

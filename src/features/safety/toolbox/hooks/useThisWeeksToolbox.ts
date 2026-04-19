@@ -41,6 +41,11 @@ export function useThisWeeksToolbox(
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Collapse the array into a stable string key so callers can pass `[]`
+  // inline without triggering an infinite setState loop (the array
+  // reference changes on every render; its content doesn't).
+  const tradesKey = primaryTrades.join('|');
+
   const load = useCallback(async () => {
     if (!orgId || !projectId) return;
     setLoading(true);
@@ -61,11 +66,12 @@ export function useThisWeeksToolbox(
       setLibrary(lib);
       setDelivered(thisWeeks);
 
+      const trades = tradesKey ? tradesKey.split('|') : [];
       setResult(
         scheduleToolboxTopic({
           library: lib,
           history,
-          primaryTrades,
+          primaryTrades: trades,
           currentDate: now,
           override,
           ptpSignal: ptpTags.length ? { tags: ptpTags } : null,
@@ -76,7 +82,8 @@ export function useThisWeeksToolbox(
     } finally {
       setLoading(false);
     }
-  }, [orgId, projectId, primaryTrades]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgId, projectId, tradesKey]);
 
   useEffect(() => {
     load();
