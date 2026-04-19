@@ -113,7 +113,10 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
           .from(table)
           .upsert({ ...data, id });
 
-        if (error) throw new Error(`PUT ${table}/${id}: ${error.message}`);
+        if (error) {
+          await this.logUploadFailure(op.op, table, id, data, error.message);
+          throw new Error(`PUT ${table}/${id}: ${error.message}`);
+        }
         break;
       }
 
@@ -123,7 +126,10 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
           .update(data)
           .eq('id', id);
 
-        if (error) throw new Error(`PATCH ${table}/${id}: ${error.message}`);
+        if (error) {
+          await this.logUploadFailure(op.op, table, id, data, error.message);
+          throw new Error(`PATCH ${table}/${id}: ${error.message}`);
+        }
         break;
       }
 
@@ -133,9 +139,43 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
           .delete()
           .eq('id', id);
 
-        if (error) throw new Error(`DELETE ${table}/${id}: ${error.message}`);
+        if (error) {
+          await this.logUploadFailure(op.op, table, id, data, error.message);
+          throw new Error(`DELETE ${table}/${id}: ${error.message}`);
+        }
         break;
       }
+    }
+  }
+
+  /**
+   * Dump the offending row + current auth context to the console when an
+   * upload fails. Makes RLS/constraint violations debuggable from the
+   * device log instead of guessing which field tripped the policy.
+   */
+  private async logUploadFailure(
+    op: UpdateType,
+    table: string,
+    id: string,
+    data: Record<string, unknown>,
+    message: string,
+  ): Promise<void> {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const authUid = session?.user?.id ?? null;
+
+      // eslint-disable-next-line no-console
+      console.error(
+        `[PowerSync] Upload rejected — ${op} ${table}/${id}\n` +
+          `  error:       ${message}\n` +
+          `  auth.uid():  ${authUid}\n` +
+          `  row.org:     ${data.organization_id ?? '(missing)'}\n` +
+          `  row.by:      ${data.assigned_by ?? data.created_by ?? data.reported_by ?? '(n/a)'}\n` +
+          `  row.worker:  ${data.worker_id ?? '(n/a)'}\n` +
+          `  payload:     ${JSON.stringify(data, null, 2)}`,
+      );
+    } catch {
+      // never let logging mask the real error
     }
   }
 }
