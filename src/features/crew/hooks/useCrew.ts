@@ -15,7 +15,7 @@ export function useCrew() {
   const reload = useCallback(async () => {
     if (!profile || !activeProject) return;
     await Promise.all([
-      store.fetchWorkers(profile.organization_id),
+      store.fetchWorkers(profile.organization_id, activeProject.id),
       store.fetchAreas(activeProject.id),
       store.fetchAssignments(activeProject.id, profile.organization_id),
       store.fetchTodayTimeEntries(activeProject.id, profile.organization_id),

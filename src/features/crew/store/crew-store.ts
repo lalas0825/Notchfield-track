@@ -45,7 +45,7 @@ type CrewState = {
 };
 
 type CrewActions = {
-  fetchWorkers: (organizationId: string) => Promise<void>;
+  fetchWorkers: (organizationId: string, projectId: string) => Promise<void>;
   fetchAreas: (projectId: string) => Promise<void>;
   fetchAssignments: (projectId: string, organizationId: string) => Promise<void>;
   fetchTodayTimeEntries: (projectId: string, organizationId: string) => Promise<void>;
@@ -69,15 +69,55 @@ export const useCrewStore = create<CrewState & CrewActions>((set, get) => ({
   timeEntries: [],
   loading: false,
 
-  fetchWorkers: async (organizationId) => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('id, full_name, role, avatar_url')
+  /**
+   * Crew Management is a Manpower feature — only workers assigned to the
+   * active project should appear, never software users (owner/supervisor/
+   * admin/pm/estimator). Source of truth is the Sprint MANPOWER schema:
+   *   project_workers (M:N) JOIN workers (HR roster)
+   *
+   * FK caveat: `crew_assignments.worker_id` still references `profiles.id`
+   * (Takeoff-side follow-up). So only `workers` rows with `profile_id IS
+   * NOT NULL` are assignable — walk-ins (profile_id NULL) are filtered
+   * out here and will be supported when the FK is migrated.
+   *
+   * Worker.id in this store = `workers.profile_id` so the existing
+   * assignWorker path keeps writing a valid FK target.
+   */
+  fetchWorkers: async (organizationId, projectId) => {
+    // 1) Active project_workers for this project
+    const { data: pwRows } = await supabase
+      .from('project_workers')
+      .select('worker_id')
+      .eq('project_id', projectId)
       .eq('organization_id', organizationId)
-      .eq('is_active', true)
-      .order('full_name');
+      .eq('active', true);
 
-    set({ workers: (data ?? []) as Worker[] });
+    const workerIds = (pwRows ?? []).map((r) => r.worker_id as string);
+    if (workerIds.length === 0) {
+      set({ workers: [] });
+      return;
+    }
+
+    // 2) Resolve workers HR rows, exclude walk-ins until FK migration
+    const { data } = await supabase
+      .from('workers')
+      .select('id, profile_id, first_name, last_name, trade, trade_level, photo_url, active')
+      .in('id', workerIds)
+      .eq('active', true)
+      .not('profile_id', 'is', null)
+      .order('first_name');
+
+    const workers: Worker[] = (data ?? []).map((w) => ({
+      // Use profile_id as the crew-store id so crew_assignments FK still resolves.
+      id: (w.profile_id as string),
+      full_name: `${w.first_name ?? ''} ${w.last_name ?? ''}`.trim() || 'Unknown',
+      // Display the trade_level (mechanic/helper/apprentice/foreman) in the
+      // role slot. WorkerCard already uses this field; no UI refactor needed.
+      role: (w.trade_level as string | null) ?? (w.trade as string | null) ?? 'worker',
+      avatar_url: (w.photo_url as string | null) ?? null,
+    }));
+
+    set({ workers });
   },
 
   fetchAreas: async (projectId) => {

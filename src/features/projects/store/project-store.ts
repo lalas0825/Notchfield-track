@@ -41,7 +41,7 @@ type ProjectActions = {
 async function loadDependentStores(projectId: string, organizationId: string) {
   const crew = useCrewStore.getState();
   await Promise.all([
-    crew.fetchWorkers(organizationId),
+    crew.fetchWorkers(organizationId, projectId),
     crew.fetchAreas(projectId),
     crew.fetchAssignments(projectId, organizationId),
     crew.fetchTodayTimeEntries(projectId, organizationId),
