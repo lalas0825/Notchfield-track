@@ -1,14 +1,14 @@
 # NotchField Track — TASKS_TRACK.md
-> Track native app task tracker | 105 tasks | Updated: 2026-04-08
-> 4 phases: T1 (DONE) → T2 (DONE + Sprint 42B + 43A + 43B + 45B) → T3 (7/10) → T4 (after Takeoff 10)
+> Track native app task tracker | 105 tasks | Updated: 2026-04-17
+> 4 phases: T1 (DONE) → T2 (DONE + Sprint 42B + 43A + 43B + 45B + PTP) → T3 (7/10) → T4 (after Takeoff 10)
 > Same Supabase as Takeoff. Expo + PowerSync. Offline-first.
 > **Supabase project:** msmpsxalfalzinuorwlg (Notchfield Takeoff — shared)
-> **PowerSync:** 69c72137a112d86b20541618.powersync.journeyapps.com (39 tables synced — +gc_punch_items Sprint 42B)
+> **PowerSync:** 69c72137a112d86b20541618.powersync.journeyapps.com (42 tables synced — +workers / +project_workers / +jha_library via Sprint PTP + MANPOWER)
 > **EAS Project:** 281ade7b-a5d9-4f43-9710-d270ae4c49f4 (@lalas825/notchfield-track)
-> **Repo:** https://github.com/lalas0825/Notchfield-track (41+ commits, Sprint 42B live)
-> **APK:** Installed on device. Login + Home + Docs + Plans + More working, GC Punchlist ready.
+> **Repo:** https://github.com/lalas0825/Notchfield-track (50+ commits, Sprint MANPOWER live)
+> **APK:** Installed on device. Login + Home + Docs (Safety tab) + Plans + More working, PTP flow ready.
 > **Takeoff:** UNBLOCKED — all Track ↔ Takeoff data loops closed.
-> **Synced through:** Takeoff Sprint 37 + Delivery Review + Sprint 42A gc_punch_items
+> **Synced through:** Takeoff Sprint 37 + Delivery Review + Sprint 42A + Safety A (JHA library / PTP) + Sprint CREW (workers + project_workers)
 
 ---
 
@@ -38,6 +38,15 @@
 | 41G | Surface checklist 3-state (not_started → in_progress → completed), block with notes, area status propagation | ✅ |
 | 42A | Takeoff: gc_punch_items table + Edge Functions (gc-pull-items, gc-push-resolution) | ✅ (Takeoff side) |
 | 42B | Track: GC Punchlist UI — PowerSync schema, sync rules, permissions, list screen, detail screen (hours, notes, photos, push_pending) | ✅ |
+| 43A | Surface checklist real SF progress + UX polish | ✅ |
+| 43B | Track Work Tickets — T&M with digital GC signatures (superseded by 45B) | ✅ |
+| 45B | Work Tickets REWRITE — aligned with Takeoff Web, in-app signing, direct Supabase, SHA-256 hash | ✅ |
+| 45B-F | Track Feedback Reporting — bugs / features / feedback with screenshots + auto-context | ✅ |
+| 45B-FIX | Work Tickets bug-fix pass — title/area NOT NULL, signer_name placeholder, calendar picker, signature pad dots fix, sign URL | ✅ |
+| 47B | Track Drawing Viewer — hyperlinks + pins (offline-first, overlay at fit-to-page) | ✅ |
+| PTP | Track Foreman PTP Flow — 4-step wizard (tasks → review → signatures → distribute), JHA library consumer, SST/emergency snapshots, distribute via Takeoff endpoint + offline AsyncStorage queue | ✅ |
+| PTP-UX | Morning PTP card on Home + Safety tab surfaced + legacy PTP cleanup + detail view auto-shape | ✅ |
+| MANPOWER | Hotfix `profiles.sst_*` drops + migrate crew HR reads to `workers` / `project_workers`; walk-in creates real workers row; cert badges + expiry dialog | ✅ |
 
 ### 🐛 Known Device Bugs (need dev-client build to debug)
 
@@ -588,6 +597,260 @@ All 5 bugs are fixed in code (commit 79b592a). Need EAS dev-client build to veri
 
 ---
 
+### Sprint PTP — Track Foreman PTP Flow ✅
+**Date:** 2026-04-15
+**Depends on:** Takeoff Safety Sprint A (jha_library seeded + projects.emergency_* + profiles.sst_* + safety_documents content JSONB schema + /api/pm/safety-documents/[id]/distribute endpoint)
+
+**Objective:** Foreman creates, signs, and distributes a Pre-Task Plan from Track in under 3 minutes, offline-first. Data writes to the same Supabase rows Takeoff Web already reads from — zero sync layer. Replaces the legacy manual PTP form (`SafetyForm.tsx` branch) with a JHA-library driven wizard.
+
+**Architecture rules enforced:**
+1. **No new tables.** PTPs live on existing `safety_documents` with `doc_type='ptp'` and rich JSONB `content` + `signatures`. Both Track and Takeoff Web read/write the same rows.
+2. **Task snapshots, not FKs.** When a foreman selects a JHA library task, the hazards/controls/ppe are DEEP COPIED into `content.selected_tasks`. The PTP stays immutable if the library evolves later.
+3. **SST/emergency snapshots at write time.** `content.emergency` freezes the project's emergency info the moment the draft is created; `signature.sst_card_number` freezes the worker's SST the moment they tap Sign.
+4. **Server-side PDF generation.** Track does NOT render PDFs — distribution calls Takeoff's existing `/api/pm/safety-documents/[docId]/distribute` endpoint. One code path, one SHA-256 integrity hash, one audit log entry per distribute, zero drift.
+5. **Offline queue for distribute.** If the endpoint call fails (offline), `{ docId, labels, recipients }` is persisted to AsyncStorage. A background flusher retries every 60 s + on app foreground. The doc stays `status='draft'` until the server confirms.
+
+**Changes:**
+
+1. **PowerSync Schema** (`src/shared/lib/powersync/schema.ts`)
+   - [x] Added `jha_library` TableV2 — read-only, 16 cols (including `hazards` + `controls` + `ppe_required` as JSON text)
+   - [x] Extended `projects`: `emergency_hospital_name`, `emergency_hospital_address`, `emergency_hospital_distance`, `emergency_assembly_point`, `emergency_first_aid_location`, `emergency_contact_name`, `emergency_contact_phone`, `safety_distribution_emails` (text[] → JSON text)
+   - [x] Extended `profiles` with `sst_card_number` + `sst_expires_at` (LATER moved to workers by Sprint MANPOWER)
+   - [x] Extended `organizations` with `primary_trades` (text[] → JSON text)
+
+2. **Sync Rules** (`powersync/sync-rules.yaml`)
+   - [x] Added `SELECT * FROM jha_library WHERE organization_id = bucket.organization_id AND active = true`
+
+3. **Types** (`src/features/safety/ptp/types/index.ts`)
+   - [x] `Trade` enum (10 values matching seeded jha_library)
+   - [x] `JhaLibraryItem`, `JhaHazardItem`, `JhaControlItem`
+   - [x] `PtpSelectedTask` (snapshot of a JHA task)
+   - [x] `PtpAdditionalHazard`, `PtpEmergencySnapshot`, `PtpWeather`, `PtpGps`
+   - [x] `PtpContentSchema` — ptp_date, shift, trade, selected_tasks[], additional_hazards[], emergency, foreman_id, foreman_name, foreman_gps, additional_notes, photo_urls, osha_citations_included
+   - [x] `PtpSignatureSchema` — worker_id, worker_name, sst_card_number, signature_data_url, signed_at, is_foreman, is_walk_in, gps
+   - [x] `PtpPdfLabels` — display strings passed to `/distribute`
+   - [x] `SafetyDocument` envelope Zod
+
+4. **Services** (`src/features/safety/ptp/services/`)
+   - [x] `jhaLibraryService.ts` — `getJhaLibraryForTrade(orgId, projectId, trade)`, `getAvailableTradesForOrg(orgId)` (fallback when `profiles.trade` is missing; returns distinct trades present in `jha_library` for this org). Offline-first via `localQuery`.
+   - [x] `ptpService.ts` — `createDraftPtp()`, `getPtpById()`, `getYesterdaysPtp(foremanId, areaId, days=2)` (pulls most recent PTP for same foreman + same area within 2 days), `updatePtpContent()`, `appendSignature()` (read-modify-write on JSONB array with race note), `removeSignature()`, `setPtpStatus()`
+   - [x] `consolidate.ts` — dedupes hazards/controls/PPE across selected tasks preserving first-seen order, matching Takeoff's `ptpPdfRenderer.ts` consolidate logic
+   - [x] `buildPtpLabels.ts` — PDF label strings (title, project_name, foreman_label, date_label, shift_label, trade_label, weather_label, osha_citations_included). English only; will move to i18n namespace later.
+   - [x] `distributeService.ts` — `distributePtp(docId, labels, recipients)` POSTs to `${EXPO_PUBLIC_WEB_API_URL}/api/pm/safety-documents/[id]/distribute` with session access token; on failure enqueues `{ queue_id, doc_id, labels, recipients, attempts, last_error, created_at }` to AsyncStorage under `notchfield:ptp:distribute_queue:v1`. `flushDistributionQueue()` drains the queue and retries. `getPendingDistributions()` for debug.
+
+5. **Hooks** (`src/features/safety/ptp/hooks/`)
+   - [x] `useJhaLibrary(orgId, projectId, trade)` — loads + refreshes library for a trade
+   - [x] `usePtp(docId)` — loads + mutates a single PTP with optimistic local state
+   - [x] `useTodaysPtp(foremanId, projectId)` — finds today's PTP for this foreman on this project via date match on `content.ptp_date`. Refreshes on `useFocusEffect`. Used by MorningPtpCard.
+   - [x] `usePtpDistributionFlusher(intervalMs=60_000)` — retries queued distributes every 60 s + on `AppState` → `active`. Mounted once on the docs layout.
+
+6. **Components** (`src/features/safety/ptp/components/`)
+   - [x] `PtpTaskPicker` — JHA library list with search + category filter chips. Tap to select. Hazard preview under each task. On continue, deep-copies each selected task into `content.selected_tasks`.
+   - [x] `PtpReview` — consolidates hazards/controls/PPE from selected tasks. Removable hazards with friction-y "Most foremen leave all hazards in" confirm (intentional for safety).
+   - [x] `PtpSignatures` — foreman row (GPS captured on sign) + crew rows + walk-in modal. Uses existing `SignaturePad` component (onBegin/onEnd pattern from 45B-FIX).
+   - [x] `PtpDistribute` — multi-recipient picker pre-populated from `projects.safety_distribution_emails`, add ad-hoc recipients, OSHA citations toggle, Send button.
+
+7. **Entry + Wizard routes** (`src/app/(tabs)/docs/safety/ptp/`)
+   - [x] `new.tsx` — gathers foreman context (project, area from crew_assignments, trade fallback via `getAvailableTradesForOrg`, emergency info from project row), creates the draft, redirects to `[id]`. Copy-from-yesterday chip pre-fills selected_tasks + additional_hazards + osha toggle from the prior PTP.
+   - [x] `[id].tsx` — multi-step wizard with internal state (`tasks` → `review` → `signatures` → `distribute`). Each step persists to the shared DB row via `saveContent` / `addSignature` / `setPtpStatus`. Step indicator at top. Back button routes back through the step stack. Resuming a draft lands the user on the right step based on `content.selected_tasks.length` and `doc.signatures.length`.
+
+8. **Entry rewire** (`src/app/(tabs)/docs/_layout.tsx` + `src/app/(tabs)/docs/index.tsx`)
+   - [x] FAB "PTP" button rerouted to the new wizard (was `/docs/safety/new?type=ptp` → legacy `SafetyForm`)
+   - [x] Tapping a PTP in the Docs list resumes the wizard when `status=draft`; otherwise opens the read-only detail view
+   - [x] `usePtpDistributionFlusher()` mounted on the docs layout
+
+**Files Created:**
+- `src/features/safety/ptp/types/index.ts`
+- `src/features/safety/ptp/services/jhaLibraryService.ts`
+- `src/features/safety/ptp/services/ptpService.ts`
+- `src/features/safety/ptp/services/consolidate.ts`
+- `src/features/safety/ptp/services/buildPtpLabels.ts`
+- `src/features/safety/ptp/services/distributeService.ts`
+- `src/features/safety/ptp/hooks/useJhaLibrary.ts`
+- `src/features/safety/ptp/hooks/usePtp.ts`
+- `src/features/safety/ptp/hooks/usePtpDistributionFlusher.ts`
+- `src/features/safety/ptp/components/PtpTaskPicker.tsx`
+- `src/features/safety/ptp/components/PtpReview.tsx`
+- `src/features/safety/ptp/components/PtpSignatures.tsx`
+- `src/features/safety/ptp/components/PtpDistribute.tsx`
+- `src/app/(tabs)/docs/safety/ptp/new.tsx`
+- `src/app/(tabs)/docs/safety/ptp/[id].tsx`
+
+**Files Modified:**
+- `src/shared/lib/powersync/schema.ts` — jha_library + new columns
+- `powersync/sync-rules.yaml` — jha_library sync rule
+- `src/app/(tabs)/docs/index.tsx` — FAB reroute + list routing for drafts
+- `src/app/(tabs)/docs/_layout.tsx` — flusher hook
+
+**TypeScript:** `npx tsc --noEmit` passes clean.
+
+**Flow (end-to-end):**
+1. Foreman opens Home → taps Morning PTP card (or More → Safety tab → FAB → PTP)
+2. `new.tsx` auto-fills project/foreman/area/trade; foreman taps Start fresh or Copy from yesterday
+3. Draft `safety_documents` row created via PowerSync localInsert (offline-safe)
+4. Wizard step 1: taps 2-3 tasks from trade-filtered JHA library; Continue deep-copies snapshots into `content.selected_tasks`
+5. Wizard step 2: review consolidated hazards/controls/PPE; optional removals with confirm
+6. Wizard step 3: foreman signs first (GPS captured); passes device to each crew member; walk-in modal for un-rostered workers
+7. Wizard step 4: select recipients from project defaults + ad-hoc; toggle OSHA citations; tap Send & Submit
+8. `distributePtp()` POSTs to Takeoff `/distribute` endpoint with bearer token → server generates PDF, computes SHA-256, sends Resend email to each recipient, writes audit log
+9. On success → `setPtpStatus('distributed')` → UI navigates home with success toast
+10. On offline → request queued to AsyncStorage; foreman sees "Queued — will send when back online"; flusher retries every 60 s
+
+**PowerSync migration note:** The schema change adds columns to `profiles` / `organizations` / `projects` + introduces `jha_library`. PowerSync detects on next app start and re-syncs these tables. First load after the update may take a few extra seconds.
+
+---
+
+### Sprint PTP-UX — Morning Card + Safety Tab + Legacy Cleanup ✅
+**Date:** 2026-04-16
+**Depends on:** Sprint PTP
+
+**Objective:** Surface PTP as a daily ritual (not a buried admin task), eliminate dead PTP code from the legacy `SafetyForm`, and upgrade the safety detail viewer to render new-shape PTPs cleanly.
+
+**Changes:**
+
+1. **Morning PTP card on Home** (`src/features/safety/ptp/components/MorningPtpCard.tsx`)
+   - [x] `useTodaysPtp` hook finds today's PTP for this foreman on this project (date match on `content.ptp_date`, refreshes on `useFocusEffect`)
+   - [x] Three visual states on the same card:
+     - **No PTP today** → orange CTA "New Pre-Task Plan · Start your morning huddle", opens `/docs/safety/ptp/new`
+     - **Draft in progress** → amber "Resume today's PTP · N signatures captured", opens `/ptp/[id]`
+     - **Distributed** → green "PTP distributed · HH:MM · N signatures", opens the read-only detail view
+   - [x] Mounted right after Quick Actions on `/app/(tabs)/home/index.tsx` so the foreman sees the status the moment the app opens
+
+2. **Docs tab surfaced as "Safety"** (`src/app/(tabs)/_layout.tsx`)
+   - [x] The `docs` route was hidden via `tabBarButton: () => null`, burying PTP 4 taps deep (More → Docs → FAB → PTP)
+   - [x] Unhidden with a shield-checkmark icon and positioned between Tickets and Delivery per foreman feedback
+   - [x] Still 6 tabs visible on the bar — no squeeze on iPhone SE
+   - [x] Net: PTP is 1 tap from Home (card) OR 2 taps via bottom tab (Safety → FAB → PTP)
+
+3. **Legacy PTP cleanup**
+   - [x] `src/features/safety/types/schemas.ts`: dropped `PtpTask` and legacy `PtpContent`. `SafetyDocFormData.content` union is now `JhaContent | ToolboxContent`. `DocType` enum unchanged (DB still uses `'ptp'` and historical rows exist).
+   - [x] `src/features/safety/components/SafetyForm.tsx`: removed `crewMembers` + `tasks` state, the `docType === 'ptp'` branch in `handleSave`, the PTP JSX block, and the `updateTask` helper. `Props.docType` narrowed to `Exclude<DocType, 'ptp'>` so the form refuses PTP at the type level.
+   - [x] `src/app/(tabs)/docs/safety/new.tsx`: deep links with `?type=ptp` now redirect (`<Redirect>` + `useEffect`) to `/docs/safety/ptp/new` so old shortcuts keep working.
+
+4. **Safety detail view upgrade** (`src/app/(tabs)/docs/safety/[id].tsx`)
+   - [x] Split PTP render into a `PtpDetailBody` component that auto-detects the shape via `Array.isArray(content.selected_tasks)`:
+     - **New shape** (post-wizard): renders date/shift/trade/area/foreman + per-task hazards/controls/PPE chips + emergency snapshot (hospital, assembly point, first aid, contact) + additional_notes
+     - **Legacy shape**: keeps the old render for any historical rows still in the DB
+   - [x] Signatures list normalizes `signer_name` vs `worker_name` and `signature_data` vs `signature_data_url` so legacy and new PTPs render through the same view
+   - [x] Added FOREMAN / WALK-IN role chips + SST card number when present
+
+**Files Created:**
+- `src/features/safety/ptp/components/MorningPtpCard.tsx`
+- `src/features/safety/ptp/hooks/useTodaysPtp.ts`
+
+**Files Modified:**
+- `src/app/(tabs)/_layout.tsx` — unhide docs tab, rename to Safety
+- `src/app/(tabs)/home/index.tsx` — mount MorningPtpCard
+- `src/app/(tabs)/docs/safety/new.tsx` — PTP redirect
+- `src/app/(tabs)/docs/safety/[id].tsx` — PtpDetailBody + signature normalization
+- `src/features/safety/components/SafetyForm.tsx` — strip PTP branch
+- `src/features/safety/types/schemas.ts` — drop PtpContent/PtpTask, simplify union
+
+**Dead code removed:** ~60 lines from `SafetyForm.tsx` + two Zod schemas + one helper.
+
+**TypeScript:** `npx tsc --noEmit` passes clean.
+
+---
+
+### Sprint MANPOWER — Profiles → Workers Migration ✅
+**Date:** 2026-04-17
+**Depends on:** Takeoff Sprint CREW (workers + project_workers tables + worker-photos storage bucket + DROP profiles.sst_card_number + DROP profiles.sst_expires_at at commit `5842411`)
+**Supersedes:** The `profiles.sst_*` extension introduced by Sprint PTP
+
+**Objective:** Migrate Track from the old profiles-based crew model to the new `workers` table. The Takeoff commit DROPPED `profiles.sst_card_number` + `profiles.sst_expires_at` — Track's PtpSignatures was reading them live via direct Supabase + PowerSync localQuery, so production was broken on any fresh deploy. This sprint also integrates the two-tier mental model (profiles = software users, workers = field HR) into the PTP flow and every crew-display surface.
+
+**Hotfix (the production-breaker):**
+Two SELECTs in `PtpSignatures.tsx` were explicitly naming `sst_card_number` against `profiles`. Supabase returned `HTTP 400 "column profiles.sst_card_number does not exist"` — PTP sign-off crashed. Fixed by rewiring to `project_workers` JOIN `workers`. The `profiles.sst_*` declarations in the Track PowerSync schema were also removed (they were silently syncing as NULL per the documented PowerSync-column-missing failure mode).
+
+**The two-tier mental model (now reflected in code):**
+```
+┌──────────────────────────────────┬─────────────────────────────────┐
+│  profiles (software users)       │  workers (field crew HR)        │
+├──────────────────────────────────┼─────────────────────────────────┤
+│  Has auth.users + login           │  No login                       │
+│  Role, locale, notifications      │  Trade, level, rate, certs, ICE │
+│  PM, Admin, Supervisor, Estimator │  Mechanic, Helper, Apprentice   │
+│                                  │  + Foremen (linked via           │
+│                                  │    workers.profile_id)          │
+└──────────────────────────────────┴─────────────────────────────────┘
+```
+Walk-in workers have `profile_id = NULL` (no login).
+
+**Changes:**
+
+1. **PowerSync Schema** (`src/shared/lib/powersync/schema.ts`)
+   - [x] Removed `sst_card_number` + `sst_expires_at` from `profiles` TableV2
+   - [x] Added `workers` TableV2 — 34 cols: identity (first_name, last_name, phone, email, DOB, photo_url, hire_date, active), trade (trade, trade_level, years_experience, daily_rate_cents), certs (SST, OSHA-10, OSHA-30, SWAC, silica, I9), ICE (emergency_contact_name/phone/relation), notes
+   - [x] Added `project_workers` TableV2 — M:N with active flag, assigned_at/by, removed_at/by
+
+2. **Sync Rules** (`powersync/sync-rules.yaml`)
+   - [x] `SELECT * FROM workers WHERE organization_id = bucket.organization_id` (no active filter — foremen see their own row even if deactivated; PM handles role)
+   - [x] `SELECT * FROM project_workers WHERE organization_id = bucket.organization_id AND active = true`
+
+3. **New feature module** (`src/features/workers/`)
+   - [x] `types/index.ts` — Zod `Worker` (matches the 34-col shape), `ProjectWorker`, `TradeLevel` enum (foreman/mechanic/helper/apprentice/other), `workerFullName()` helper
+   - [x] `utils/certStatus.ts` — `classifyCertStatus(cardNumber, expiresAt)` returning `'valid' | 'expiring' | 'expired' | 'missing'`, `daysUntilExpiry()`, `CERT_STATUS_COLOR` + `CERT_STATUS_LABEL` maps. Ported from Takeoff's workerService.
+   - [x] `services/workerService.ts`:
+     - `getWorkerByProfileId(profileId)` — resolves current user's workers row; returns null if PM hasn't added them to Manpower yet
+     - `getWorkerById(workerId)`
+     - `getProjectWorkers(projectId)` — PowerSync-local path does two `localQuery` calls (assignments + workers) and joins in JS (PowerSync SQLite doesn't support foreign JOINs in bucket SELECTs); web fallback uses nested Supabase select
+     - `createWalkInWorker({ organizationId, firstName, lastName, sstCardNumber, createdBy })` — PowerSync `localInsert` into `workers` with `profile_id = NULL`, `trade_level = 'other'`, auto-note "Walk-in added by foreman on YYYY-MM-DD"
+   - [x] `hooks/useMyWorker` — wraps `getWorkerByProfileId` for the current session user; returns `{ worker, loading, error, reload, needsOnboarding }`
+   - [x] `hooks/useProjectWorkers` — wraps `getProjectWorkers`; returns `{ workers, loading, error, reload }`
+   - [x] `components/OnboardingBlocker` — PM-action screen shown when foreman has no workers row. "You're not in Manpower yet. Ask your PM to add you with your SST card."
+
+4. **PTP signature capture rewire** (`src/features/safety/ptp/components/PtpSignatures.tsx`)
+   - [x] Removed the direct `SELECT id, full_name, sst_card_number FROM profiles` (both localQuery and Supabase fallback)
+   - [x] Crew list now from `useProjectWorkers(projectId)` — joined `project_workers` × `workers` with both sides active
+   - [x] Each candidate renders `workerFullName()`, trade, photo_url (if present), SST card number, SST expiry badge
+   - [x] Cert status badges inline: amber `EXPIRING 28d`, red `EXPIRED 5d ago` with days remaining (via `classifyCertStatus` + `daysUntilExpiry`)
+   - [x] Confirm dialog before signing if SST is expiring or expired ("Proceed anyway?") — NOT a hard block, foreman can proceed in emergencies
+   - [x] `signature.worker_id` now references `workers.id` (was `profiles.id`)
+   - [x] `signature.sst_card_number` is snapshotted from the workers row at tap-sign time (immutability intact — if PM updates SST later, the signature keeps the old value)
+   - [x] `signature.is_foreman` derived from `worker.id === foremanWorkerId` (not from auth)
+   - [x] GPS captured only on foreman's signature (unchanged)
+
+5. **Walk-in flow rewrite** (PtpSignatures.tsx)
+   - [x] Old flow: `signature.worker_id = null`, name only in JSONB. PM couldn't see the walk-in.
+   - [x] New flow: modal captures `first_name`, `last_name`, optional SST → `createWalkInWorker` INSERTs a real `workers` row → signature references `workers.id` like any other signer → immediately starts the sign canvas for this worker
+   - [x] Walk-in appears in Takeoff web's Manpower list on next sync. PM fills in SST/OSHA/trade from there.
+
+6. **Onboarding blocker on PTP entry**
+   - [x] `/docs/safety/ptp/new.tsx` — gates on `useMyWorker` before rendering the form. Shows `OnboardingBlocker` if `needsOnboarding`. Prevents orphan draft rows when the PM hasn't added the foreman to Manpower yet.
+   - [x] `/docs/safety/ptp/[id].tsx` — same gate, catches the edge case where a foreman resumed an old draft after being removed from Manpower
+   - [x] `content.foreman_id` in new drafts now stores `workers.id` (not `profiles.id`) for consistency with the signature's `worker_id` reference
+   - [x] `content.foreman_name` derived from `workerFullName(myWorker)` with fallback to `profile.full_name` and `user.email`
+
+**Files Created:**
+- `src/features/workers/types/index.ts`
+- `src/features/workers/utils/certStatus.ts`
+- `src/features/workers/services/workerService.ts`
+- `src/features/workers/hooks/useMyWorker.ts`
+- `src/features/workers/hooks/useProjectWorkers.ts`
+- `src/features/workers/components/OnboardingBlocker.tsx`
+
+**Files Modified:**
+- `src/shared/lib/powersync/schema.ts` — drop profiles.sst_*, add workers + project_workers
+- `powersync/sync-rules.yaml` — workers + project_workers sync rules
+- `src/features/safety/ptp/components/PtpSignatures.tsx` — full rewire to workers
+- `src/app/(tabs)/docs/safety/ptp/[id].tsx` — `useMyWorker` gate + new signature props
+- `src/app/(tabs)/docs/safety/ptp/new.tsx` — `useMyWorker` gate + workers.id as foreman_id
+
+**TypeScript:** `npx tsc --noEmit` passes clean. Zero remaining `profiles.sst_*` reads verified via grep.
+
+**⚠️ FK note (Takeoff-side follow-up):**
+`crew_assignments.worker_id` and `area_time_entries.worker_id` STILL have FK → `profiles.id` in the DB. Daily area assignment in Track's `crew-store.ts` still writes profile_id there because inserting a workers.id would violate the FK. Changing those FKs is Takeoff-side work (ALTER TABLE ... DROP CONSTRAINT + ADD CONSTRAINT ... REFERENCES workers) and will land in a follow-up Track sprint that also migrates `assignWorker` / `endDay` to write workers.id. Until then, walk-ins created during PTP cannot be assigned to an area via the daily crew flow (they're invisible to crew-store because they have no profile).
+
+**Testing plan:**
+- [ ] Foreman without workers row → blocker screen on /ptp/new and /ptp/[id]
+- [ ] Foreman with valid workers row → full PTP flow, signature captures workers.id
+- [ ] Walk-in flow → new workers row visible in Takeoff Manpower on next sync
+- [ ] SST expired → confirm dialog on sign, foreman can proceed
+- [ ] SST updated in Manpower AFTER distribute → PDF still shows the old value (snapshot immutability)
+- [ ] Offline: createWalkInWorker + appendSignature both go through PowerSync local, sync when online
+
+---
+
 ## 📱 PHASE T1 — Foundation + Safety + GPS — ✅ OPERATIONAL
 > 39 of 43 tasks complete. 4 deferred to T2 (require data from Takeoff 7B).
 > 5 Supabase migrations applied. PowerSync sync rules deployed. 6 locales.
@@ -614,7 +877,7 @@ All 5 bugs are fixed in code (commit 79b592a). Need EAS dev-client build to veri
 
 ### Safety Documents
 - [x] TT1.17 JHA — dynamic form: hazards[], risk levels, controls, PPE chips. Zod validated
-- [x] TT1.18 PTP — tasks[], crew members, location. Zod validated
+- [x] TT1.18 PTP — Sprint PTP: 4-step wizard (tasks → review → signatures → distribute) backed by shared `safety_documents` row. JHA library consumer (149 seeded tasks), task snapshots in content, emergency/SST snapshots, multi-signature (foreman GPS-stamped + crew + walk-in), server-side PDF via Takeoff `/distribute` endpoint + offline AsyncStorage queue. Home Morning PTP card + Safety tab surfaced. Sprint MANPOWER migrated signatures to `workers.id`.
 - [x] TT1.19 Toolbox Talk — topic, discussion points, attendance. Zod validated
 - [x] TT1.20 Safety doc list — grouped by type, status badges, FAB create button
 - [x] TT1.21 Signature collection — SignaturePad (react-native-signature-canvas), base64 capture
