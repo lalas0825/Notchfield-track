@@ -76,9 +76,11 @@ export default function NewPtpScreen() {
   const [error, setError] = useState<string | null>(null);
 
   // Today's foreman assignment pulls the area into scope automatically.
-  const foremanAssignment = user
-    ? assignments.find((a) => a.worker_id === user.id)
-    : undefined;
+  // Derive just the area_id string so the effect below has a stable dep
+  // (the assignment object ref changes on every crew-store render).
+  const foremanAreaId = user
+    ? assignments.find((a) => a.worker_id === user.id)?.area_id ?? null
+    : null;
 
   useEffect(() => {
     async function loadContext() {
@@ -115,7 +117,7 @@ export default function NewPtpScreen() {
         if (trades.length === 1) setTrade(trades[0]);
 
         // Pre-select area from current crew assignment
-        if (foremanAssignment) setAreaId(foremanAssignment.area_id);
+        if (foremanAreaId) setAreaId(foremanAreaId);
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to load project');
       } finally {
@@ -123,7 +125,7 @@ export default function NewPtpScreen() {
       }
     }
     loadContext();
-  }, [profile, activeProject, foremanAssignment]);
+  }, [profile?.organization_id, activeProject?.id, foremanAreaId]);
 
   // Copy-from-yesterday lookup — fires whenever area + user are settled
   useEffect(() => {
