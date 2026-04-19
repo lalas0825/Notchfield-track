@@ -80,6 +80,20 @@ export default function MoreScreen() {
 
   const items = allItems.filter((item) => !item.feature || canUseFeature(item.feature));
 
+  // TEMP diagnostic — remove once we confirm the filter is correct in prod.
+  // Logs role + which items pass/fail the permission filter.
+  if (__DEV__) {
+    // eslint-disable-next-line no-console
+    console.log('[More] role=', profile?.role, 'visible=', items.map((i) => i.label).join(', '));
+    for (const item of allItems) {
+      const pass = !item.feature || canUseFeature(item.feature);
+      if (!pass) {
+        // eslint-disable-next-line no-console
+        console.log(`[More] HIDDEN: ${item.label} (feature=${item.feature}) — canUseFeature=${canUseFeature(item.feature!)}`);
+      }
+    }
+  }
+
   return (
     <>
     <ScrollView className="flex-1 bg-background px-4 pt-4">
