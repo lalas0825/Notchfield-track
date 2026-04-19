@@ -8,7 +8,7 @@
  * sees incremental progress in Takeoff web without any sync layer. Closing
  * the app and reopening resumes at the right step.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, Text, View } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -115,14 +115,25 @@ export default function PtpWizardScreen() {
     load();
   }, [activeProject]);
 
-  // Resolve initial step once content loads
+  // Resolve initial step once content loads. Runs ONCE — subsequent
+  // content / signature changes come from user actions (handleTasksContinue,
+  // handleReviewContinue, addSignature) which call setStep themselves. If
+  // we re-ran this effect on every content change, each save would fight
+  // the manual transition and bounce the user back to the resume step.
+  const didInitStep = useRef(false);
   useEffect(() => {
+    if (didInitStep.current) return;
     if (!content) return;
-    if (initialStep === 'tasks' || initialStep === 'review' || initialStep === 'signatures' || initialStep === 'distribute') {
+    didInitStep.current = true;
+
+    if (
+      initialStep === 'tasks' ||
+      initialStep === 'review' ||
+      initialStep === 'signatures' ||
+      initialStep === 'distribute'
+    ) {
       setStep(initialStep);
-      return;
-    }
-    if (content.selected_tasks.length === 0) {
+    } else if (content.selected_tasks.length === 0) {
       setStep('tasks');
     } else if (!doc?.signatures || doc.signatures.length === 0) {
       setStep('review');
@@ -157,26 +168,14 @@ export default function PtpWizardScreen() {
   };
 
   const handleReviewContinue = async (trimmedTasks: PtpSelectedTask[]) => {
-    // DIAG — if you see this alert, the button tap IS registering.
-    // eslint-disable-next-line no-console
-    console.warn('[PTP] handleReviewContinue fired — tasks:', trimmedTasks.length);
-    Alert.alert('DEBUG', `Handler fired with ${trimmedTasks.length} tasks`);
-
     // Persist any hazard deletions the foreman made in the Review step
     const next: PtpContent = { ...content, selected_tasks: trimmedTasks };
     const result = await saveContent(next);
-
-    // eslint-disable-next-line no-console
-    console.warn('[PTP] saveContent result:', JSON.stringify(result));
-    Alert.alert('DEBUG', `saveContent: ${JSON.stringify(result)}`);
-
     if (!result.success) {
       Alert.alert('Save failed', result.error ?? 'Could not save review');
       return;
     }
     setStep('signatures');
-    // eslint-disable-next-line no-console
-    console.warn('[PTP] Moved to signatures step');
   };
 
   const handleToggleOsha = async (value: boolean) => {

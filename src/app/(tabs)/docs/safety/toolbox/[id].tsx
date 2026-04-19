@@ -7,7 +7,7 @@
  * signatures. Resuming lands the foreman on the right step based on
  * photo_urls / signatures / content.distribution presence.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Text, View } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -99,26 +99,31 @@ export default function ToolboxWizardScreen() {
     load();
   }, [activeProject]);
 
+  // Resume-step guard — run once on mount. If we re-ran on every content
+  // change, manual step transitions (Present→Sign→Send) would keep
+  // bouncing back to the auto-resume target.
+  const didInitStep = useRef(false);
   useEffect(() => {
+    if (didInitStep.current) return;
     if (!content) return;
+    didInitStep.current = true;
+
     if (
       initialStep === 'present' ||
       initialStep === 'signatures' ||
       initialStep === 'distribute'
     ) {
       setStep(initialStep);
-      return;
-    }
-    // Resume rule: if nothing signed yet → present screen (they may still be
-    // presenting); if signatures exist but distribution not stamped → distribute.
-    const sigCount = doc?.signatures?.length ?? 0;
-    const distributed = content.distribution?.distributed_at;
-    if (distributed) {
-      setStep('distribute');
-    } else if (sigCount > 0) {
-      setStep('signatures');
     } else {
-      setStep('present');
+      const sigCount = doc?.signatures?.length ?? 0;
+      const distributed = content.distribution?.distributed_at;
+      if (distributed) {
+        setStep('distribute');
+      } else if (sigCount > 0) {
+        setStep('signatures');
+      } else {
+        setStep('present');
+      }
     }
     setDiscussionNotes(content.discussion_notes ?? '');
   }, [content, doc?.signatures, initialStep]);
