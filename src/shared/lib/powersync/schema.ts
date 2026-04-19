@@ -371,6 +371,43 @@ const project_workers = new TableV2({
   updated_at: column.text,
 });
 
+// Sprint TOOLBOX — Toolbox library (3-tier: global/org/project, PM curates globals + org)
+const toolbox_library = new TableV2({
+  organization_id: column.text, // NULL for global topics
+  project_id: column.text,      // NULL for org / global topics
+  trade: column.text,           // text[] serialized as JSON
+  title: column.text,
+  title_es: column.text,
+  slug: column.text,
+  why_it_matters: column.text,
+  why_it_matters_es: column.text,
+  key_points: column.text,      // text[] → JSON
+  key_points_es: column.text,   // text[] → JSON
+  discussion_questions: column.text,    // text[] → JSON
+  discussion_questions_es: column.text, // text[] → JSON
+  osha_ref: column.text,
+  category: column.text,
+  tags: column.text,            // text[] → JSON
+  season: column.text,          // text[] → JSON
+  source: column.text,
+  active: column.integer,       // boolean
+  created_by: column.text,
+  created_at: column.text,
+  updated_at: column.text,
+});
+
+// Sprint TOOLBOX — PM weekly override ("force this topic this week")
+const toolbox_schedule_overrides = new TableV2({
+  organization_id: column.text,
+  project_id: column.text,
+  week_start_date: column.text, // ISO date (Monday of the week)
+  topic_id: column.text,        // → toolbox_library.id
+  set_by: column.text,
+  reason: column.text,
+  created_at: column.text,
+  updated_at: column.text,
+});
+
 // Sprint PTP — JHA library (Takeoff PM curates; Track reads)
 const jha_library = new TableV2({
   organization_id: column.text,
@@ -395,7 +432,7 @@ const safety_documents = new TableV2({
   project_id: column.text,
   organization_id: column.text,
   number: column.integer,
-  doc_type: column.text, // 'jha' | 'ptp' | 'toolbox_talk'
+  doc_type: column.text, // 'jha' | 'ptp' | 'toolbox' | 'sign_off'
   title: column.text,
   content: column.text, // JSONB stored as text
   status: column.text,
@@ -817,6 +854,8 @@ export const AppSchema = new Schema({
   takeoff_objects,
   safety_documents,
   jha_library,
+  toolbox_library,
+  toolbox_schedule_overrides,
   workers,
   project_workers,
   document_signoffs,

@@ -90,12 +90,13 @@ export default function DocsScreen() {
                   <Pressable
                     key={doc.id}
                     onPress={() => {
-                      // PTPs in draft resume in the wizard; everything else
-                      // opens the read-only detail view.
-                      const route =
-                        doc.doc_type === 'ptp' && doc.status === 'draft'
-                          ? `/(tabs)/docs/safety/ptp/${doc.id}`
-                          : `/(tabs)/docs/safety/${doc.id}`;
+                      // PTPs / Toolbox Talks in draft resume in their wizard;
+                      // everything else opens the read-only detail view.
+                      let route = `/(tabs)/docs/safety/${doc.id}`;
+                      if (doc.status === 'draft') {
+                        if (doc.doc_type === 'ptp') route = `/(tabs)/docs/safety/ptp/${doc.id}`;
+                        else if (doc.doc_type === 'toolbox') route = `/(tabs)/docs/safety/toolbox/${doc.id}`;
+                      }
                       router.push(route as any);
                     }}
                     className="mb-2 flex-row items-center rounded-xl border border-border bg-card px-4 py-4 active:opacity-80"
@@ -211,7 +212,7 @@ export default function DocsScreen() {
             color="#22C55E"
             onPress={() => {
               setFabOpen(false);
-              router.push('/(tabs)/docs/safety/new?type=toolbox_talk' as any);
+              router.push('/(tabs)/docs/safety/toolbox/new' as any);
             }}
           />
         </View>

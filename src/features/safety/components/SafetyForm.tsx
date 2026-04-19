@@ -31,12 +31,12 @@ type HazardRow = {
 };
 
 /**
- * PTP was removed from this form — the new wizard at
- * `src/app/(tabs)/docs/safety/ptp/` replaces it with a JHA-library driven
- * flow. Keeping `ptp` allowed here would send foremen back to the manual
- * form by accident.
+ * PTP and Toolbox Talk were both removed from this form — both now have
+ * dedicated wizards (src/app/(tabs)/docs/safety/ptp, .../toolbox). This
+ * legacy form handles JHA only. The type narrowing makes the form refuse
+ * any other doc_type at the compiler level.
  */
-type LegacyDocType = Exclude<DocType, 'ptp'>;
+type LegacyDocType = 'jha';
 
 type Props = {
   docType: LegacyDocType;
@@ -58,11 +58,6 @@ export function SafetyForm({ docType }: Props) {
     { description: '', risk_level: 'medium', controls: '', ppe: [] },
   ]);
 
-  // Toolbox fields
-  const [topic, setTopic] = useState('');
-  const [discussionPoints, setDiscussionPoints] = useState<string[]>(['']);
-  const [attendance, setAttendance] = useState<string[]>([profile?.full_name ?? '']);
-
   // Signature
   const [signatureData, setSignatureData] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -71,17 +66,8 @@ export function SafetyForm({ docType }: Props) {
   const handleSave = async () => {
     setError(null);
 
-    // Build content based on doc type
-    let content: Record<string, unknown>;
-    if (docType === 'jha') {
-      content = { location, weather, hazards };
-    } else {
-      content = {
-        topic,
-        discussion_points: discussionPoints.filter(Boolean),
-        attendance: attendance.filter(Boolean),
-      };
-    }
+    // JHA is the only doc type this form supports.
+    const content: Record<string, unknown> = { location, weather, hazards };
 
     const signatures: SignatureEntry[] = signatureData
       ? [{ signer_name: profile?.full_name ?? 'Unknown', signature_data: signatureData, signed_at: new Date().toISOString() }]
@@ -210,67 +196,7 @@ export function SafetyForm({ docType }: Props) {
           </>
         )}
 
-        {/* ─── Toolbox Talk Form ─── */}
-        {docType === 'toolbox_talk' && (
-          <>
-            <FieldLabel label="Topic" />
-            <StyledInput value={topic} onChangeText={setTopic} placeholder="Safety topic" />
-
-            <SectionHeader
-              title="Discussion Points"
-              onAdd={() => setDiscussionPoints([...discussionPoints, ''])}
-            />
-            {discussionPoints.map((p, i) => (
-              <View key={i} className="mb-2 flex-row items-center">
-                <StyledInput
-                  value={p}
-                  onChangeText={(v) => {
-                    const updated = [...discussionPoints];
-                    updated[i] = v;
-                    setDiscussionPoints(updated);
-                  }}
-                  placeholder={`Point ${i + 1}`}
-                  containerStyle={{ flex: 1 }}
-                />
-                {discussionPoints.length > 1 && (
-                  <Pressable
-                    onPress={() => setDiscussionPoints(discussionPoints.filter((_, j) => j !== i))}
-                    className="ml-2 h-14 w-14 items-center justify-center"
-                  >
-                    <Ionicons name="close-circle" size={22} color="#EF4444" />
-                  </Pressable>
-                )}
-              </View>
-            ))}
-
-            <SectionHeader
-              title="Attendance"
-              onAdd={() => setAttendance([...attendance, ''])}
-            />
-            {attendance.map((a, i) => (
-              <View key={i} className="mb-2 flex-row items-center">
-                <StyledInput
-                  value={a}
-                  onChangeText={(v) => {
-                    const updated = [...attendance];
-                    updated[i] = v;
-                    setAttendance(updated);
-                  }}
-                  placeholder="Attendee name"
-                  containerStyle={{ flex: 1 }}
-                />
-                {attendance.length > 1 && (
-                  <Pressable
-                    onPress={() => setAttendance(attendance.filter((_, j) => j !== i))}
-                    className="ml-2 h-14 w-14 items-center justify-center"
-                  >
-                    <Ionicons name="close-circle" size={22} color="#EF4444" />
-                  </Pressable>
-                )}
-              </View>
-            ))}
-          </>
-        )}
+        {/* Toolbox Talk has its own wizard — no legacy form branch here. */}
 
         {/* ─── Signature ─── */}
         <View className="mt-6 mb-4">

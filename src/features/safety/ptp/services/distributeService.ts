@@ -13,7 +13,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/shared/lib/supabase/client';
-import { setPtpStatus } from './ptpService';
+import { setPtpStatus, patchPtpContent } from './ptpService';
 import type { PtpPdfLabels } from '../types';
 
 const WEB_BASE_URL =
@@ -134,7 +134,16 @@ export async function distributePtp(
 
   const result = await callDistribute(docId, labels, recipients);
   if (result.success) {
-    await setPtpStatus(docId, 'distributed');
+    // Stamp distribution metadata + bump status to 'active' (valid DB enum).
+    await patchPtpContent(docId, {
+      distribution: {
+        distributed_at: new Date().toISOString(),
+        distributed_to: recipients,
+        pdf_sha256: result.integrity_hash ?? null,
+        emails_sent: result.emails_sent ?? null,
+      },
+    });
+    await setPtpStatus(docId, 'active');
     return result;
   }
 
@@ -172,7 +181,15 @@ export async function flushDistributionQueue(): Promise<{
     const result = await callDistribute(item.doc_id, item.labels, item.recipients);
     if (result.success) {
       succeeded++;
-      await setPtpStatus(item.doc_id, 'distributed');
+      await patchPtpContent(item.doc_id, {
+        distribution: {
+          distributed_at: new Date().toISOString(),
+          distributed_to: item.recipients,
+          pdf_sha256: result.integrity_hash ?? null,
+          emails_sent: result.emails_sent ?? null,
+        },
+      });
+      await setPtpStatus(item.doc_id, 'active');
     } else {
       failed++;
       remaining.push({
@@ -190,3 +207,11 @@ export async function flushDistributionQueue(): Promise<{
 export async function getPendingDistributions(): Promise<DistributionQueueItem[]> {
   return loadQueue();
 }
+
+/**
+ * Generic alias — the distribute flow is doc_type-agnostic. The server
+ * endpoint switches PDF renderer by doc_type, the client just POSTs labels
+ * + recipients and stamps `content.distribution` on success. Toolbox uses
+ * this alias so the intent is clearer at the call site.
+ */
+export const distributeSafetyDoc = distributePtp;

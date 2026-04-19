@@ -132,6 +132,18 @@ export const PtpContentSchema = z.object({
 
   // PDF rendering options
   osha_citations_included: z.boolean().default(true),
+
+  // Stamped by distributeService when /distribute succeeds. Drives the
+  // "already sent" UI state — don't use the status column for that.
+  distribution: z
+    .object({
+      distributed_at: z.string(),
+      distributed_to: z.array(z.string()).default([]),
+      pdf_sha256: z.string().nullable().optional(),
+      emails_sent: z.number().nullable().optional(),
+    })
+    .nullable()
+    .optional(),
 });
 export type PtpContent = z.infer<typeof PtpContentSchema>;
 
@@ -170,16 +182,31 @@ export const PtpPdfLabels = z.object({
 });
 export type PtpPdfLabels = z.infer<typeof PtpPdfLabels>;
 
+// ─── Distribution metadata (lives inside content JSONB) ─────
+// The DB status enum is {draft, active, completed}. We don't have a
+// 'distributed' status — instead we stamp distribution metadata here the
+// moment the /distribute endpoint succeeds. UI detects "already sent" via
+// `content.distribution?.distributed_at` rather than the status column.
+export const DistributionMeta = z.object({
+  distributed_at: z.string(),          // ISO timestamp
+  distributed_to: z.array(z.string()).default([]),
+  pdf_sha256: z.string().nullable().optional(),
+  emails_sent: z.number().nullable().optional(),
+});
+export type DistributionMeta = z.infer<typeof DistributionMeta>;
+
 // ─── SafetyDocument envelope (the Supabase row) ─────────────
+// doc_type matches the DB CHECK constraint exactly.
+// status matches the DB CHECK constraint exactly.
 export const SafetyDocument = z.object({
   id: z.string().uuid(),
   project_id: z.string().uuid(),
   organization_id: z.string().uuid(),
   number: z.number().optional(),
-  doc_type: z.enum(['jha', 'ptp', 'toolbox_talk']),
+  doc_type: z.enum(['jha', 'ptp', 'toolbox', 'sign_off']),
   title: z.string(),
   content: PtpContentSchema.or(z.record(z.string(), z.any())),
-  status: z.enum(['draft', 'active', 'distributed', 'closed', 'archived']),
+  status: z.enum(['draft', 'active', 'completed']),
   signatures: z.array(PtpSignatureSchema).default([]),
   created_by: z.string().uuid(),
   created_at: z.string(),

@@ -14,6 +14,7 @@ import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { useProjectStore } from '@/features/projects/store/project-store';
 import { useTodaysPtp } from '../hooks/useTodaysPtp';
+import type { PtpContent } from '../types';
 
 export function MorningPtpCard() {
   const router = useRouter();
@@ -52,10 +53,12 @@ export function MorningPtpCard() {
   if (!doc) return null;
 
   const sigCount = doc.signatures?.length ?? 0;
+  const distribution = (doc.content as PtpContent).distribution ?? null;
 
-  // Distributed → green confirmation
-  if (doc.status === 'distributed') {
-    const sentAt = new Date(doc.updated_at).toLocaleTimeString([], {
+  // Distributed → green confirmation (detect via content.distribution, not
+  // status — the DB only knows draft/active/completed)
+  if (distribution?.distributed_at) {
+    const sentAt = new Date(distribution.distributed_at).toLocaleTimeString([], {
       hour: 'numeric',
       minute: '2-digit',
     });

@@ -22,6 +22,7 @@ import { QuickActions } from '@/features/home/components/QuickActions';
 import { AlertsList, type Alert } from '@/features/home/components/AlertsList';
 import { ProjectSwitcher } from '@/features/projects/components/ProjectSwitcher';
 import { MorningPtpCard } from '@/features/safety/ptp/components/MorningPtpCard';
+import { WeeklyToolboxCard } from '@/features/safety/toolbox/components/WeeklyToolboxCard';
 
 export default function HomeScreen() {
   const { t } = useTranslation();
@@ -171,6 +172,9 @@ export default function HomeScreen() {
 
       {/* Morning PTP — daily ritual, 1-tap from Home */}
       <MorningPtpCard />
+
+      {/* Weekly Toolbox Talk — Monday ritual, 1-tap from Home */}
+      <WeeklyToolboxCard />
 
       {/* PENDING — dynamic */}
       {alerts.length > 0 ? (

@@ -63,3 +63,14 @@ bucket_definitions:
       - SELECT * FROM jha_library WHERE organization_id = bucket.organization_id AND active = true
       - SELECT * FROM workers WHERE organization_id = bucket.organization_id
       - SELECT * FROM project_workers WHERE organization_id = bucket.organization_id AND active = true
+      - SELECT * FROM toolbox_library WHERE organization_id = bucket.organization_id AND active = true
+      - SELECT * FROM toolbox_schedule_overrides WHERE organization_id = bucket.organization_id
+
+  # Global toolbox topics (organization_id IS NULL) — every authenticated
+  # user syncs the same library regardless of org. Keyed on user_id as a
+  # dummy bucket parameter so PowerSync accepts the constant-filter query.
+  toolbox_global:
+    parameters:
+      - SELECT id AS user_id FROM profiles WHERE id = token_parameters.user_id
+    data:
+      - SELECT * FROM toolbox_library WHERE organization_id IS NULL AND active = true

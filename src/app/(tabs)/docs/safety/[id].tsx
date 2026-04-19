@@ -154,26 +154,8 @@ export default function SafetyDocDetailScreen() {
         )}
 
         {/* ─── Toolbox Talk Detail ─── */}
-        {doc.doc_type === 'toolbox_talk' && (
-          <>
-            <InfoRow label="Topic" value={content.topic} />
-
-            <Text className="mb-2 mt-4 text-lg font-bold text-white">Discussion Points</Text>
-            {(content.discussion_points as string[])?.map((p: string, i: number) => (
-              <View key={i} className="mb-1 flex-row items-start px-2">
-                <Text className="mr-2 text-brand-orange">•</Text>
-                <Text className="flex-1 text-base text-white">{p}</Text>
-              </View>
-            ))}
-
-            <Text className="mb-2 mt-4 text-lg font-bold text-white">Attendance</Text>
-            {(content.attendance as string[])?.map((a: string, i: number) => (
-              <View key={i} className="mb-1 flex-row items-center px-2">
-                <Ionicons name="person" size={14} color="#94A3B8" />
-                <Text className="ml-2 text-base text-white">{a}</Text>
-              </View>
-            ))}
-          </>
+        {(doc.doc_type === 'toolbox' || doc.doc_type === 'toolbox_talk') && (
+          <ToolboxDetailBody content={content} />
         )}
 
         {/* ─── Signatures ─── */}
@@ -348,6 +330,118 @@ function PtpDetailBody({ content }: { content: Record<string, any> }) {
         <View className="mt-4">
           <Text className="mb-1 text-sm font-bold uppercase text-slate-400">Notes</Text>
           <Text className="text-base text-white">{content.additional_notes}</Text>
+        </View>
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * Toolbox Talk read-only renderer. Supports two shapes:
+ *   - New wizard: topic_snapshot (title/why_it_matters/key_points with EN+ES),
+ *     scheduled_date, delivered_date, delivered_language, photo_urls,
+ *     discussion_notes, foreman_name.
+ *   - Legacy form: topic + discussion_points[] + attendance[].
+ *
+ * Detects shape by the presence of `topic_snapshot`.
+ */
+function ToolboxDetailBody({ content }: { content: Record<string, any> }) {
+  const snap = content.topic_snapshot as
+    | {
+        title: string;
+        title_es?: string | null;
+        why_it_matters: string;
+        why_it_matters_es?: string | null;
+        key_points: string[];
+        key_points_es?: string[] | null;
+        discussion_questions?: string[];
+        discussion_questions_es?: string[] | null;
+        osha_ref?: string | null;
+        category?: string | null;
+      }
+    | undefined;
+
+  if (!snap) {
+    // Legacy render — simple topic + discussion points + attendance
+    return (
+      <>
+        <InfoRow label="Topic" value={content.topic} />
+        <Text className="mb-2 mt-4 text-lg font-bold text-white">Discussion Points</Text>
+        {(content.discussion_points as string[] | undefined)?.map((p: string, i: number) => (
+          <View key={i} className="mb-1 flex-row items-start px-2">
+            <Text className="mr-2 text-brand-orange">•</Text>
+            <Text className="flex-1 text-base text-white">{p}</Text>
+          </View>
+        ))}
+        <Text className="mb-2 mt-4 text-lg font-bold text-white">Attendance</Text>
+        {(content.attendance as string[] | undefined)?.map((a: string, i: number) => (
+          <View key={i} className="mb-1 flex-row items-center px-2">
+            <Ionicons name="person" size={14} color="#94A3B8" />
+            <Text className="ml-2 text-base text-white">{a}</Text>
+          </View>
+        ))}
+      </>
+    );
+  }
+
+  const lang = (content.delivered_language as string | undefined) ?? 'en';
+  const showEs = lang === 'es' || lang === 'both';
+  const keyPoints = showEs && snap.key_points_es?.length ? snap.key_points_es : snap.key_points;
+  const whyItMatters =
+    showEs && snap.why_it_matters_es ? snap.why_it_matters_es : snap.why_it_matters;
+  const questions =
+    showEs && snap.discussion_questions_es?.length
+      ? snap.discussion_questions_es
+      : snap.discussion_questions;
+
+  return (
+    <>
+      <InfoRow label="Scheduled" value={content.scheduled_date} />
+      <InfoRow label="Delivered" value={content.delivered_date} />
+      <InfoRow
+        label="Language"
+        value={lang === 'both' ? 'EN + ES' : lang === 'es' ? 'Español' : 'English'}
+      />
+      <InfoRow label="Shift" value={content.shift} />
+      <InfoRow label="Foreman" value={content.foreman_name} />
+      <InfoRow label="Category" value={snap.category ?? undefined} />
+      <InfoRow label="OSHA" value={snap.osha_ref ?? undefined} />
+
+      <Text className="mb-2 mt-4 text-lg font-bold text-white">{snap.title}</Text>
+
+      <View className="mb-4 rounded-xl border border-border bg-card p-4">
+        <Text className="mb-1 text-xs font-bold uppercase text-slate-400">Why it matters</Text>
+        <Text className="text-sm text-white">{whyItMatters}</Text>
+      </View>
+
+      <View className="mb-4 rounded-xl border border-border bg-card p-4">
+        <Text className="mb-2 text-xs font-bold uppercase text-slate-400">
+          Key points ({keyPoints.length})
+        </Text>
+        {keyPoints.map((p, i) => (
+          <View key={i} className="mb-1 flex-row items-start">
+            <Text className="mr-2 text-brand-orange">•</Text>
+            <Text className="flex-1 text-sm text-white">{p}</Text>
+          </View>
+        ))}
+      </View>
+
+      {questions && questions.length > 0 ? (
+        <View className="mb-4 rounded-xl border border-border bg-card p-4">
+          <Text className="mb-2 text-xs font-bold uppercase text-slate-400">Discussion</Text>
+          {questions.map((q, i) => (
+            <View key={i} className="mb-1 flex-row items-start">
+              <Text className="mr-2 text-amber-400">?</Text>
+              <Text className="flex-1 text-sm text-white">{q}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      {content.discussion_notes ? (
+        <View className="mt-2 rounded-xl border border-border bg-card p-4">
+          <Text className="mb-1 text-xs font-bold uppercase text-slate-400">Field notes</Text>
+          <Text className="text-sm text-white">{content.discussion_notes}</Text>
         </View>
       ) : null}
     </>

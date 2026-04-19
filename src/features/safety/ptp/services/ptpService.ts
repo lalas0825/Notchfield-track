@@ -241,9 +241,29 @@ export async function removeSignature(
   return localUpdate('safety_documents', docId, { signatures: next });
 }
 
+/**
+ * Flip the DB status column. The enum is narrow: {draft, active, completed}.
+ * Distribution is NOT a status — distributeService stamps
+ * `content.distribution.distributed_at` instead.
+ */
 export async function setPtpStatus(
   docId: string,
-  status: 'draft' | 'active' | 'distributed' | 'closed' | 'archived',
+  status: 'draft' | 'active' | 'completed',
 ): Promise<{ success: boolean; error?: string }> {
   return localUpdate('safety_documents', docId, { status });
+}
+
+/**
+ * Merge a partial content patch into the existing JSONB content. Used by
+ * distributeService to write the distribution block without clobbering
+ * selected_tasks / signatures / etc.
+ */
+export async function patchPtpContent(
+  docId: string,
+  patch: Partial<PtpContent>,
+): Promise<{ success: boolean; error?: string }> {
+  const doc = await getPtpById(docId);
+  if (!doc) return { success: false, error: 'PTP not found' };
+  const merged = { ...(doc.content as PtpContent), ...patch };
+  return localUpdate('safety_documents', docId, { content: merged });
 }
