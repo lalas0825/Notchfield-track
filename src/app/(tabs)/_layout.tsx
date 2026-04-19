@@ -60,6 +60,15 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="docs"
+        options={{
+          title: 'Safety',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="shield-checkmark" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="deliveries"
         options={{
           title: 'Delivery',
@@ -77,7 +86,6 @@ export default function TabsLayout() {
           ),
         }}
       />
-      <Tabs.Screen name="docs" options={{ tabBarButton: () => null }} />
     </Tabs>
   );
 }

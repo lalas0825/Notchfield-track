@@ -21,6 +21,7 @@ import { SafetyCard } from '@/features/home/components/SafetyCard';
 import { QuickActions } from '@/features/home/components/QuickActions';
 import { AlertsList, type Alert } from '@/features/home/components/AlertsList';
 import { ProjectSwitcher } from '@/features/projects/components/ProjectSwitcher';
+import { MorningPtpCard } from '@/features/safety/ptp/components/MorningPtpCard';
 
 export default function HomeScreen() {
   const { t } = useTranslation();
@@ -167,6 +168,9 @@ export default function HomeScreen() {
 
       {/* Quick Actions */}
       <QuickActions actions={quickActions} />
+
+      {/* Morning PTP — daily ritual, 1-tap from Home */}
+      <MorningPtpCard />
 
       {/* PENDING — dynamic */}
       {alerts.length > 0 ? (
