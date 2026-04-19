@@ -63,19 +63,9 @@ bucket_definitions:
       - SELECT * FROM jha_library WHERE organization_id = bucket.organization_id AND active = true
       - SELECT * FROM workers WHERE organization_id = bucket.organization_id
       - SELECT * FROM project_workers WHERE organization_id = bucket.organization_id AND active = true
-      - SELECT * FROM toolbox_library WHERE organization_id = bucket.organization_id AND active = true
+      # toolbox_library — include both the user's org topics AND global
+      # topics (organization_id IS NULL) in one query. The OR keeps
+      # bucket.organization_id in the WHERE so the validator is happy, and
+      # PowerSync still indexes the bucket by org_id for sync correctness.
+      - SELECT * FROM toolbox_library WHERE (organization_id = bucket.organization_id OR organization_id IS NULL) AND active = true
       - SELECT * FROM toolbox_schedule_overrides WHERE organization_id = bucket.organization_id
-
-  # Global toolbox topics (organization_id IS NULL) — every authenticated
-  # user syncs the same library regardless of org. PowerSync requires every
-  # bucket parameter to appear in the data query's WHERE clause, so we tack
-  # on `bucket.user_id = bucket.user_id` as a tautology-filter to satisfy
-  # the validator without actually filtering rows.
-  toolbox_global:
-    parameters:
-      - SELECT id AS user_id FROM profiles WHERE id = token_parameters.user_id
-    data:
-      - SELECT * FROM toolbox_library
-        WHERE organization_id IS NULL
-          AND active = true
-          AND bucket.user_id = bucket.user_id
