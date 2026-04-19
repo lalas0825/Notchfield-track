@@ -80,31 +80,9 @@ export default function MoreScreen() {
 
   const items = allItems.filter((item) => !item.feature || canUseFeature(item.feature));
 
-  // TEMP diagnostic — warn always prints in metro (log sometimes swallowed)
-  // eslint-disable-next-line no-console
-  console.warn(
-    `[More] role=${profile?.role ?? 'null'} items=${items.length}/${allItems.length} | visible: ${items.map((i) => i.label).join(', ')}`,
-  );
-  const hidden = allItems.filter((item) => item.feature && !canUseFeature(item.feature));
-  if (hidden.length > 0) {
-    // eslint-disable-next-line no-console
-    console.warn(`[More] HIDDEN: ${hidden.map((i) => `${i.label}(${i.feature})`).join(', ')}`);
-  }
-
   return (
     <>
     <ScrollView className="flex-1 bg-background px-4 pt-4">
-      {/* BANNER DIAGNOSTICO — si ves esto, el bundle nuevo sí cargó.
-          Borra este bloque cuando terminemos de debuggear. */}
-      <View className="mb-3 rounded-lg border border-yellow-500 bg-yellow-500/10 p-2">
-        <Text className="text-xs font-bold text-yellow-500">
-          🔧 DEBUG BUILD — role: {profile?.role ?? 'null'} · items: {items.length}/{allItems.length}
-        </Text>
-        <Text className="text-[10px] text-yellow-400" numberOfLines={2}>
-          visible: {items.map((i) => i.label).join(' · ')}
-        </Text>
-      </View>
-
       {/* Profile card */}
       <View className="mb-6 items-center rounded-2xl border border-border bg-card px-4 py-5">
         <View className="h-16 w-16 items-center justify-center rounded-full bg-brand-orange">

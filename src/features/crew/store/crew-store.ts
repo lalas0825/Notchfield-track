@@ -75,13 +75,10 @@ export const useCrewStore = create<CrewState & CrewActions>((set, get) => ({
    * admin/pm/estimator). Source of truth is the Sprint MANPOWER schema:
    *   project_workers (M:N) JOIN workers (HR roster)
    *
-   * FK caveat: `crew_assignments.worker_id` still references `profiles.id`
-   * (Takeoff-side follow-up). So only `workers` rows with `profile_id IS
-   * NOT NULL` are assignable — walk-ins (profile_id NULL) are filtered
-   * out here and will be supported when the FK is migrated.
-   *
-   * Worker.id in this store = `workers.profile_id` so the existing
-   * assignWorker path keeps writing a valid FK target.
+   * After the `crew_assignments_fk_to_workers` migration, `crew_assignments
+   * .worker_id` now references `workers.id` directly, so walk-in workers
+   * (profile_id NULL) are fully assignable. Worker.id in this store is the
+   * `workers.id` UUID.
    */
   fetchWorkers: async (organizationId, projectId) => {
     // 1) Active project_workers for this project
@@ -98,21 +95,19 @@ export const useCrewStore = create<CrewState & CrewActions>((set, get) => ({
       return;
     }
 
-    // 2) Resolve workers HR rows, exclude walk-ins until FK migration
+    // 2) Resolve workers HR rows (includes walk-ins now that FK points here)
     const { data } = await supabase
       .from('workers')
-      .select('id, profile_id, first_name, last_name, trade, trade_level, photo_url, active')
+      .select('id, first_name, last_name, trade, trade_level, photo_url, active')
       .in('id', workerIds)
       .eq('active', true)
-      .not('profile_id', 'is', null)
       .order('first_name');
 
     const workers: Worker[] = (data ?? []).map((w) => ({
-      // Use profile_id as the crew-store id so crew_assignments FK still resolves.
-      id: (w.profile_id as string),
+      id: (w.id as string),
       full_name: `${w.first_name ?? ''} ${w.last_name ?? ''}`.trim() || 'Unknown',
-      // Display the trade_level (mechanic/helper/apprentice/foreman) in the
-      // role slot. WorkerCard already uses this field; no UI refactor needed.
+      // Display trade_level (mechanic/helper/apprentice/foreman) — WorkerCard
+      // already reads the role field; no UI refactor needed.
       role: (w.trade_level as string | null) ?? (w.trade as string | null) ?? 'worker',
       avatar_url: (w.photo_url as string | null) ?? null,
     }));
