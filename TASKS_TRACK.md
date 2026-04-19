@@ -1,14 +1,14 @@
 # NotchField Track — TASKS_TRACK.md
-> Track native app task tracker | 105 tasks | Updated: 2026-04-17
-> 4 phases: T1 (DONE) → T2 (DONE + Sprint 42B + 43A + 43B + 45B + PTP) → T3 (7/10) → T4 (after Takeoff 10)
+> Track native app task tracker | 105 tasks | Updated: 2026-04-19
+> 4 phases: T1 (DONE) → T2 (DONE + Sprint 42B + 43A + 43B + 45B + PTP + TOOLBOX) → T3 (7/10) → T4 (after Takeoff 10)
 > Same Supabase as Takeoff. Expo + PowerSync. Offline-first.
 > **Supabase project:** msmpsxalfalzinuorwlg (Notchfield Takeoff — shared)
-> **PowerSync:** 69c72137a112d86b20541618.powersync.journeyapps.com (42 tables synced — +workers / +project_workers / +jha_library via Sprint PTP + MANPOWER)
+> **PowerSync:** 69c72137a112d86b20541618.powersync.journeyapps.com (44 tables synced — +toolbox_library / +toolbox_schedule_overrides via Sprint TOOLBOX)
 > **EAS Project:** 281ade7b-a5d9-4f43-9710-d270ae4c49f4 (@lalas825/notchfield-track)
-> **Repo:** https://github.com/lalas0825/Notchfield-track (50+ commits, Sprint MANPOWER live)
-> **APK:** Installed on device. Login + Home + Docs (Safety tab) + Plans + More working, PTP flow ready.
+> **Repo:** https://github.com/lalas0825/Notchfield-track (55+ commits, Sprint TOOLBOX live)
+> **APK:** Installed on device. Login + Home + Docs (Safety tab) + Plans + More working, PTP + Toolbox flows ready.
 > **Takeoff:** UNBLOCKED — all Track ↔ Takeoff data loops closed.
-> **Synced through:** Takeoff Sprint 37 + Delivery Review + Sprint 42A + Safety A (JHA library / PTP) + Sprint CREW (workers + project_workers)
+> **Synced through:** Takeoff Sprint 37 + Delivery Review + Sprint 42A + Safety A (JHA library / PTP) + Sprint CREW (workers + project_workers) + Sprint 50A/50B (toolbox_library + overrides + scheduler)
 
 ---
 
@@ -47,6 +47,7 @@
 | PTP | Track Foreman PTP Flow — 4-step wizard (tasks → review → signatures → distribute), JHA library consumer, SST/emergency snapshots, distribute via Takeoff endpoint + offline AsyncStorage queue | ✅ |
 | PTP-UX | Morning PTP card on Home + Safety tab surfaced + legacy PTP cleanup + detail view auto-shape | ✅ |
 | MANPOWER | Hotfix `profiles.sst_*` drops + migrate crew HR reads to `workers` / `project_workers`; walk-in creates real workers row; cert badges + expiry dialog | ✅ |
+| TOOLBOX | Weekly Toolbox Talks — scheduler engine + 3-step wizard + EN/ES bilingual + photos + Home card. Critical enum hotfix: `doc_type='toolbox'` (not `'toolbox_talk'`) + `status` enum narrowed + `content.distribution` metadata | ✅ |
 
 ### 🐛 Known Device Bugs (need dev-client build to debug)
 
@@ -851,6 +852,132 @@ Walk-in workers have `profile_id = NULL` (no login).
 
 ---
 
+### Sprint TOOLBOX — Weekly Toolbox Talks ✅
+**Date:** 2026-04-19
+**Depends on:** Takeoff Sprint 50A (toolbox_library + toolbox_schedule_overrides tables + scheduler engine spec) + Sprint 50B (toolbox-photos bucket + distribute endpoint extension)
+
+**Objective:** Foreman delivers a weekly safety talk in under 3 minutes with zero typing. Library-sourced topics (not free-form), 3-step flow (Present → Sign → Send), EN/ES bilingual, optional huddle photo, offline-first. Mirrors the PTP pattern — `safety_documents` row with `doc_type='toolbox'` + content snapshot of the library row. Distribute reuses the PTP endpoint and offline queue.
+
+**Critical enum hotfix (discovered during this sprint):**
+Verification against `information_schema` revealed the DB CHECK constraint on `safety_documents` is narrower than what the PTP flow was writing:
+- `doc_type IN ('jha','ptp','toolbox','sign_off')` — NOT `'toolbox_talk'`
+- `status IN ('draft','active','completed')` — NOT `'distributed'`
+
+Track's legacy SafetyForm used `'toolbox_talk'` and the PTP distributeService called `setPtpStatus('distributed')`. Both went through PowerSync localInsert (SQLite has no CHECK, local writes succeeded) but would have silently failed to sync to Supabase forever. Fixed:
+1. DocType enum: `'toolbox_talk'` → `'toolbox'`
+2. SafetyDocument.status narrowed to `{draft, active, completed}`
+3. `distributeService` stamps `content.distribution = { distributed_at, distributed_to, pdf_sha256, emails_sent }` and sets status to `'active'` via new `patchPtpContent()` + `setPtpStatus()` helpers
+4. MorningPtpCard + safety detail view detect "already sent" via `content.distribution.distributed_at`, not the status column
+5. All legacy `'toolbox_talk'` refs renamed to `'toolbox'`
+6. `safety/new.tsx` now redirects `?type=toolbox|toolbox_talk|ptp` to the respective wizards
+
+**Changes:**
+
+1. **PowerSync Schema** (`src/shared/lib/powersync/schema.ts`)
+   - [x] Added `toolbox_library` TableV2 (22 cols — all ARRAY cols as `column.text` JSON since SQLite has no native arrays)
+   - [x] Added `toolbox_schedule_overrides` TableV2 (9 cols — PM weekly override)
+
+2. **Sync Rules** (`powersync/sync-rules.yaml`)
+   - [x] `by_org` bucket: toolbox_library filtered to `organization_id = bucket.organization_id AND active = true`, toolbox_schedule_overrides filtered to org
+   - [x] **New `toolbox_global` bucket** keyed on user_id (dummy param) syncs `organization_id IS NULL` topics to every authenticated user. PowerSync's constant-filter data queries allow this without requiring bucket param binding.
+
+3. **Types** (`src/features/safety/toolbox/types/index.ts`)
+   - [x] `ToolboxLibraryTopic` — matches DB shape with `trade`/`key_points`/`key_points_es`/`discussion_questions`/`discussion_questions_es`/`tags`/`season` as string arrays
+   - [x] `ToolboxTopicSnapshot` — frozen copy stored in `content.topic_snapshot` with `snapshotOf(topic)` helper
+   - [x] `ToolboxScheduleOverride` — PM's weekly forced topic
+   - [x] `ToolboxContentSchema` — `topic_snapshot`, `scheduled_date` (week Monday ISO), `delivered_date`, `shift`, `weather`, `foreman_id` (workers.id per Sprint MANPOWER), `foreman_name`, `foreman_gps`, `photo_urls[]`, `discussion_notes`, `delivered_language` (`'en' | 'es' | 'both'`), `distribution` metadata block
+   - [x] `ToolboxDelivery` + `RankedTopic` + `ScheduleResult` for scheduler I/O
+
+4. **Scheduler Engine** (`src/features/safety/toolbox/services/schedulerEngine.ts`) — pure function, zero imports
+   - [x] `scheduleToolboxTopic({ library, history, primaryTrades, currentDate, override, ptpSignal })`
+   - [x] Priority: **PM override** short-circuits → **8-week rotation filter** skips topics delivered recently → **score** by trade match (+100) / universal (empty trade[]) (+50) / other-trade (+20) / PTP tag overlap (+50) / season match via current quarter + season (q1/q2/q3/q4/winter/spring/summer/fall) (+20) / decay (weeks_since_last × 2, cap 100) / never-delivered (+30) → **sort desc, tie-break by id**
+   - [x] Output: `{ suggested, alternatives (top 5), explanation[], wasOverridden, ranked }`
+   - [x] Also exports `weekStartDate(date)` → ISO Monday of the week for consistent weekly grouping
+
+5. **Service** (`src/features/safety/toolbox/services/toolboxService.ts`)
+   - [x] `getToolboxLibrary(orgId)` — offline-first, joins global + org rows via `WHERE organization_id IS NULL OR organization_id = ?`; web fallback uses Supabase `.or()` filter
+   - [x] `getRecentDeliveries(projectId, weeksBack)` — derives from `safety_documents` rows with `doc_type='toolbox'`, extracts `topic_snapshot.toolbox_library_id` + delivered_date
+   - [x] `getWeeklyOverride(projectId, weekStartIso)` — looks up PM override for the current week
+   - [x] `getRecentPtpTags(projectId, weeksBack)` — pulls `content.selected_tasks[].hazards[].name` from recent PTPs as scheduler signal
+   - [x] `getThisWeeksDelivery(projectId, weekStartIso)` — already-delivered check (returns `{ id, status, content }` or null)
+   - [x] `createDraftToolbox({ organizationId, projectId, foremanProfileId, content })` — PowerSync localInsert with parsed content; `created_by` = profiles.id (FK requirement), `content.foreman_id` = workers.id (wizard convention)
+   - [x] `patchToolboxContent` + `setToolboxStatus` — thin wrappers over `patchPtpContent` / `setPtpStatus` (the JSONB merge + status column are doc_type-agnostic)
+
+6. **Label Builder** (`src/features/safety/toolbox/services/buildToolboxLabels.ts`)
+   - [x] `buildToolboxLabels({ title, projectName, projectAddress, foremanName, dateIso, shift, language, oshaCitationsIncluded })`
+   - [x] Reuses the `PtpPdfLabels` shape: `tasks_header='Why It Matters'`, `hazards_header='Key Points'`, `controls_header='Discussion Questions'`, `ppe_header='Field Notes'`, `emergency_header='Distribution'`, `trade_label='Language: EN/ES/Both'` (borrowing the trade slot since toolbox topics can span trades)
+
+7. **Hooks** (`src/features/safety/toolbox/hooks/`)
+   - [x] `useThisWeeksToolbox(orgId, projectId, primaryTrades)` — one-shot scheduler run + delivered-check. Parallel fetches library, history (16 weeks), override (current week), PTP tags (last week), this week's delivery. Refetches on `useFocusEffect`.
+   - [x] `useToolbox(docId)` — single-document load + mutate mirroring PTP's `usePtp`. `saveContent(partial)` does shallow merge via `patchToolboxContent`. `addSignature`/`removeSignatureAt` delegate to PTP's signature helpers (same JSONB shape).
+
+8. **Screens** (`src/app/(tabs)/docs/safety/toolbox/`)
+   - [x] **`new.tsx`** — Screen 1 entry. Runs scheduler, shows the suggested topic card (orange border if PM-overridden) with "Why this week" reasons (trade match / PTP hazard / season / never-delivered / weeks-since-last), **Change topic** button opens `ToolboxTopicPicker` bottom-sheet. **Already-delivered banner** when a talk exists for this week (links to resume draft or view distributed). **Empty-library fallback** when zero topics in the library. **OnboardingBlocker** gate if foreman has no workers row.
+   - [x] **`[id].tsx`** — 3-step wizard with step indicator (Present → Sign → Send). Resume logic picks the right step based on photo count / signature count / `content.distribution` presence.
+
+9. **Components** (`src/features/safety/toolbox/components/`)
+   - [x] **`ToolboxPresent`** — Screen 2. EN/ES toggle (only surfaces when `title_es` + `key_points_es` populated); tracks whether the foreman switched between languages during delivery → saves `delivered_language='both'`. Renders Why It Matters / Key Points / Discussion Questions in the active language. Camera + Gallery buttons upload to `toolbox-photos/{orgId}/{docId}/{idx}_{ts}.{ext}` via direct Supabase storage; preview strip with remove button.
+   - [x] **`ToolboxTopicPicker`** — bottom-sheet modal with full library minus the current suggestion; each row shows title + category + trade chip (or "Universal") + hazard preview.
+   - [x] **`ToolboxDistribute`** — Screen 4. Multi-recipient picker (defaults from `projects.safety_distribution_emails`), ad-hoc email input, OSHA citations toggle, field-notes textarea that writes to `content.discussion_notes` on every keystroke. Submit calls `distributeSafetyDoc` (generic alias of `distributePtp`) — the endpoint is doc_type-agnostic, server branches PDF renderer.
+   - [x] **`WeeklyToolboxCard`** — Home card with 3 states (green CTA / amber resume / green delivered). Mounted in `src/app/(tabs)/home/index.tsx` right after `MorningPtpCard`.
+
+10. **Signature reuse** (`PtpSignatures` → Screen 3 of toolbox wizard)
+    - [x] Mounted as-is; same props (projectId, foremanWorkerId, foremanWorkerName, foremanSstCardNumber, signatures, addSignature, removeSignatureAt). Crew list pulls from `project_workers` JOIN `workers`, signatures snapshot SST, walk-in INSERTs real workers row — all Sprint MANPOWER behaviour preserved.
+
+11. **Distribute reuse** (`distributeSafetyDoc` alias)
+    - [x] Added `export const distributeSafetyDoc = distributePtp` to `distributeService.ts`. The function is doc_type-agnostic — it POSTs to `/api/pm/safety-documents/[docId]/distribute` with labels + recipients and stamps `content.distribution` on success. Server switches PDF renderer by `doc_type`. Offline queue (AsyncStorage) + flusher (`usePtpDistributionFlusher` on docs layout) cover both PTP and Toolbox transparently.
+
+12. **Legacy cleanup**
+    - [x] `SafetyForm.tsx`: narrowed `LegacyDocType` to `'jha'`; removed toolbox branch from handleSave + JSX; removed `topic`/`discussionPoints`/`attendance` state
+    - [x] `src/features/safety/types/schemas.ts`: DocType enum drops `'toolbox_talk'`, `SafetyDocFormData.content` simplified to `JhaContent` only (no more union), `DOC_TYPE_LABELS.toolbox` instead of `toolbox_talk`
+    - [x] `src/app/(tabs)/docs/safety/new.tsx`: redirect map now covers `ptp | toolbox | toolbox_talk` → respective wizard routes
+    - [x] `src/app/(tabs)/docs/safety/[id].tsx`: added `ToolboxDetailBody` with auto-detect shape (`topic_snapshot` present = new wizard render with language toggle applied statically based on `delivered_language`; fallback to legacy topic/discussion_points for any historical rows). Also handles `doc_type === 'toolbox' || 'toolbox_talk'` for back-compat with any pre-hotfix rows.
+    - [x] `src/app/(tabs)/docs/index.tsx`: FAB Toolbox button now routes to `/docs/safety/toolbox/new` (was `/docs/safety/new?type=toolbox_talk`); list tap routes toolbox drafts to the wizard, others to the detail view
+
+**Files Created:**
+- `src/features/safety/toolbox/types/index.ts`
+- `src/features/safety/toolbox/services/schedulerEngine.ts`
+- `src/features/safety/toolbox/services/toolboxService.ts`
+- `src/features/safety/toolbox/services/buildToolboxLabels.ts`
+- `src/features/safety/toolbox/hooks/useThisWeeksToolbox.ts`
+- `src/features/safety/toolbox/hooks/useToolbox.ts`
+- `src/features/safety/toolbox/components/ToolboxPresent.tsx`
+- `src/features/safety/toolbox/components/ToolboxTopicPicker.tsx`
+- `src/features/safety/toolbox/components/ToolboxDistribute.tsx`
+- `src/features/safety/toolbox/components/WeeklyToolboxCard.tsx`
+- `src/app/(tabs)/docs/safety/toolbox/new.tsx`
+- `src/app/(tabs)/docs/safety/toolbox/[id].tsx`
+
+**Files Modified (enum hotfix + wiring):**
+- `src/shared/lib/powersync/schema.ts` — toolbox tables, doc_type comment
+- `powersync/sync-rules.yaml` — toolbox sync rules + global bucket
+- `src/features/safety/ptp/types/index.ts` — status enum narrowed, `content.distribution` added, `DistributionMeta` exported
+- `src/features/safety/ptp/services/ptpService.ts` — `setPtpStatus` enum narrowed, new `patchPtpContent` helper
+- `src/features/safety/ptp/services/distributeService.ts` — stamps distribution meta, `distributeSafetyDoc` alias
+- `src/features/safety/ptp/components/MorningPtpCard.tsx` — detect sent via `content.distribution.distributed_at`
+- `src/features/safety/types/schemas.ts` — DocType value swap + union simplified
+- `src/features/safety/components/SafetyForm.tsx` — JHA-only, toolbox branch removed
+- `src/app/(tabs)/docs/safety/new.tsx` — redirect map
+- `src/app/(tabs)/docs/safety/[id].tsx` — ToolboxDetailBody
+- `src/app/(tabs)/docs/index.tsx` — FAB route + list routing
+- `src/app/(tabs)/home/index.tsx` — WeeklyToolboxCard mounted
+
+**Deploy checklist:**
+- [x] Code committed + pushed
+- [ ] `powersync/sync-rules.yaml` deployed to PowerSync dashboard/CLI
+- [ ] (optional) Seed 2-3 topics in `toolbox_library` for testing while PM builds the full catalog in Takeoff web
+- [ ] Sprint 50D (Takeoff) — `toolboxPdfRenderer` + `buildToolboxPdfLabels` server-side so `/distribute` actually produces a toolbox PDF (until then the endpoint would fall back to PTP renderer or 400)
+
+**Backend state (as of Sprint TOOLBOX commit):**
+- ✅ `toolbox_library` table exists (22 cols, RLS correct — SELECT allows NULL org or own org)
+- ✅ `toolbox_schedule_overrides` table exists (9 cols, RLS gates to user's org)
+- ✅ `toolbox-photos` public storage bucket exists
+- ⚠️ `toolbox_library` has **0 rows seeded** in production — empty-library fallback handles it
+
+**TypeScript:** `npx tsc --noEmit` clean across all 25 changed files.
+
+---
+
 ## 📱 PHASE T1 — Foundation + Safety + GPS — ✅ OPERATIONAL
 > 39 of 43 tasks complete. 4 deferred to T2 (require data from Takeoff 7B).
 > 5 Supabase migrations applied. PowerSync sync rules deployed. 6 locales.
@@ -878,7 +1005,7 @@ Walk-in workers have `profile_id = NULL` (no login).
 ### Safety Documents
 - [x] TT1.17 JHA — dynamic form: hazards[], risk levels, controls, PPE chips. Zod validated
 - [x] TT1.18 PTP — Sprint PTP: 4-step wizard (tasks → review → signatures → distribute) backed by shared `safety_documents` row. JHA library consumer (149 seeded tasks), task snapshots in content, emergency/SST snapshots, multi-signature (foreman GPS-stamped + crew + walk-in), server-side PDF via Takeoff `/distribute` endpoint + offline AsyncStorage queue. Home Morning PTP card + Safety tab surfaced. Sprint MANPOWER migrated signatures to `workers.id`.
-- [x] TT1.19 Toolbox Talk — topic, discussion points, attendance. Zod validated
+- [x] TT1.19 Toolbox Talk — Sprint TOOLBOX: 3-step wizard (Present → Sign → Send) backed by shared `safety_documents` row. `toolbox_library` consumer (3-tier global/org/project), scheduler engine (rotation + trade match + PTP tag signal + decay), EN/ES bilingual with auto-detected `delivered_language='both'`, optional huddle photos to `toolbox-photos` bucket, one talk per week enforced, Home WeeklyToolboxCard. Server-side PDF via Takeoff `/distribute` endpoint (same as PTP). Sprint MANPOWER applies to signatures. Critical enum hotfix: `doc_type='toolbox'` + narrow status enum.
 - [x] TT1.20 Safety doc list — grouped by type, status badges, FAB create button
 - [x] TT1.21 Signature collection — SignaturePad (react-native-signature-canvas), base64 capture
 - [x] TT1.22 QR signature — document_signoffs table exists with token field (web route pending)
