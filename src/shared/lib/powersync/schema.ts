@@ -26,6 +26,15 @@ const projects = new TableV2({
   created_by: column.text,
   created_at: column.text,
   updated_at: column.text,
+  // Sprint PTP — emergency info + safety distribution (read-only from web)
+  emergency_hospital_name: column.text,
+  emergency_hospital_address: column.text,
+  emergency_hospital_distance: column.text,
+  emergency_assembly_point: column.text,
+  emergency_first_aid_location: column.text,
+  emergency_contact_name: column.text,
+  emergency_contact_phone: column.text,
+  safety_distribution_emails: column.text, // text[] serialized as JSON
 });
 
 const organizations = new TableV2({
@@ -38,6 +47,8 @@ const organizations = new TableV2({
   helper_daily_rate: column.integer,
   currency: column.text,
   created_at: column.text,
+  // Sprint PTP — trades used as fallback when profile has no trade
+  primary_trades: column.text, // text[] serialized as JSON
 });
 
 const profiles = new TableV2({
@@ -49,6 +60,9 @@ const profiles = new TableV2({
   is_active: column.integer, // boolean
   created_at: column.text,
   updated_at: column.text,
+  // Sprint PTP — NYC Local Law 196 SST card tracking
+  sst_card_number: column.text,
+  sst_expires_at: column.text,
 });
 
 const production_areas = new TableV2({
@@ -301,6 +315,25 @@ const takeoff_objects = new TableV2({
   unit: column.text,
   label: column.text,
   created_at: column.text,
+});
+
+// Sprint PTP — JHA library (Takeoff PM curates; Track reads)
+const jha_library = new TableV2({
+  organization_id: column.text,
+  project_id: column.text,     // nullable = org-wide task
+  trade: column.text,
+  category: column.text,
+  task_name: column.text,
+  task_description: column.text,
+  typical_scenarios: column.text,
+  hazards: column.text,        // jsonb — array of { name, osha_ref? }
+  controls: column.text,       // jsonb — array of { name, category }
+  ppe_required: column.text,   // text[] serialized as JSON
+  notes: column.text,
+  active: column.integer,      // boolean
+  created_by: column.text,
+  created_at: column.text,
+  updated_at: column.text,
 });
 
 // Safety + work tickets (exist in Takeoff)
@@ -729,6 +762,7 @@ export const AppSchema = new Schema({
   drawing_pins,
   takeoff_objects,
   safety_documents,
+  jha_library,
   document_signoffs,
   work_tickets,
   // Track-owned tables (T1)

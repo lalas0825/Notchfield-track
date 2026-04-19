@@ -60,3 +60,4 @@ bucket_definitions:
       - SELECT * FROM feedback_reports WHERE organization_id = bucket.organization_id
       - SELECT * FROM drawing_hyperlinks WHERE organization_id = bucket.organization_id
       - SELECT * FROM drawing_pins WHERE organization_id = bucket.organization_id
+      - SELECT * FROM jha_library WHERE organization_id = bucket.organization_id AND active = true
