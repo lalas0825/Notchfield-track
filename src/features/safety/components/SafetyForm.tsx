@@ -30,14 +30,16 @@ type HazardRow = {
   ppe: string[];
 };
 
-type TaskRow = {
-  task: string;
-  hazards: string;
-  controls: string;
-};
+/**
+ * PTP was removed from this form — the new wizard at
+ * `src/app/(tabs)/docs/safety/ptp/` replaces it with a JHA-library driven
+ * flow. Keeping `ptp` allowed here would send foremen back to the manual
+ * form by accident.
+ */
+type LegacyDocType = Exclude<DocType, 'ptp'>;
 
 type Props = {
-  docType: DocType;
+  docType: LegacyDocType;
 };
 
 export function SafetyForm({ docType }: Props) {
@@ -54,12 +56,6 @@ export function SafetyForm({ docType }: Props) {
   const [weather, setWeather] = useState('');
   const [hazards, setHazards] = useState<HazardRow[]>([
     { description: '', risk_level: 'medium', controls: '', ppe: [] },
-  ]);
-
-  // PTP fields
-  const [crewMembers, setCrewMembers] = useState<string[]>(['']);
-  const [tasks, setTasks] = useState<TaskRow[]>([
-    { task: '', hazards: '', controls: '' },
   ]);
 
   // Toolbox fields
@@ -79,8 +75,6 @@ export function SafetyForm({ docType }: Props) {
     let content: Record<string, unknown>;
     if (docType === 'jha') {
       content = { location, weather, hazards };
-    } else if (docType === 'ptp') {
-      content = { location, crew_members: crewMembers.filter(Boolean), tasks };
     } else {
       content = {
         topic,
@@ -216,58 +210,6 @@ export function SafetyForm({ docType }: Props) {
           </>
         )}
 
-        {/* ─── PTP Form ─── */}
-        {docType === 'ptp' && (
-          <>
-            <FieldLabel label="Location" />
-            <StyledInput value={location} onChangeText={setLocation} placeholder="Job site location" />
-
-            <SectionHeader
-              title="Crew Members"
-              onAdd={() => setCrewMembers([...crewMembers, ''])}
-            />
-            {crewMembers.map((m, i) => (
-              <View key={i} className="mb-2 flex-row items-center">
-                <StyledInput
-                  value={m}
-                  onChangeText={(v) => {
-                    const updated = [...crewMembers];
-                    updated[i] = v;
-                    setCrewMembers(updated);
-                  }}
-                  placeholder="Worker name"
-                  containerStyle={{ flex: 1 }}
-                />
-                {crewMembers.length > 1 && (
-                  <Pressable
-                    onPress={() => setCrewMembers(crewMembers.filter((_, j) => j !== i))}
-                    className="ml-2 h-14 w-14 items-center justify-center"
-                  >
-                    <Ionicons name="close-circle" size={22} color="#EF4444" />
-                  </Pressable>
-                )}
-              </View>
-            ))}
-
-            <SectionHeader title="Tasks" onAdd={() => setTasks([...tasks, { task: '', hazards: '', controls: '' }])} />
-            {tasks.map((t, i) => (
-              <View key={i} className="mb-4 rounded-xl border border-border bg-card p-4">
-                <View className="flex-row items-center justify-between mb-2">
-                  <Text className="text-sm font-bold text-white">Task #{i + 1}</Text>
-                  {tasks.length > 1 && (
-                    <Pressable onPress={() => setTasks(tasks.filter((_, j) => j !== i))}>
-                      <Ionicons name="trash-outline" size={18} color="#EF4444" />
-                    </Pressable>
-                  )}
-                </View>
-                <StyledInput value={t.task} onChangeText={(v) => updateTask(i, 'task', v)} placeholder="Task description" />
-                <StyledInput value={t.hazards} onChangeText={(v) => updateTask(i, 'hazards', v)} placeholder="Hazards" style={{ marginTop: 8 }} />
-                <StyledInput value={t.controls} onChangeText={(v) => updateTask(i, 'controls', v)} placeholder="Controls" style={{ marginTop: 8 }} />
-              </View>
-            ))}
-          </>
-        )}
-
         {/* ─── Toolbox Talk Form ─── */}
         {docType === 'toolbox_talk' && (
           <>
@@ -369,12 +311,6 @@ export function SafetyForm({ docType }: Props) {
     const updated = [...hazards];
     (updated[index] as any)[field] = value;
     setHazards(updated);
-  }
-
-  function updateTask(index: number, field: string, value: string) {
-    const updated = [...tasks];
-    (updated[index] as any)[field] = value;
-    setTasks(updated);
   }
 }
 

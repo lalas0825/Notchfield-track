@@ -57,7 +57,16 @@ export default function SafetyDocDetailScreen() {
   }
 
   const content = doc.content as Record<string, any>;
-  const signatures = (doc.signatures ?? []) as { signer_name: string; signature_data: string; signed_at: string }[];
+  // Normalize signatures so legacy (signer_name/signature_data) and new-shape
+  // PTP (worker_name/signature_data_url) render through the same view.
+  const signatures = (doc.signatures ?? []).map((raw: any) => ({
+    signer_name: raw.signer_name ?? raw.worker_name ?? 'Unknown',
+    signature_data: raw.signature_data ?? raw.signature_data_url ?? '',
+    signed_at: raw.signed_at,
+    sst_card_number: raw.sst_card_number ?? null,
+    is_foreman: !!raw.is_foreman,
+    is_walk_in: !!raw.is_walk_in,
+  }));
 
   return (
     <>
@@ -141,21 +150,7 @@ export default function SafetyDocDetailScreen() {
 
         {/* ─── PTP Detail ─── */}
         {doc.doc_type === 'ptp' && (
-          <>
-            <InfoRow label="Location" value={content.location} />
-            <InfoRow label="Crew" value={(content.crew_members as string[])?.join(', ')} />
-
-            <Text className="mb-2 mt-4 text-lg font-bold text-white">
-              Tasks ({(content.tasks as any[])?.length ?? 0})
-            </Text>
-            {(content.tasks as any[])?.map((t: any, i: number) => (
-              <View key={i} className="mb-3 rounded-xl border border-border bg-card p-4">
-                <Text className="text-base font-medium text-white">{t.task}</Text>
-                <Text className="mt-1 text-sm text-slate-400">Hazards: {t.hazards}</Text>
-                <Text className="mt-1 text-sm text-slate-400">Controls: {t.controls}</Text>
-              </View>
-            ))}
-          </>
+          <PtpDetailBody content={content} />
         )}
 
         {/* ─── Toolbox Talk Detail ─── */}
@@ -192,8 +187,19 @@ export default function SafetyDocDetailScreen() {
                 <View className="flex-row items-center">
                   <Ionicons name="checkmark-circle" size={18} color="#22C55E" />
                   <Text className="ml-2 text-base font-medium text-white">{sig.signer_name}</Text>
+                  {sig.is_foreman ? (
+                    <View className="ml-2 rounded-full bg-brand-orange/20 px-2 py-0.5">
+                      <Text className="text-[10px] font-bold text-brand-orange">FOREMAN</Text>
+                    </View>
+                  ) : null}
+                  {sig.is_walk_in ? (
+                    <View className="ml-2 rounded-full bg-amber-500/20 px-2 py-0.5">
+                      <Text className="text-[10px] font-bold text-warning">WALK-IN</Text>
+                    </View>
+                  ) : null}
                 </View>
                 <Text className="mt-1 text-sm text-slate-400">
+                  {sig.sst_card_number ? `SST ${sig.sst_card_number} · ` : ''}
                   Signed {new Date(sig.signed_at).toLocaleString()}
                 </Text>
                 {sig.signature_data && sig.signature_data.startsWith('data:') && (
@@ -221,5 +227,129 @@ function InfoRow({ label, value }: { label: string; value?: string }) {
       <Text className="w-20 text-sm text-slate-400">{label}</Text>
       <Text className="flex-1 text-base text-white">{value}</Text>
     </View>
+  );
+}
+
+/**
+ * PTP read-only renderer. Supports two shapes:
+ *   - New wizard (post-Sprint PTP): selected_tasks with JHA library snapshots,
+ *     optional emergency info, foreman_name, trade, ptp_date, area_label.
+ *   - Legacy form: location + crew_members + tasks[{task,hazards,controls}].
+ *
+ * Detects the shape by the presence of `selected_tasks` (an array of objects).
+ */
+function PtpDetailBody({ content }: { content: Record<string, any> }) {
+  const isNewShape = Array.isArray(content.selected_tasks);
+
+  if (!isNewShape) {
+    // Legacy render — preserved for any pre-wizard PTP rows still in the DB.
+    return (
+      <>
+        <InfoRow label="Location" value={content.location} />
+        <InfoRow label="Crew" value={(content.crew_members as string[] | undefined)?.join(', ')} />
+
+        <Text className="mb-2 mt-4 text-lg font-bold text-white">
+          Tasks ({(content.tasks as any[])?.length ?? 0})
+        </Text>
+        {(content.tasks as any[] | undefined)?.map((t: any, i: number) => (
+          <View key={i} className="mb-3 rounded-xl border border-border bg-card p-4">
+            <Text className="text-base font-medium text-white">{t.task}</Text>
+            <Text className="mt-1 text-sm text-slate-400">Hazards: {t.hazards}</Text>
+            <Text className="mt-1 text-sm text-slate-400">Controls: {t.controls}</Text>
+          </View>
+        ))}
+      </>
+    );
+  }
+
+  const tasks = content.selected_tasks as Array<{
+    task_name: string;
+    category?: string | null;
+    hazards?: { name: string; osha_ref?: string }[];
+    controls?: { name: string; category?: string }[];
+    ppe_required?: string[];
+  }>;
+  const emergency = content.emergency as
+    | {
+        hospital_name?: string | null;
+        hospital_address?: string | null;
+        assembly_point?: string | null;
+        first_aid_location?: string | null;
+        contact_name?: string | null;
+        contact_phone?: string | null;
+      }
+    | null
+    | undefined;
+
+  return (
+    <>
+      <InfoRow label="Date" value={content.ptp_date} />
+      <InfoRow label="Shift" value={content.shift} />
+      <InfoRow label="Trade" value={content.trade} />
+      <InfoRow label="Area" value={content.area_label} />
+      <InfoRow label="Foreman" value={content.foreman_name} />
+
+      <Text className="mb-2 mt-4 text-lg font-bold text-white">
+        Tasks ({tasks.length})
+      </Text>
+      {tasks.map((t, i) => (
+        <View key={i} className="mb-3 rounded-xl border border-border bg-card p-4">
+          <Text className="text-base font-medium text-white">{t.task_name}</Text>
+          {t.category ? (
+            <Text className="mt-0.5 text-xs text-slate-500">{t.category}</Text>
+          ) : null}
+          {t.hazards && t.hazards.length > 0 ? (
+            <Text className="mt-2 text-sm text-amber-400">
+              Hazards: {t.hazards.map((h) => h.name).join(' · ')}
+            </Text>
+          ) : null}
+          {t.controls && t.controls.length > 0 ? (
+            <Text className="mt-1 text-sm text-success">
+              Controls: {t.controls.map((c) => c.name).join(' · ')}
+            </Text>
+          ) : null}
+          {t.ppe_required && t.ppe_required.length > 0 ? (
+            <View className="mt-2 flex-row flex-wrap gap-1">
+              {t.ppe_required.map((p) => (
+                <View key={p} className="rounded-lg bg-brand-orange/10 px-2 py-1">
+                  <Text className="text-xs text-brand-orange">{p}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+        </View>
+      ))}
+
+      {emergency && (emergency.hospital_name || emergency.assembly_point || emergency.contact_name) ? (
+        <View className="mt-4 rounded-xl border border-border bg-card p-4">
+          <Text className="mb-2 text-sm font-bold uppercase text-slate-400">Emergency</Text>
+          {emergency.hospital_name ? (
+            <Text className="text-sm text-white">
+              🏥 {emergency.hospital_name}
+              {emergency.hospital_address ? ` — ${emergency.hospital_address}` : ''}
+            </Text>
+          ) : null}
+          {emergency.assembly_point ? (
+            <Text className="mt-1 text-sm text-white">📍 Assembly: {emergency.assembly_point}</Text>
+          ) : null}
+          {emergency.first_aid_location ? (
+            <Text className="mt-1 text-sm text-white">🩹 First aid: {emergency.first_aid_location}</Text>
+          ) : null}
+          {emergency.contact_name ? (
+            <Text className="mt-1 text-sm text-white">
+              ☎️ {emergency.contact_name}
+              {emergency.contact_phone ? ` — ${emergency.contact_phone}` : ''}
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
+
+      {content.additional_notes ? (
+        <View className="mt-4">
+          <Text className="mb-1 text-sm font-bold uppercase text-slate-400">Notes</Text>
+          <Text className="text-base text-white">{content.additional_notes}</Text>
+        </View>
+      ) : null}
+    </>
   );
 }

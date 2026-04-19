@@ -29,20 +29,9 @@ export const JhaContent = z.object({
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export type JhaContent = z.infer<typeof JhaContent>;
 
-// ─── PTP (Pre-Task Plan) ─────────────────────────────────
-export const PtpTask = z.object({
-  task: z.string().min(1, 'Describe the task'),
-  hazards: z.string().min(1, 'Identify hazards'),
-  controls: z.string().min(1, 'Describe controls'),
-});
-
-export const PtpContent = z.object({
-  location: z.string().min(1, 'Location is required'),
-  crew_members: z.array(z.string()).min(1, 'Add crew members'),
-  tasks: z.array(PtpTask).min(1, 'Add at least one task'),
-});
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export type PtpContent = z.infer<typeof PtpContent>;
+// PTP schemas moved to `src/features/safety/ptp/types/index.ts`. The new
+// flow stores hazards/controls/PPE as task snapshots sourced from the
+// shared jha_library table rather than free-form strings.
 
 // ─── Toolbox Talk ─────────────────────────────────────────
 export const ToolboxContent = z.object({
@@ -54,10 +43,12 @@ export const ToolboxContent = z.object({
 export type ToolboxContent = z.infer<typeof ToolboxContent>;
 
 // ─── Full document validation ─────────────────────────────
+// Legacy form handles JHA + Toolbox Talk. PTP uses the standalone wizard
+// at src/app/(tabs)/docs/safety/ptp/ with its own Zod schemas.
 export const SafetyDocFormData = z.object({
   doc_type: DocType,
   title: z.string().min(1, 'Title is required'),
-  content: z.union([JhaContent, PtpContent, ToolboxContent]),
+  content: z.union([JhaContent, ToolboxContent]),
   signatures: z.array(SignatureEntry).min(1, 'At least one signature is required'),
 });
 // eslint-disable-next-line @typescript-eslint/no-redeclare
