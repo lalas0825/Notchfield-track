@@ -48,6 +48,7 @@
 | PTP-UX | Morning PTP card on Home + Safety tab surfaced + legacy PTP cleanup + detail view auto-shape | ✅ |
 | MANPOWER | Hotfix `profiles.sst_*` drops + migrate crew HR reads to `workers` / `project_workers`; walk-in creates real workers row; cert badges + expiry dialog | ✅ |
 | TOOLBOX | Weekly Toolbox Talks — scheduler engine + 3-step wizard + EN/ES bilingual + photos + Home card. Critical enum hotfix: `doc_type='toolbox'` (not `'toolbox_talk'`) + `status` enum narrowed + `content.distribution` metadata | ✅ |
+| STORE RELEASE | Publish to Apple App Store + Google Play — legal (Privacy Policy, ToS, account deletion), technical (Sentry, asset audit, version bump), store ops (accounts, listings, screenshots, Data Safety form, closed testing). Full spec in SPRINT_TRACK_STORE_RELEASE.md. | ⬜ Planned |
 
 ### 🐛 Known Device Bugs (need dev-client build to debug)
 
@@ -1152,8 +1153,20 @@ Track's legacy SafetyForm used `'toolbox_talk'` and the PTP distributeService ca
 - [ ] TT4.8 Large project stress test — 600+ areas, 1000+ objects, offline sync
 - [ ] TT4.9 Offline resilience test — full workflow without internet, then sync
 
-### App Store Submission
-- [ ] TT4.10 App Store + Google Play — assets, screenshots, description, privacy policy URL, age rating, data safety
+### App Store Submission — see Sprint STORE RELEASE
+- [ ] TT4.10 App Store + Google Play — full plan in **SPRINT_TRACK_STORE_RELEASE.md**
+  - Legal: Privacy Policy, Terms of Service (notchfield.com hosting)
+  - In-app account deletion (Apple + Google mandate, via Supabase Edge Function)
+  - Sentry crash reporting + source map upload in EAS build
+  - Version bump automation, asset audit (no-alpha icon, splash, adaptive)
+  - Apple Developer enrollment ($99/yr) + Google Play Console ($25 one-time)
+  - Screenshots x 7 views x 3 sizes (iPhone 6.7", 5.5", iPad 12.9")
+  - App listing EN + ES descriptions, keywords, categories
+  - Data Safety form (Play) + Privacy Nutrition Labels (App Store)
+  - Background location declaration + demo video (both stores)
+  - Closed testing cohort (Android mandate: 12 testers x 14 days)
+  - Demo account + App Review notes for reviewers
+  - Prereq: TAKEOFF_PENDING.md items 1 (distribute endpoint auth) + 4 (toolbox seed)
 
 ---
 
