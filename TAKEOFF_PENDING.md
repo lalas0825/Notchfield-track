@@ -1,184 +1,109 @@
 # Takeoff — Pending Work to Unblock Track
 
-> Four follow-ups on Takeoff side. Track is live on the latest sprints
-> (PTP, MANPOWER, TOOLBOX) and ready to use all of these once deployed.
-> Some DB-level fixes were already applied via Track's Supabase MCP;
-> those need to be codified as Takeoff migrations so a fresh checkout
-> doesn't revert them.
+> **STATUS (2026-04-19, Takeoff commit `be6ac01`):** All 4 items
+> resolved on Takeoff side. Track patched the response parser (commit
+> below) to match Takeoff's camelCase contract. **Ready to test PTP +
+> Toolbox distribute end-to-end on prod.**
 
 ---
 
-## 1. 🔴 BLOCKER — Distribute endpoint auth + email provider
+## Resolution summary
 
-### Symptom
-Track's PTP/Toolbox distribute flow calls
-`POST https://notchfield.com/api/pm/safety-documents/[id]/distribute`
-with `Authorization: Bearer <supabase_jwt>`. Current response: **401 Unauthorized**.
+| # | Item | Status | Notes |
+|---|------|--------|-------|
+| 1 | Distribute endpoint 401 | ✅ Fixed | Dual-auth helper accepts Bearer JWT or cookies |
+| 2 | Sprint 50D toolbox renderer + i18n | ✅ Done | Endpoint branches by `doc_type`; 19 toolboxPdf keys × 6 locales |
+| 3 | Codify 2 Track MCP migrations | ✅ Done | `supabase/migrations/20260419205326_rls_accept_supervisor_role.sql` + `20260419212021_crew_assignments_fk_to_workers.sql`, idempotent |
+| 4 | Toolbox library seed | ✅ Done | 30 curated tile/marble topics (Sprint 51) |
 
-Track log (with diagnostics added in commit `d637eb4`):
+---
+
+## What changed on Track
+
+### Response parser contract update
+Takeoff returns camelCase; Track's parser was reading snake_case. Fixed
+in `src/features/safety/ptp/services/distributeService.ts`:
+
+```ts
+// Takeoff response (commit be6ac01):
+{
+  success: true,
+  emailsSent: 2,
+  emailsFailed: 0,
+  emailRecipients: 2,
+  distributedAt: "2026-04-19T...",
+  pdfSha256: "abc123..."
+}
 ```
-[distribute] endpoint rejected — POST https://notchfield.com/api/pm/safety-documents/.../distribute
-  status: 401
-  body:   {"error":"Unauthorized"}  (or similar)
+
+Track reads `emailsSent ?? emails_sent` (with snake_case fallback for
+defensive compatibility). `pdfSha256` lands in
+`safety_documents.content.distribution.pdf_sha256` per Track's spec.
+
+---
+
+## Email provider caveat (explicit)
+
+Takeoff noted email delivery is still being sorted — Juan is deciding
+between Zoho SMTP / Zoho ZeptoMail / Resend. Until it's wired, the
+distribute response will likely show:
+
+```
+{ success: true, emailsSent: 0, emailsFailed: N, ... }
 ```
 
-### Root cause (suspected)
-Endpoint likely uses NextAuth cookies or Supabase SSR helpers — rejects a
-naked Bearer JWT sent from a React Native client.
+Meaning: **auth works, PDF generates, SHA-256 stamps, document freezes
+(status='completed', distribution.distributed_at set), audit log
+writes** — just the email leg fails silently.
 
-### What Takeoff needs to do
-1. **Accept Bearer Supabase JWT in the distribute route.**
-   Pattern that works:
-   ```ts
-   // /api/pm/safety-documents/[id]/distribute/route.ts
-   import { createClient } from '@supabase/supabase-js'
+Track treats this as success from a document-integrity standpoint. The
+UI shows "Distributed" once the response comes back with `success:
+true`, regardless of `emailsSent`. The foreman will see the doc as
+sent, but GCs won't get emails until Juan finishes the provider.
 
-   const bearer = req.headers.get('authorization')?.replace('Bearer ', '')
-   if (!bearer) return Response.json({ error: 'no token' }, { status: 401 })
+If `emailsFailed > 0` in production, we should show a banner on the
+document detail view: *"Distributed locally but delivery provider
+failed. Contact your PM."* — not urgent, can ship in a follow-up.
 
-   const supabase = createClient(
-     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-     { global: { headers: { Authorization: `Bearer ${bearer}` } } }
-   )
+---
 
-   const { data: { user }, error } = await supabase.auth.getUser()
-   if (error || !user) return Response.json({ error: 'invalid token' }, { status: 401 })
+## Testing plan (next Track session)
 
-   // ... proceed with distribute logic ...
+1. `npx expo start --dev-client --clear`
+2. Reload device
+3. Open PTP from Home → complete wizard → Send & Submit
+4. Expected logs:
    ```
-
-2. **Confirm Resend (or equivalent) is configured**
-   User mentioned: *"el email provider que tengo setiado talvez no este
-   funcionando bien"*. Verify:
-   - `RESEND_API_KEY` env var is set in Takeoff prod (Vercel or wherever)
-   - Sender domain verified in Resend dashboard
-   - Test: `curl https://api.resend.com/emails -H "Authorization: Bearer $KEY" -d '{"from":...}'`
-
-3. **Request body contract (what Track sends):**
-   ```json
-   {
-     "labels": {
-       "title": "string",
-       "project_name": "string",
-       "foreman_label": "string",
-       "date_label": "string",
-       ...
-     },
-     "recipients": ["safety@gc.com", "super@gc.com"]
-   }
+   [distribute] POST https://notchfield.com/api/pm/safety-documents/[id]/distribute
+   → 200 OK
+   { success: true, emailsSent: 0|N, emailsFailed: 0|N, pdfSha256: "..." }
    ```
+5. Expected UI: green success alert with count
+6. Re-open the PTP — it should show the "Distributed" detail view with
+   SHA-256 hash visible
 
-4. **Response contract Track expects on success:**
-   ```json
-   {
-     "integrity_hash": "sha256:abc123...",
-     "emails_sent": 2,
-     "emails_failed": 0
-   }
-   ```
-   (Field `integrity_hash` gets stamped into `safety_documents.content.distribution.pdf_sha256`.)
+Same for Toolbox: Home → Weekly Safety card → 3-step wizard → Send.
 
-### Dev/test recipe
-1. Start Track with `npx expo start --dev-client`
-2. Deliver a Toolbox Talk end-to-end. Watch Track metro console for the
-   `[distribute]` log lines — they'll show exactly what HTTP status/body
-   Takeoff returned.
-3. Once fixed: the wizard's final "Submit & Send" shows a success toast
-   (not the "Queued" fallback).
-
----
-
-## 2. 🟡 Sprint 50D — Toolbox PDF renderer + labels + endpoint branch
-
-Spec already in Track's repo at `SPRINT_TRACK_TOOLBOX.md` §11.
-
-### What Takeoff needs to do
-- [ ] `toolboxPdfRenderer.ts` — port from `ptpPdfRenderer` with the
-  topic-snapshot layout (Why It Matters / Key Points / Discussion
-  Questions / Signatures). Use `content.delivered_language` to pick
-  EN/ES/both content from the snapshot.
-- [ ] `buildToolboxPdfLabels()` helper — mirrors `buildPtpPdfLabels`.
-  Track already sends the labels (see `buildToolboxLabels.ts`).
-- [ ] Branch the distribute endpoint by doc_type:
-  ```ts
-  const pdf = doc.doc_type === 'toolbox'
-    ? renderToolboxPdf(doc, labels)
-    : renderPtpPdf(doc, labels)
-  ```
-- [ ] i18n: Toolbox PDF section headers in 6 locales (EN, ES, FR, PT,
-  IT, DE). Track uses English placeholders right now.
-
-### Gating
-Until 50D ships, Track's Toolbox submits hit the distribute endpoint
-and get either a 400 (if server rejects doc_type=toolbox) or the PTP
-renderer produces garbage for toolbox content. Either way the email
-goes out wrong. Block toolbox-to-prod until 50D is live.
-
----
-
-## 3. 🟡 Codify DB migrations from Track MCP
-
-Track applied two migrations directly to Supabase during Sprint
-MANPOWER debugging. They work in prod right now, but Takeoff's repo
-doesn't know about them — a fresh DB reset from Takeoff migrations
-would revert them.
-
-### Migration A: `rls_accept_supervisor_role` (2026-04-19)
-
-Extended 10 RLS policies to accept both `'supervisor'` and `'superintendent'`.
-Tables: area_time_entries, crew_assignments, daily_reports, gps_checkins,
-gps_geofences, punch_items.
-
-Full SQL in Supabase migrations log. Takeoff should copy this into their
-`supabase/migrations/` folder so the roles list is:
+If anything fails, metro log will show the new diagnostic from
+`callDistribute()` (commit `d637eb4`):
 ```
-ARRAY['foreman','supervisor','superintendent','pm','owner','admin']
+[distribute] endpoint rejected — POST ...
+  status: <HTTP>
+  body:   <response snippet>
 ```
 
-Track's `ROLE_ALIASES` already treats them as synonyms — keep this behaviour.
+---
 
-### Migration B: `crew_assignments_fk_to_workers` (2026-04-19)
+## Follow-ups (not blocking)
 
-Repointed foreign keys:
-- `crew_assignments.worker_id` → `workers(id)` (was `profiles(id)`)
-- `area_time_entries.worker_id` → `workers(id)` (was `profiles(id)`)
-- `ON DELETE CASCADE` on both
-
-Both tables were TRUNCATEd during the migration (1 orphan row each, no
-real data). Walk-in workers (profile_id NULL) are now assignable.
+- **Email provider config** — Juan's call (Zoho vs Resend). No Track
+  change needed either way; endpoint contract stays the same.
+- **Sprint 53 hygiene** — Takeoff will codify the other 134 Supabase
+  migrations. Doesn't affect Track.
+- **Tombstone UI for `emailsFailed > 0`** — small banner on doc detail.
+  ~1 hour when email provider lands and we can test failure modes.
 
 ---
 
-## 4. 🟢 Toolbox library seed — IN PROGRESS
-
-**Status (2026-04-19):** Takeoff team actively curating topics. Scope
-revised from ~110 → ~30 high-quality global topics after the initial
-bulk pass produced low-quality content. Quality-over-quantity direction.
-
-Track's empty-library fallback handles the 0-row state gracefully. The
-scheduler engine works the same whether there are 30 or 110 topics —
-rotation is 8 weeks, so 30 topics cover ~7 months of weekly rotation
-without repeats. Plenty for pilot.
-
-Nothing to do on Track side until seed lands. When it does, the
-WeeklyToolboxCard and wizard auto-populate on next PowerSync pull.
-
----
-
-## Summary for handoff
-
-| # | Priority | Owner | Status | Blocker for |
-|---|---|---|---|---|
-| 1 | 🔴 P0 | Takeoff backend | ⬜ Pending | All PTP + Toolbox sends |
-| 2 | 🟡 P1 | Takeoff backend | ⬜ Pending | Toolbox-to-prod correctness |
-| 3 | 🟡 P1 | Takeoff DevOps | ⬜ Pending | Future migration drift |
-| 4 | 🟢 P2 | PM / content team | 🔄 In progress (~30 curated) | Toolbox scheduler usefulness |
-
-Once #1 ships, Jantile's pilot can run the full PTP flow on
-production. #2 is required before Toolbox PDFs look right. #3 is
-hygiene. #4 is actively being curated.
-
----
-
-*Track-side work is caught up. Repo: https://github.com/lalas0825/Notchfield-track (latest commit `d637eb4`).*
+*Track-side work: commit below ships the response parser fix.
+Repo: https://github.com/lalas0825/Notchfield-track*

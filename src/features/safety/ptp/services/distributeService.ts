@@ -102,7 +102,18 @@ async function callDistribute(
       return { success: false, error: msg };
     }
 
+    // Takeoff's response contract (commit be6ac01) — camelCase:
+    //   { success, emailsSent, emailsFailed, emailRecipients,
+    //     distributedAt, pdfSha256 }
     const json = (await res.json()) as {
+      success?: boolean;
+      emailsSent?: number;
+      emailsFailed?: number;
+      emailRecipients?: number;
+      distributedAt?: string;
+      pdfSha256?: string;
+      // Legacy/defensive — accept snake_case too in case a pre-be6ac01
+      // build is hit somewhere.
       integrity_hash?: string;
       emails_sent?: number;
       emails_failed?: number;
@@ -110,9 +121,9 @@ async function callDistribute(
 
     return {
       success: true,
-      emails_sent: json.emails_sent,
-      emails_failed: json.emails_failed,
-      integrity_hash: json.integrity_hash,
+      emails_sent: json.emailsSent ?? json.emails_sent,
+      emails_failed: json.emailsFailed ?? json.emails_failed,
+      integrity_hash: json.pdfSha256 ?? json.integrity_hash,
     };
   } catch (err) {
     // Network or CORS error — treat as offline
