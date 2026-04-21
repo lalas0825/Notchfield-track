@@ -7,12 +7,15 @@ import { useAuthStore } from '@/features/auth/store/auth-store';
 import { useProjectStore } from '@/features/projects/store/project-store';
 import { DOC_TYPE_LABELS, RISK_LEVELS } from '@/features/safety/types/schemas';
 import { exportSafetyDoc } from '@/features/safety/services/safety-export';
+import { useOrganization } from '@/features/organizations/hooks/useOrganization';
+import { OrgLetterhead } from '@/features/organizations/components/OrgLetterhead';
 import type { SafetyDocRow } from '@/features/safety/hooks/useSafetyDocs';
 
 export default function SafetyDocDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { profile } = useAuthStore();
   const { activeProject } = useProjectStore();
+  const { org } = useOrganization(activeProject?.organization_id);
   const [doc, setDoc] = useState<SafetyDocRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
@@ -22,7 +25,14 @@ export default function SafetyDocDetailScreen() {
     if (!doc || !activeProject) return;
     setExporting(true);
     setExportError(null);
-    const result = await exportSafetyDoc(doc, activeProject.name, activeProject.organization_id);
+    // Pass the resolved org object so the PDF letterhead embeds the
+    // real company name + logo, not the UUID that leaked into older
+    // exports (the previous caller passed activeProject.organization_id
+    // — a UUID — into the `orgName` slot).
+    const result = await exportSafetyDoc(doc, activeProject.name, {
+      name: org?.name ?? 'NotchField',
+      logo_url: org?.logo_url ?? null,
+    });
     setExporting(false);
     if (!result.success) setExportError(result.error ?? 'Export failed');
   };
@@ -57,11 +67,15 @@ export default function SafetyDocDetailScreen() {
   }
 
   const content = doc.content as Record<string, any>;
-  // Normalize signatures so legacy (signer_name/signature_data) and new-shape
-  // PTP (worker_name/signature_data_url) render through the same view.
+  // Normalize signatures so legacy and new-shape docs render through the
+  // same view. worker_name is the canonical PTP/Toolbox field; signer_name
+  // is the legacy field used by work-ticket signatures (always null in
+  // PTP/Toolbox rows). Reading worker_name FIRST avoids rendering
+  // "undefined" when both shapes are mixed in the history.
   const signatures = (doc.signatures ?? []).map((raw: any) => ({
-    signer_name: raw.signer_name ?? raw.worker_name ?? 'Unknown',
-    signature_data: raw.signature_data ?? raw.signature_data_url ?? '',
+    signer_name:
+      (raw.worker_name ?? raw.signer_name ?? '').toString().trim() || 'Unknown',
+    signature_data: raw.signature_data_url ?? raw.signature_data ?? '',
     signed_at: raw.signed_at,
     sst_card_number: raw.sst_card_number ?? null,
     is_foreman: !!raw.is_foreman,
@@ -78,6 +92,16 @@ export default function SafetyDocDetailScreen() {
         }}
       />
       <ScrollView className="flex-1 bg-background px-4 pt-4">
+        {/* Customer letterhead — logo LEFT, doc type CENTER, status RIGHT */}
+        <OrgLetterhead
+          organizationId={activeProject?.organization_id}
+          docTypeTitle={
+            DOC_TYPE_LABELS[doc.doc_type as keyof typeof DOC_TYPE_LABELS] ?? doc.doc_type
+          }
+          docNumber={doc.number}
+          status={doc.status}
+        />
+
         {/* Header card + Export button */}
         <View className="mb-4 rounded-2xl border border-border bg-card p-4">
           <View className="flex-row items-start justify-between">

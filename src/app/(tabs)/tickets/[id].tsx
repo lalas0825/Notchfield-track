@@ -38,6 +38,7 @@ import { haptic } from '@/shared/lib/haptics';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { WorkTicketPhotos } from '@/features/work-tickets/components/WorkTicketPhotos';
 import { parsePhotos } from '@/features/work-tickets/services/workTicketPhotoService';
+import { OrgLetterhead } from '@/features/organizations/components/OrgLetterhead';
 import type { WorkTicketPhoto } from '@/features/work-tickets/types';
 
 const STATUS_CONFIG: Record<
@@ -292,6 +293,14 @@ export default function WorkTicketDetailScreen() {
 
       <View className="flex-1 bg-background">
         <ScrollView className="flex-1 px-4 pt-4">
+
+          {/* Customer letterhead — mirrors the PDF header */}
+          <OrgLetterhead
+            organizationId={activeProject?.organization_id}
+            docTypeTitle="Work Ticket"
+            docNumber={ticket.number}
+            status={ticket.status}
+          />
 
           {/* Header card */}
           <View className="mb-4 rounded-2xl border border-border bg-card p-4">
