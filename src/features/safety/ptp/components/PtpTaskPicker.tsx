@@ -82,12 +82,21 @@ export function PtpTaskPicker({
         </View>
       </View>
 
-      {/* Category filter chips */}
+      {/* Category filter chips — horizontal scroll. `flexGrow: 0` +
+          `maxHeight` prevents RN's default ScrollView flex behavior from
+          swallowing half the screen vertically (the bug the pilot saw on
+          Step 1 of the wizard). */}
       {categories.length > 0 ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="px-4">
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          className="px-4"
+          style={{ flexGrow: 0, maxHeight: 52 }}
+          contentContainerStyle={{ alignItems: 'center' }}
+        >
           <Pressable
             onPress={() => setCategoryFilter(null)}
-            className={`mr-2 mb-2 h-9 items-center justify-center rounded-xl px-3 ${
+            className={`mr-2 h-9 items-center justify-center rounded-xl px-3 ${
               categoryFilter === null ? 'bg-brand-orange/20 border border-brand-orange' : 'border border-border'
             }`}
           >
@@ -99,7 +108,7 @@ export function PtpTaskPicker({
             <Pressable
               key={c}
               onPress={() => setCategoryFilter(c)}
-              className={`mr-2 mb-2 h-9 items-center justify-center rounded-xl px-3 ${
+              className={`mr-2 h-9 items-center justify-center rounded-xl px-3 ${
                 categoryFilter === c ? 'bg-brand-orange/20 border border-brand-orange' : 'border border-border'
               }`}
             >

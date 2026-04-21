@@ -9,7 +9,6 @@
 
 import { supabase } from '@/shared/lib/supabase/client';
 import { localQuery, localInsert, generateUUID } from '@/shared/lib/powersync/write';
-import { forceSync } from '@/shared/lib/powersync/client';
 import { setPtpStatus, patchPtpContent } from '@/features/safety/ptp/services/ptpService';
 import {
   ToolboxContentSchema,
@@ -321,15 +320,10 @@ export async function createDraftToolbox(
 
   if (!result.success) return { success: false, error: result.error };
 
-  // Same reasoning as createDraftPtp — kick the upload queue so the row
-  // reaches Supabase before the foreman can sign + distribute.
-  try {
-    await forceSync();
-  } catch (err) {
-    // eslint-disable-next-line no-console
-    console.warn('[createDraftToolbox] forceSync failed (non-fatal):', err);
-  }
-
+  // forceSync is intentionally NOT called here — see createDraftPtp for
+  // the full rationale. Short version: manual flush races PowerSync's
+  // own uploader and burns SERIAL numbers. The distribute preflight is
+  // the single belt.
   return { success: true, id };
 }
 

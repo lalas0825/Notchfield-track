@@ -13,7 +13,6 @@ import {
   localQuery,
   generateUUID,
 } from '@/shared/lib/powersync/write';
-import { forceSync } from '@/shared/lib/powersync/client';
 import {
   PtpContentSchema,
   PtpSignatureSchema,
@@ -129,19 +128,16 @@ export async function createDraftPtp(
 
   if (!result.success) return { success: false, error: result.error };
 
-  // Flush the PowerSync upload queue so the draft reaches Supabase before
-  // the user can sign and distribute. Without this the row can sit in
-  // local SQLite while the foreman signs + taps Distribute, and the
-  // distribute endpoint 404s on a doc that "doesn't exist" server-side.
-  // Non-fatal: if offline, PowerSync retries automatically, and
-  // distributeService does its own preflight flush as a second belt.
-  try {
-    await forceSync();
-  } catch (err) {
-    // eslint-disable-next-line no-console
-    console.warn('[createDraftPtp] forceSync failed (non-fatal):', err);
-  }
-
+  // NOTE: earlier versions called forceSync() here to race the draft up
+  // to Supabase before the foreman could tap Distribute (Bug A). That
+  // caused a different bug: the manual flush ran in parallel with
+  // PowerSync's own debounced uploader, two concurrent upserts hit
+  // Supabase, and the serial `number` column burned one value per
+  // create (PTPs came out #18, #20, #22 instead of #18, #19, #20). The
+  // distribute path (distributePtp + flushDistributionQueue) still
+  // does its own forceSync preflight as the single belt — the draft
+  // is guaranteed to be on the server before /distribute is called,
+  // and PowerSync's own upload loop covers everything in between.
   return { success: true, id };
 }
 
