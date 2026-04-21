@@ -85,6 +85,34 @@ function htmlEscape(value: unknown): string {
     .replace(/'/g, '&#39;');
 }
 
+// Dates on all Track PDFs use US format (MM/DD/YYYY) per Jantile pilot
+// sign-off. Accepts ISO strings (`2026-04-21`) or full timestamps —
+// returns empty string on null/invalid so upstream templates can decide
+// whether to render a placeholder.
+function fmtDate(value: string | null | undefined): string {
+  if (!value) return '';
+  // Plain YYYY-MM-DD: anchor at local midnight to avoid timezone slip.
+  const iso = value.length === 10 ? value + 'T00:00:00' : value;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return String(value);
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  return `${mm}/${dd}/${yyyy}`;
+}
+
+function fmtDateTime(value: string | null | undefined): string {
+  if (!value) return '';
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return String(value);
+  const date = fmtDate(value);
+  const time = d.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+  return `${date}, ${time}`;
+}
+
 // ─── Public entry point ───────────────────────────────────
 
 type ExportOrg = {
@@ -129,11 +157,7 @@ export async function exportSafetyDoc(
       number: doc.number,
       projectName,
       org: orgInfo,
-      date: new Date(doc.created_at).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      }),
+      date: fmtDate(doc.created_at),
       content,
       docType: doc.doc_type,
       signatures,
@@ -224,7 +248,7 @@ function buildHtml(params: {
         }
       </div>
       <div class="sig-name">${htmlEscape(sig.name)} ${roleChip}</div>
-      <div class="sig-date">${sig.signed_at ? htmlEscape(new Date(sig.signed_at).toLocaleString()) : ''}</div>
+      <div class="sig-date">${htmlEscape(fmtDateTime(sig.signed_at))}</div>
       ${sst}
     </div>`;
     })
@@ -625,15 +649,11 @@ function buildPtpBody(content: Record<string, any>, signatures: NormalizedSig[])
   const isNewShape = Array.isArray(content.selected_tasks);
 
   if (!isNewShape) {
+    // Legacy-shape PTPs (pre-wizard) stored crew as a text list. We still
+    // omit that section: the Signatures block below carries identity.
     const tasks = (content.tasks ?? []) as any[];
-    const crew = (content.crew_members ?? []) as string[];
     return `
       <div class="info-row"><div class="info-label">Location</div><div class="info-value">${htmlEscape(content.location ?? '—')}</div></div>
-
-      <div class="section-title">Crew Members (${crew.length})</div>
-      <ul class="bullet-list">
-        ${crew.map((m: string) => `<li>${htmlEscape(m)}</li>`).join('')}
-      </ul>
 
       <div class="section-title">Tasks &amp; Hazard Controls (${tasks.length})</div>
       <table>
@@ -669,7 +689,6 @@ function buildPtpBody(content: Record<string, any>, signatures: NormalizedSig[])
     controls?: { name: string; category?: string }[];
     ppe_required?: string[];
   }>;
-  const crew = signatures.filter((s) => !s.is_foreman);
   const emergency = content.emergency as
     | {
         hospital_name?: string | null;
@@ -682,8 +701,13 @@ function buildPtpBody(content: Record<string, any>, signatures: NormalizedSig[])
     | null
     | undefined;
 
+  // Crew is intentionally NOT rendered as its own section — each crew
+  // member already appears in the Signatures block below with their
+  // role chip, SST, GPS timestamp, and actual signature image. A
+  // separate crew table just duplicates identity data (Jantile pilot
+  // feedback, 2026-04-21).
   const infoRows = [
-    ['Date', content.ptp_date],
+    ['Date', fmtDate(content.ptp_date)],
     ['Shift', content.shift],
     ['Trade', content.trade],
     ['Area', content.area_label],
@@ -693,18 +717,6 @@ function buildPtpBody(content: Record<string, any>, signatures: NormalizedSig[])
     .map(
       ([label, value]) =>
         `<div class="info-row"><div class="info-label">${label}</div><div class="info-value">${htmlEscape(value)}</div></div>`,
-    )
-    .join('');
-
-  const crewRows = crew
-    .map(
-      (c, i) =>
-        `<tr>
-          <td>${i + 1}</td>
-          <td>${htmlEscape(c.name)}</td>
-          <td>${c.is_walk_in ? '<span class="ppe-tag">Walk-in</span>' : ''}</td>
-          <td>${htmlEscape(c.sst_card_number ?? '—')}</td>
-        </tr>`,
     )
     .join('');
 
@@ -742,23 +754,6 @@ function buildPtpBody(content: Record<string, any>, signatures: NormalizedSig[])
 
   return `
     ${infoRows}
-
-    ${
-      crew.length > 0
-        ? `<div class="section-title">Crew Members (${crew.length})</div>
-           <table>
-             <thead>
-               <tr>
-                 <th style="width: 5%">#</th>
-                 <th style="width: 45%">Name</th>
-                 <th style="width: 20%">Role</th>
-                 <th style="width: 30%">SST Card</th>
-               </tr>
-             </thead>
-             <tbody>${crewRows}</tbody>
-           </table>`
-        : ''
-    }
 
     <div class="section-title">Tasks &amp; Hazard Controls (${tasks.length})</div>
     <table>
@@ -810,9 +805,8 @@ function buildToolboxBody(
     | undefined;
 
   if (!snap) {
-    // Legacy shape
+    // Legacy shape — attendance omitted; Signatures block carries it.
     const points = (content.discussion_points ?? []) as string[];
-    const attendance = (content.attendance ?? []) as string[];
     return `
       <div class="info-row"><div class="info-label">Topic</div><div class="info-value" style="font-weight: 700;">${htmlEscape(content.topic ?? '—')}</div></div>
 
@@ -820,29 +814,6 @@ function buildToolboxBody(
       <ul class="bullet-list">
         ${points.map((p: string) => `<li>${htmlEscape(p)}</li>`).join('')}
       </ul>
-
-      <div class="section-title">Attendance (${attendance.length})</div>
-      <table>
-        <thead>
-          <tr>
-            <th style="width: 5%">#</th>
-            <th style="width: 60%">Name</th>
-            <th style="width: 35%">Present</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${attendance
-            .map(
-              (a: string, i: number) => `
-            <tr>
-              <td>${i + 1}</td>
-              <td>${htmlEscape(a)}</td>
-              <td style="color: #15803D; font-weight: 700;">Yes</td>
-            </tr>`,
-            )
-            .join('')}
-        </tbody>
-      </table>
     `;
   }
 
@@ -858,33 +829,21 @@ function buildToolboxBody(
       ? snap.discussion_questions_es
       : snap.discussion_questions ?? [];
 
-  const attendance = signatures.filter((s) => !s.is_foreman);
-
+  // Attendance intentionally omitted — Signatures block carries every
+  // attendee with their role chip, SST, and timestamped signature.
   const metaRows = [
     ['Category', snap.category],
     ['Source', snap.source],
     ['OSHA Reference', snap.osha_ref],
     ['Language', lang === 'both' ? 'EN + ES' : lang === 'es' ? 'Español' : 'English'],
-    ['Scheduled', content.scheduled_date],
-    ['Delivered', content.delivered_date],
+    ['Scheduled', fmtDate(content.scheduled_date)],
+    ['Delivered', fmtDate(content.delivered_date)],
     ['Foreman', content.foreman_name],
   ]
     .filter(([, v]) => v != null && String(v).trim() !== '')
     .map(
       ([label, value]) =>
         `<div class="info-row"><div class="info-label">${label}</div><div class="info-value">${htmlEscape(value)}</div></div>`,
-    )
-    .join('');
-
-  const attendanceRows = attendance
-    .map(
-      (a, i) => `
-      <tr>
-        <td>${i + 1}</td>
-        <td>${htmlEscape(a.name)} ${a.is_walk_in ? '<span class="ppe-tag">Walk-in</span>' : ''}</td>
-        <td>${htmlEscape(a.sst_card_number ?? '—')}</td>
-        <td style="color: #15803D; font-weight: 700;">Yes</td>
-      </tr>`,
     )
     .join('');
 
@@ -917,23 +876,6 @@ function buildToolboxBody(
            <ul class="bullet-list">
              ${questions.map((q) => `<li>${htmlEscape(q)}</li>`).join('')}
            </ul>`
-        : ''
-    }
-
-    ${
-      attendance.length > 0
-        ? `<div class="section-title">Attendance (${attendance.length})</div>
-           <table>
-             <thead>
-               <tr>
-                 <th style="width: 5%">#</th>
-                 <th style="width: 45%">Name</th>
-                 <th style="width: 30%">SST Card</th>
-                 <th style="width: 20%">Present</th>
-               </tr>
-             </thead>
-             <tbody>${attendanceRows}</tbody>
-           </table>`
         : ''
     }
 
