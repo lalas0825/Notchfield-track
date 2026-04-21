@@ -108,10 +108,10 @@ export default function NewPtpScreen() {
         }
         setProject(row);
 
-        // Resolve trades. Sprint spec: profiles.trade first, fallback to
-        // organizations.primary_trades. We don't have profiles.trade in
-        // production, so just list every trade present in jha_library for
-        // this org and let the foreman pick if >1.
+        // Resolve trades. getAvailableTradesForOrg prefers
+        // organizations.primary_trades (what this company actually does)
+        // and falls back to DISTINCT trades in jha_library. Auto-picks
+        // if the org has exactly one trade.
         const trades = await getAvailableTradesForOrg(profile.organization_id);
         setAvailableTrades(trades);
         if (trades.length === 1) setTrade(trades[0]);

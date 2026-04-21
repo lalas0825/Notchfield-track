@@ -113,11 +113,62 @@ export async function getJhaLibraryForTrade(
     .filter((x): x is JhaLibraryItem => x !== null);
 }
 
+const VALID_TRADES: readonly Trade[] = [
+  'tile', 'marble', 'flooring', 'drywall', 'paint',
+  'roofing', 'concrete', 'hvac', 'electrical', 'plumbing',
+];
+
+function parseTradeList(value: unknown): string[] {
+  if (Array.isArray(value)) return value as string[];
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? (parsed as string[]) : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
 /**
- * List the distinct trades available to a foreman's org. Used when a
- * foreman's profile has no `trade` and the org has multiple `primary_trades`.
+ * Trades available to a foreman when building a PTP.
+ *
+ * Priority:
+ *   1. `organizations.primary_trades` — the canonical "what this company
+ *      actually does" list. Jantile ships with `['tile','marble']` even
+ *      though the global `jha_library` seed contains tasks for all 10
+ *      trades; without this filter the picker surfaces every trade the
+ *      seed happens to cover.
+ *   2. Fallback: DISTINCT trade values present in the org's jha_library
+ *      (covers orgs whose primary_trades isn't populated yet).
+ *
+ * Order is preserved from primary_trades so the PM controls the chip
+ * layout in Track. Unknown trades (typo, retired from enum) are dropped.
  */
 export async function getAvailableTradesForOrg(orgId: string): Promise<Trade[]> {
+  // ── 1. Prefer organizations.primary_trades ──
+  const orgLocal = await localQuery<{ primary_trades: unknown }>(
+    `SELECT primary_trades FROM organizations WHERE id = ? LIMIT 1`,
+    [orgId],
+  );
+  let primaryRaw: unknown = null;
+  if (orgLocal && orgLocal.length > 0) {
+    primaryRaw = orgLocal[0].primary_trades;
+  } else {
+    const { data } = await supabase
+      .from('organizations')
+      .select('primary_trades')
+      .eq('id', orgId)
+      .maybeSingle();
+    primaryRaw = (data as { primary_trades: unknown } | null)?.primary_trades ?? null;
+  }
+  const primary = parseTradeList(primaryRaw).filter(
+    (t): t is Trade => (VALID_TRADES as readonly string[]).includes(t),
+  );
+  if (primary.length > 0) return primary;
+
+  // ── 2. Fallback to DISTINCT trades in jha_library ──
   const local = await localQuery<{ trade: string }>(
     `SELECT DISTINCT trade FROM jha_library WHERE organization_id = ? AND active = 1`,
     [orgId],
@@ -132,9 +183,9 @@ export async function getAvailableTradesForOrg(orgId: string): Promise<Trade[]> 
         .eq('active', true)
     ).data ?? []);
 
-  const trades = new Set<string>();
-  for (const r of rows as { trade: string }[]) trades.add(r.trade);
-  return [...trades].filter((t): t is Trade => {
-    return ['tile','marble','flooring','drywall','paint','roofing','concrete','hvac','electrical','plumbing'].includes(t);
-  });
+  const seen = new Set<string>();
+  for (const r of rows as { trade: string }[]) seen.add(r.trade);
+  return [...seen].filter(
+    (t): t is Trade => (VALID_TRADES as readonly string[]).includes(t),
+  );
 }
