@@ -13,6 +13,7 @@ import {
   localQuery,
   generateUUID,
 } from '@/shared/lib/powersync/write';
+import { forceSync } from '@/shared/lib/powersync/client';
 import {
   PtpContentSchema,
   PtpSignatureSchema,
@@ -127,6 +128,20 @@ export async function createDraftPtp(
   });
 
   if (!result.success) return { success: false, error: result.error };
+
+  // Flush the PowerSync upload queue so the draft reaches Supabase before
+  // the user can sign and distribute. Without this the row can sit in
+  // local SQLite while the foreman signs + taps Distribute, and the
+  // distribute endpoint 404s on a doc that "doesn't exist" server-side.
+  // Non-fatal: if offline, PowerSync retries automatically, and
+  // distributeService does its own preflight flush as a second belt.
+  try {
+    await forceSync();
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn('[createDraftPtp] forceSync failed (non-fatal):', err);
+  }
+
   return { success: true, id };
 }
 

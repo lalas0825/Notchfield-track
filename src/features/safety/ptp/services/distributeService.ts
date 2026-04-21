@@ -13,6 +13,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/shared/lib/supabase/client';
+import { forceSync } from '@/shared/lib/powersync/client';
 import { setPtpStatus, patchPtpContent } from './ptpService';
 import type { PtpPdfLabels } from '../types';
 
@@ -152,6 +153,18 @@ export async function distributePtp(
     return { success: false, error: 'At least one recipient is required' };
   }
 
+  // Drain PowerSync upload queue before hitting /distribute. If the draft
+  // or any content/signature patches are still queued locally, the server
+  // won't see them — we'd get a 404 "not_found" on a doc that exists only
+  // in SQLite. Cheap defensive flush; offline/network errors are absorbed
+  // because callDistribute's own network-error path queues for retry.
+  try {
+    await forceSync();
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn('[distributePtp] forceSync failed (non-fatal):', err);
+  }
+
   const result = await callDistribute(docId, labels, recipients);
   if (result.success) {
     // Stamp distribution metadata + bump status to 'active' (valid DB enum).
@@ -198,6 +211,16 @@ export async function flushDistributionQueue(): Promise<{
 }> {
   const queue = await loadQueue();
   if (queue.length === 0) return { attempted: 0, succeeded: 0, failed: 0 };
+
+  // One forceSync covers all queued items — drain PowerSync writes first
+  // so any local-only drafts/patches reach Supabase before we retry
+  // distribute. Saves N-1 redundant flushes vs. putting it in callDistribute.
+  try {
+    await forceSync();
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn('[flushDistributionQueue] forceSync failed (non-fatal):', err);
+  }
 
   let succeeded = 0;
   let failed = 0;
