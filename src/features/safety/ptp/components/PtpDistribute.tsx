@@ -82,7 +82,7 @@ export function PtpDistribute({
     setSending(true);
     const result = await distributePtp(
       docId,
-      { ...labels, osha_citations_included: oshaCitationsIncluded },
+      { ...labels, oshaCitationsIncluded },
       selected,
     );
     setSending(false);

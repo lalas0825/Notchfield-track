@@ -184,15 +184,6 @@ export default function PtpWizardScreen() {
   };
 
   const labels = buildPtpLabels({
-    title: doc.title,
-    projectName,
-    projectAddress,
-    foremanName: content.foreman_name,
-    dateIso: content.ptp_date,
-    shift: content.shift,
-    areaLabel: content.area_label,
-    trade: content.trade,
-    weather: content.weather ?? null,
     oshaCitationsIncluded: oshaCitations,
   });
 

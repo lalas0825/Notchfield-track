@@ -167,13 +167,6 @@ export default function ToolboxWizardScreen() {
   };
 
   const labels = buildToolboxLabels({
-    title: doc.title,
-    projectName,
-    projectAddress,
-    foremanName: content.foreman_name,
-    dateIso: content.delivered_date,
-    shift: content.shift,
-    language: content.delivered_language,
     oshaCitationsIncluded: oshaCitations,
   });
 

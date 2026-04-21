@@ -92,7 +92,7 @@ export function ToolboxDistribute({
     setSending(true);
     const result = await distributeSafetyDoc(
       docId,
-      { ...labels, osha_citations_included: oshaCitationsIncluded },
+      { ...labels, oshaCitationsIncluded },
       selected,
     );
     setSending(false);

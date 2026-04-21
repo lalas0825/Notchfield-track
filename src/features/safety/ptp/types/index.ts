@@ -161,24 +161,85 @@ export const PtpSignatureSchema = z.object({
 export type PtpSignature = z.infer<typeof PtpSignatureSchema>;
 
 // ─── PTP PDF labels (passed to distribute endpoint) ──
+// Canonical shape mirrors Takeoff Web's `ptpPdfRenderer.ts` PtpPdfLabels.
+// Two rules the renderer relies on:
+//   1. shiftValues MUST be a { day, night, weekend } object map — the renderer
+//      does `labels.shiftValues[content.shift]`. Sending a pre-resolved string
+//      here crashes jsPDF ("Cannot read properties of undefined (reading 'day')").
+//   2. Labels are STRING TEMPLATES only — no per-doc values. The renderer reads
+//      values (project name, foreman name, shift, date, etc.) from the DB row.
 export const PtpPdfLabels = z.object({
-  title: z.string(),
-  project_name: z.string(),
-  project_address: z.string().optional(),
-  foreman_label: z.string(),
-  date_label: z.string(),
-  shift_label: z.string(),
-  area_label: z.string().optional(),
-  trade_label: z.string(),
-  weather_label: z.string().optional(),
-  tasks_header: z.string(),
-  hazards_header: z.string(),
-  controls_header: z.string(),
-  ppe_header: z.string(),
-  emergency_header: z.string(),
-  signatures_header: z.string(),
-  footer_integrity_label: z.string(),
-  osha_citations_included: z.boolean(),
+  // Headers
+  title: z.string(),                   // "Pre-Task Plan (PTP)"
+  subtitle: z.string(),                // "OSHA 1926.20(b) · NYC DOB 3301.12"
+  ptpNumber: z.string(),               // "#"
+
+  // Metadata column labels (left side of header table)
+  project: z.string(),                 // "Project"
+  location: z.string(),                // "Location"
+  date: z.string(),                    // "Date"
+  shift: z.string(),                   // "Shift"
+  weather: z.string(),                 // "Weather"
+  foreman: z.string(),                 // "Foreman"
+  trade: z.string(),                   // "Trade"
+  gc: z.string(),                      // "GC"
+
+  // Enum maps — REQUIRED to be objects, not strings
+  shiftValues: z.object({
+    day: z.string(),
+    night: z.string(),
+    weekend: z.string(),
+  }),
+
+  // Section headers
+  taskDescription: z.string(),
+  hazardsIdentified: z.string(),
+  oshaReference: z.string(),
+  controlsInPlace: z.string(),
+  controlsEngineering: z.string(),
+  controlsAdministrative: z.string(),
+  controlsPpe: z.string(),
+  ppeRequired: z.string(),
+  additionalHazards: z.string(),
+  notes: z.string(),
+  emergency: z.string(),
+  emergencyHospital: z.string(),
+  emergencyAssembly: z.string(),
+  emergencyFirstAid: z.string(),
+  emergencyContact: z.string(),
+
+  // Signatures section
+  acknowledgmentTitle: z.string(),
+  acknowledgmentText: z.string(),
+  foremanLabel: z.string(),
+  crewLabel: z.string(),
+  nameLabel: z.string(),
+  roleLabel: z.string(),
+  signedAtLabel: z.string(),
+  gpsLabel: z.string(),
+  sstLabel: z.string(),
+  walkInLabel: z.string(),
+
+  // Distribution section
+  distributionTitle: z.string(),
+  distributionDate: z.string(),
+  distributionSentTo: z.string(),
+
+  // Integrity section
+  integrityTitle: z.string(),
+  integrityText: z.string(),
+  integrityHashLabel: z.string(),
+  integrityVerifyLabel: z.string(),
+  integrityGeneratedLabel: z.string(),
+
+  // Footer
+  poweredBy: z.string(),
+  page: z.string(),
+
+  // Misc
+  notDistributed: z.string(),
+  oshaCitationsIncluded: z.boolean(),
+  verifyBaseUrl: z.string(),
 });
 export type PtpPdfLabels = z.infer<typeof PtpPdfLabels>;
 
