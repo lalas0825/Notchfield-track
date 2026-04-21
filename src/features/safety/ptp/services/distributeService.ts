@@ -226,6 +226,11 @@ export async function flushDistributionQueue(): Promise<{
   let failed = 0;
   const remaining: DistributionQueueItem[] = [];
 
+  // Cap attempts for network-error items too — a doc that's failed 20
+  // times is almost certainly never coming back. Prevents infinite retry
+  // on genuinely broken state.
+  const MAX_ATTEMPTS = 20;
+
   for (const item of queue) {
     const result = await callDistribute(item.doc_id, item.labels, item.recipients);
     if (result.success) {
@@ -239,14 +244,34 @@ export async function flushDistributionQueue(): Promise<{
         },
       });
       await setPtpStatus(item.doc_id, 'active');
-    } else {
-      failed++;
-      remaining.push({
-        ...item,
-        attempts: item.attempts + 1,
-        last_error: result.error ?? null,
-      });
+      continue;
     }
+
+    failed++;
+
+    // Drop the item from the retry queue when:
+    //   (a) the server actively rejected (4xx/5xx) — the zombie case,
+    //       where the doc doesn't exist in Supabase and never will. Retry
+    //       is hopeless and clogs the log on every flush tick.
+    //   (b) we've exhausted MAX_ATTEMPTS even for network errors.
+    // Mirror distributePtp's own guard (commit d637eb4) to finally purge
+    // pre-guard zombies that were queued before that rule landed.
+    const isNetworkError = result.wasNetworkError === true;
+    const exhausted = item.attempts + 1 >= MAX_ATTEMPTS;
+    if (!isNetworkError || exhausted) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[flushDistributionQueue] dropping doc=${item.doc_id} — ${result.error}` +
+          (exhausted ? ` (after ${item.attempts + 1} attempts)` : ''),
+      );
+      continue;
+    }
+
+    remaining.push({
+      ...item,
+      attempts: item.attempts + 1,
+      last_error: result.error ?? null,
+    });
   }
 
   await saveQueue(remaining);
