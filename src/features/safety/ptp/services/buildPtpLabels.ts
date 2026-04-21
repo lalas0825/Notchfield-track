@@ -39,6 +39,9 @@ export function buildPtpLabels(args: BuildArgs): PtpPdfLabels {
     foreman: 'Foreman',
     trade: 'Trade',
     gc: 'GC',
+    // Toolbox row labels — PTP renderer ignores, toolbox renderer reads.
+    category: 'Category',
+    source: 'Source',
 
     // Enum maps — renderer indexes by content.shift
     shiftValues: {

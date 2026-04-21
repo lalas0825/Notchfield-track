@@ -183,6 +183,12 @@ export const PtpPdfLabels = z.object({
   foreman: z.string(),                 // "Foreman"
   trade: z.string(),                   // "Trade"
   gc: z.string(),                      // "GC"
+  // Toolbox-specific row labels (PTP renderer ignores these; toolbox
+  // renderer reads topic_snapshot.category / .source / .osha_ref into
+  // these slots). Required because the Web renderer reads them and
+  // crashes/silently-blanks when absent.
+  category: z.string(),                // "Category"
+  source: z.string(),                  // "Source"
 
   // Enum maps — REQUIRED to be objects, not strings
   shiftValues: z.object({
