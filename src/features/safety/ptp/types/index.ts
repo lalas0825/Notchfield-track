@@ -28,7 +28,10 @@ export type Trade = z.infer<typeof Trade>;
 // ─── JHA library item (read-only in Track) ────────────────
 export const JhaHazardItem = z.object({
   name: z.string(),
-  osha_ref: z.string().optional(),
+  // Nullable because some library rows reference cross-task hazards
+  // ("Same as X", "All wall panel hazards") that don't have a specific
+  // OSHA citation of their own — DB stores null, not undefined.
+  osha_ref: z.string().nullable().optional(),
 });
 export type JhaHazardItem = z.infer<typeof JhaHazardItem>;
 

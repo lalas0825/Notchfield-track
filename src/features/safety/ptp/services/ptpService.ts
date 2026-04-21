@@ -151,24 +151,14 @@ export async function getPtpById(docId: string): Promise<SafetyDocument | null> 
     [docId],
   );
   if (local && local.length > 0) {
-    const parsed = parseSafetyDocRow(local[0]);
-    // eslint-disable-next-line no-console
-    console.warn(
-      `[getPtpById] source=local id=${docId} sigs_raw_type=${typeof local[0].signatures} sigs_count=${parsed?.signatures?.length ?? 0}`,
-    );
-    return parsed;
+    return parseSafetyDocRow(local[0]);
   }
   const { data } = await supabase
     .from('safety_documents')
     .select('*')
     .eq('id', docId)
     .maybeSingle();
-  const parsed = data ? parseSafetyDocRow(data as Record<string, unknown>) : null;
-  // eslint-disable-next-line no-console
-  console.warn(
-    `[getPtpById] source=remote id=${docId} sigs_count=${parsed?.signatures?.length ?? 0}`,
-  );
-  return parsed;
+  return data ? parseSafetyDocRow(data as Record<string, unknown>) : null;
 }
 
 /**
@@ -252,14 +242,7 @@ export async function appendSignature(
 
   const existing = Array.isArray(doc.signatures) ? doc.signatures : [];
   const next = [...existing, parsed.data];
-  const result = await localUpdate('safety_documents', docId, { signatures: next });
-
-  // eslint-disable-next-line no-console
-  console.warn(
-    `[appendSignature] doc=${docId} before=${existing.length} after=${next.length} result=${JSON.stringify(result)}`,
-  );
-
-  return result;
+  return localUpdate('safety_documents', docId, { signatures: next });
 }
 
 export async function removeSignature(

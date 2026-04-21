@@ -64,7 +64,7 @@ export function PtpReview({ selectedTasks, onContinue, onBack }: Props) {
               <RemovableRow
                 key={h.name}
                 label={h.name}
-                subLabel={h.osha_ref}
+                subLabel={h.osha_ref ?? undefined}
                 onRemove={() => removeHazardByName(h.name)}
               />
             ))
