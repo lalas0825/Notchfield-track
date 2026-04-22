@@ -62,6 +62,12 @@
 
 All 5 bugs are fixed in code (commit 79b592a). Need EAS dev-client build to verify on device.
 
+### 🔮 Deferred Priorities (post-pilot)
+
+| Priority | Item | Rationale |
+|----------|------|-----------|
+| **P1** | **Switch Plans viewer from `react-native-pdf` → PDF.js in WebView** | Current `react-native-pdf` (PdfiumAndroid / PDFKit) rasterizes each page into a pixel buffer. Pinch-zoom stretches that bitmap until the native layer re-rasterizes at the new scale — users see a "blurry → sharp" transition that the pilot (Jantile, 2026-04-21) flagged as bothersome on detail drawings. Tuning commit `ba0b658` (`fitPolicy=0`, antialias, capped maxScale=5) reduces how often users hit the blurry state but doesn't eliminate the re-render window — that's inherent to bitmap-based PDF viewers. PDF.js renders vector primitives on every scale change → crisp at any zoom level, no progressive render artifacts. Tradeoffs: WebView is heavier in memory, offline PDF caching needs reworking (probably download + serve from local file:// URL), touch gestures may need JS↔native bridging for pin-drop coordinates. Estimated work: 6-8 hours for a working viewer + another 2-3 for pin/hyperlink overlay parity with the current implementation. **Blocked on:** pilot confirming "fix is priority" vs "current is acceptable enough." |
+
 ---
 
 ## 🎯 LATEST SPRINTS DETAILED
