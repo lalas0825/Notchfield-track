@@ -45,10 +45,28 @@ export function PdfViewerNative({
       onLayout={handleLayout}
     >
       <Pdf
-        source={{ uri }}
+        source={{ uri, cache: true }}
         page={page}
         enablePaging
         horizontal
+        // fitPolicy 0 = fit width → the native layer rasterizes the page
+        // at the full viewport width, giving ~2× more pixels horizontally
+        // than the default "fit both" mode. Construction drawings are
+        // detail-dense — horizontal pixels are where detail lives. User
+        // scrolls vertically when needed.
+        fitPolicy={0}
+        // Android-only — smoother edges during the scale-up window while
+        // the native layer re-rasterizes on pinch. Cheap.
+        enableAntialiasing
+        // Cap the pinch-zoom so users don't pull past the resolution the
+        // native layer is willing to re-render at — over-zoom is where
+        // the "blurry forever" complaint comes from. maxScale=5 leaves
+        // plenty of room for detail while keeping re-render in reach.
+        minScale={1}
+        maxScale={5}
+        scale={1}
+        spacing={0}
+        trustAllCerts={false}
         style={{ flex: 1, width: viewport.width || undefined, backgroundColor: '#0F172A' }}
         onLoadComplete={(_numberOfPages, _filePath, dimensions) => {
           if (onPageBounds && dimensions) {
