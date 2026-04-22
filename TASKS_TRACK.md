@@ -1,14 +1,14 @@
 # NotchField Track — TASKS_TRACK.md
-> Track native app task tracker | 105 tasks | Updated: 2026-04-19
-> 4 phases: T1 (DONE) → T2 (DONE + Sprint 42B + 43A + 43B + 45B + PTP + TOOLBOX) → T3 (7/10) → T4 (after Takeoff 10)
+> Track native app task tracker | 105 tasks | Updated: 2026-04-21
+> 4 phases: T1 (DONE) → T2 (DONE + Sprint 42B + 43A + 43B + 45B + PTP + TOOLBOX + 52) → T3 (9/10) → T4 (after Takeoff 10)
 > Same Supabase as Takeoff. Expo + PowerSync. Offline-first.
 > **Supabase project:** msmpsxalfalzinuorwlg (Notchfield Takeoff — shared)
-> **PowerSync:** 69c72137a112d86b20541618.powersync.journeyapps.com (44 tables synced — +toolbox_library / +toolbox_schedule_overrides via Sprint TOOLBOX)
+> **PowerSync:** 69c72137a112d86b20541618.powersync.journeyapps.com (45 tables synced — +drawing_register via Sprint 52)
 > **EAS Project:** 281ade7b-a5d9-4f43-9710-d270ae4c49f4 (@lalas825/notchfield-track)
-> **Repo:** https://github.com/lalas0825/Notchfield-track (55+ commits, Sprint TOOLBOX live)
-> **APK:** Installed on device. Login + Home + Docs (Safety tab) + Plans + More working, PTP + Toolbox flows ready.
-> **Takeoff:** UNBLOCKED — all Track ↔ Takeoff data loops closed.
-> **Synced through:** Takeoff Sprint 37 + Delivery Review + Sprint 42A + Safety A (JHA library / PTP) + Sprint CREW (workers + project_workers) + Sprint 50A/50B (toolbox_library + overrides + scheduler)
+> **Repo:** https://github.com/lalas0825/Notchfield-track (68+ commits, Sprint 52 pilot-ready)
+> **APK:** dev-client installed on device (Sprint 52 tested offline + online). Preview APK build pending for Jantile field test.
+> **Takeoff:** UNBLOCKED — all Track ↔ Takeoff data loops closed. Web PDF renderer still has 17 remaining gaps tracked in TAKEOFF_PDF_ALIGNMENT.md.
+> **Synced through:** Takeoff Sprint 37 + Delivery Review + Sprint 42A + Safety A (JHA library / PTP) + Sprint CREW (workers + project_workers) + Sprint 50A/50B (toolbox_library + overrides + scheduler) + Sprint 52 Web commits (`4a84abf` dual-auth, `3c094a0` jsPDF null guard, `3b0dfd0` shiftValues fallback, `274ef6b` strip+append counts, Zoho SMTP migration `e209404`)
 
 ---
 
@@ -48,6 +48,7 @@
 | PTP-UX | Morning PTP card on Home + Safety tab surfaced + legacy PTP cleanup + detail view auto-shape | ✅ |
 | MANPOWER | Hotfix `profiles.sst_*` drops + migrate crew HR reads to `workers` / `project_workers`; walk-in creates real workers row; cert badges + expiry dialog | ✅ |
 | TOOLBOX | Weekly Toolbox Talks — scheduler engine + 3-step wizard + EN/ES bilingual + photos + Home card. Critical enum hotfix: `doc_type='toolbox'` (not `'toolbox_talk'`) + `status` enum narrowed + `content.distribution` metadata | ✅ |
+| 52 | **Pilot polish + Zoho email verification** (2026-04-21, Jantile). 13 commits: PtpPdfLabels canonical shape aligned with Web renderer (`shiftValues` object map, camelCase, 43 fields); customer letterhead w/ `organizations.logo_url` (new `features/organizations/` module, OrgLetterhead mounted on PTP/Toolbox/Work Ticket detail); `safety-export.ts` full rewrite (new-shape bodies, single font, MM/DD/YYYY, worker_name signer fallback); Plans rewired from `drawings`+`drawing_sets` → `drawing_register` (PM-side, fixes Jantile's 9 invisible sheets); `primary_trades` filter on trade picker (tile+marble only for Jantile); crew/attendance tables removed (signatures are the attendance record); `osha_ref` nullable (2 marble tasks were silent-dropped); SERIAL burn bug fixed (remove forceSync racing PowerSync auto-upload); distribute retry queue drops non-network errors + caps MAX_ATTEMPTS=20; PDF viewer tuning (`fitPolicy=0`, antialias, maxScale=5). Client sign-off "luce increíble" on Track export. Handoff: [TAKEOFF_PDF_ALIGNMENT.md](TAKEOFF_PDF_ALIGNMENT.md) Round 2 gap analysis (17 Web-side items). Deferred P1: PDF.js viewer switch documented. | ✅ |
 | STORE RELEASE | Publish to Apple App Store + Google Play — legal (Privacy Policy, ToS, account deletion), technical (Sentry, asset audit, version bump), store ops (accounts, listings, screenshots, Data Safety form, closed testing). Full spec in SPRINT_TRACK_STORE_RELEASE.md. | ⬜ Planned |
 
 ### 🐛 Known Device Bugs (need dev-client build to debug)
