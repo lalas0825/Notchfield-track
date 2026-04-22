@@ -26,6 +26,7 @@ bucket_definitions:
       - SELECT * FROM production_template_phases WHERE organization_id = bucket.organization_id
       - SELECT * FROM document_signoffs WHERE organization_id = bucket.organization_id
       - SELECT * FROM drawing_revisions WHERE organization_id = bucket.organization_id
+      - SELECT * FROM drawing_register WHERE organization_id = bucket.organization_id
       - SELECT * FROM production_area_objects WHERE organization_id = bucket.organization_id
       - SELECT * FROM production_phase_progress WHERE organization_id = bucket.organization_id
       - SELECT * FROM units WHERE organization_id = bucket.organization_id

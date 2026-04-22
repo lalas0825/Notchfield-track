@@ -259,6 +259,32 @@ const drawing_revisions = new TableV2({
   created_at: column.text,
 });
 
+// PM-side drawings (the table Takeoff's PM → Drawings tab writes to).
+// Distinct from the `drawings` + `drawing_sets` pair above which backs
+// the Estimator's takeoff polygons. Field work reads from here. Columns
+// verified against information_schema on 2026-04-21 — do not add fields
+// without re-checking the DB, per the PowerSync-column-missing rule.
+const drawing_register = new TableV2({
+  project_id: column.text,
+  organization_id: column.text,
+  number: column.text,              // sheet number, e.g. "SB-12"
+  title: column.text,                // sheet title, e.g. "Page 2"
+  discipline: column.text,           // "architectural" / "specialty" / ...
+  status: column.text,               // "draft" | "current" | ...
+  current_revision: column.text,     // e.g. "1"
+  set_name: column.text,             // parent set label
+  file_url: column.text,             // full public URL (bucket: documents)
+  thumbnail_url: column.text,        // 200px preview URL
+  revision_date: column.text,
+  page_number: column.integer,
+  pin_count: column.integer,
+  tags: column.text,                 // jsonb serialized as JSON string
+  rotation: column.integer,
+  created_by: column.text,
+  created_at: column.text,
+  updated_at: column.text,
+});
+
 // Sprint 47B — Hyperlinks between sheets (detected from PDF refs)
 // Columns match real DB (verified via information_schema).
 const drawing_hyperlinks = new TableV2({
@@ -849,6 +875,7 @@ export const AppSchema = new Schema({
   drawing_sets,
   drawings,
   drawing_revisions,
+  drawing_register,
   drawing_hyperlinks,
   drawing_pins,
   takeoff_objects,
