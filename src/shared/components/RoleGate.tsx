@@ -10,8 +10,9 @@ import { ActivityIndicator, Linking, Pressable, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { useTrackPermissions } from '@/shared/lib/permissions/TrackPermissionsContext';
+import { WEB_URL, WEB_HOSTNAME } from '@/shared/config/urls';
 
-const WEB_APP_URL = 'https://notchfield.com';
+const WEB_APP_URL = WEB_URL;
 
 export function RoleGate({ children }: { children: React.ReactNode }) {
   const { profile, signOut } = useAuthStore();
@@ -31,7 +32,7 @@ export function RoleGate({ children }: { children: React.ReactNode }) {
           Track is for the field
         </Text>
         <Text className="mt-3 text-center text-base text-slate-400">
-          Your role ({profile.role}) uses the web app at notchfield.com.
+          Your role ({profile.role}) uses the web app at {WEB_HOSTNAME}.
         </Text>
         <Pressable
           onPress={() => Linking.openURL(WEB_APP_URL)}

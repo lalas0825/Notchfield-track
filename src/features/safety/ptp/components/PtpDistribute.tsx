@@ -20,6 +20,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import type { PtpPdfLabels } from '../types';
 import { distributePtp } from '../services/distributeService';
+import { WEB_HOSTNAME, VERIFY_BASE_URL } from '@/shared/config/urls';
 
 type Props = {
   docId: string;
@@ -108,8 +109,8 @@ export function PtpDistribute({
             <Text className="ml-2 text-sm font-bold text-white">PDF Ready</Text>
           </View>
           <Text className="mt-2 text-xs text-slate-400">
-            Sent via notchfield.com — each PDF is stamped with a SHA-256
-            integrity hash that verifies at notchfield.com/verify/&lt;hash&gt;.
+            Sent via {WEB_HOSTNAME} — each PDF is stamped with a SHA-256
+            integrity hash that verifies at {VERIFY_BASE_URL}/&lt;hash&gt;.
           </Text>
         </View>
 

@@ -16,10 +16,11 @@
  */
 
 import type { PtpPdfLabels } from '../types';
+import { VERIFY_BASE_URL } from '@/shared/config/urls';
 
 type BuildArgs = {
   oshaCitationsIncluded: boolean;
-  /** Defaults to 'notchfield.com/verify' if not provided. */
+  /** Defaults to VERIFY_BASE_URL (notchfield.com/verify) if not provided. */
   verifyBaseUrl?: string;
 };
 
@@ -102,6 +103,6 @@ export function buildPtpLabels(args: BuildArgs): PtpPdfLabels {
     // Misc
     notDistributed: 'Not yet distributed',
     oshaCitationsIncluded: args.oshaCitationsIncluded,
-    verifyBaseUrl: args.verifyBaseUrl ?? 'notchfield.com/verify',
+    verifyBaseUrl: args.verifyBaseUrl ?? VERIFY_BASE_URL,
   };
 }

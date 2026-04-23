@@ -24,6 +24,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import type { PtpPdfLabels } from '@/features/safety/ptp/types';
 import { distributeSafetyDoc } from '@/features/safety/ptp/services/distributeService';
+import { WEB_HOSTNAME, VERIFY_BASE_URL } from '@/shared/config/urls';
 
 type Props = {
   docId: string;
@@ -119,8 +120,8 @@ export function ToolboxDistribute({
             </Text>
           </View>
           <Text className="mt-2 text-xs text-slate-400">
-            PDF generated server-side at notchfield.com. Each copy is stamped
-            with a SHA-256 integrity hash verifiable at notchfield.com/verify.
+            PDF generated server-side at {WEB_HOSTNAME}. Each copy is stamped
+            with a SHA-256 integrity hash verifiable at {VERIFY_BASE_URL}.
           </Text>
         </View>
 

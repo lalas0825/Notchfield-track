@@ -17,9 +17,9 @@ import { forceSync } from '@/shared/lib/powersync/client';
 import { setPtpStatus, patchPtpContent } from './ptpService';
 import type { PtpPdfLabels } from '../types';
 
-const WEB_BASE_URL =
-  (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_WEB_API_URL) ||
-  'https://notchfield.com';
+import { WEB_API_URL } from '@/shared/config/urls';
+
+const WEB_BASE_URL = WEB_API_URL;
 
 const QUEUE_KEY = 'notchfield:ptp:distribute_queue:v1';
 

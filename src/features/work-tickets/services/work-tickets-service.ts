@@ -13,6 +13,7 @@
 import { Platform } from 'react-native';
 import * as Crypto from 'expo-crypto';
 import { supabase } from '@/shared/lib/supabase/client';
+import { SIGN_BASE_URL } from '@/shared/config/urls';
 import type {
   WorkTicket,
   WorkTicketDraft,
@@ -22,8 +23,6 @@ import type {
   LaborEntry,
   MaterialEntry,
 } from '../types';
-
-const SIGN_BASE_URL = 'https://notchfield.com/en/sign';
 
 // ─── Read ─────────────────────────────────────────────────────
 

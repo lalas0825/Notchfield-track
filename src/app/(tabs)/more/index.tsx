@@ -59,7 +59,8 @@ export default function MoreScreen() {
     {
       icon: 'settings',
       label: 'Settings',
-      subtitle: 'Language, notifications, profile',
+      subtitle: 'Profile, preferences, account',
+      route: '/(tabs)/more/settings',
       color: '#94A3B8',
     },
     {
