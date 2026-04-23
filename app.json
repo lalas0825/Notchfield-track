@@ -66,7 +66,14 @@
       "expo-localization",
       "@journeyapps/react-native-quick-sqlite",
       "expo-sharing",
-      "@sentry/react-native"
+      [
+        "@sentry/react-native/expo",
+        {
+          "url": "https://sentry.io/",
+          "organization": "notchfield",
+          "project": "notchfield-track"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
