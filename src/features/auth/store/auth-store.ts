@@ -3,6 +3,7 @@ import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/shared/lib/supabase/client';
 import { initPowerSync, disconnectPowerSync } from '@/shared/lib/powersync/client';
 import { useProjectStore } from '@/features/projects/store/project-store';
+import { setSentryUser, clearSentryUser } from '@/shared/lib/sentry';
 
 type Profile = {
   id: string;
@@ -47,6 +48,7 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
       // Supabase REST which can hang on flaky networks.
       await initPowerSync();
       set({ session, user: session.user });
+      setSentryUser(session.user.id);
       await get().fetchProfile(session.user.id);
       // Project loading is now driven by TrackPermissionsProvider, which
       // also fetches project_assignments to scope the project list (40C).
@@ -57,6 +59,7 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
       if (event === 'SIGNED_IN' && newSession?.user) {
         await initPowerSync();
         set({ session: newSession, user: newSession.user });
+        setSentryUser(newSession.user.id);
         await get().fetchProfile(newSession.user.id);
         return;
       }
@@ -65,6 +68,7 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
 
       if (event === 'SIGNED_OUT') {
         set({ profile: null });
+        clearSentryUser();
         useProjectStore.setState({ projects: [], activeProject: null, isSupervisor: false });
         await disconnectPowerSync();
       }
@@ -110,7 +114,11 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
       .single();
 
     if (!error && data) {
-      set({ profile: data as Profile });
+      const profile = data as Profile;
+      set({ profile });
+      // Tag the Sentry scope with role + organization_id (no PII) so
+      // issues can be filtered by team / org in the dashboard.
+      setSentryUser(userId, profile.role, profile.organization_id);
     }
   },
 }));

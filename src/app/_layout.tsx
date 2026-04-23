@@ -1,6 +1,10 @@
 import '@azure/core-asynciterator-polyfill';
 import '../../global.css';
 import '@/shared/lib/i18n/config';
+// Sentry initialization MUST run before any component renders so startup
+// crashes (PowerSync init, auth restore) are captured too.
+import { initSentry, Sentry } from '@/shared/lib/sentry';
+initSentry();
 
 import { useEffect } from 'react';
 import { ActivityIndicator, Platform, View } from 'react-native';
@@ -62,7 +66,7 @@ function PowerSyncProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function RootLayout() {
+function RootLayout() {
   const initialize = useAuthStore((s) => s.initialize);
 
   useEffect(() => {
@@ -86,3 +90,8 @@ export default function RootLayout() {
     </PowerSyncProvider>
   );
 }
+
+// Sentry.wrap() adds native crash reporting + touch/navigation breadcrumbs.
+// No-op in dev (initSentry short-circuits on __DEV__) but the wrap itself
+// is always applied so the prod path is exercised on every build.
+export default Sentry.wrap(RootLayout);

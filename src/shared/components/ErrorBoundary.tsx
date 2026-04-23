@@ -1,5 +1,6 @@
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
+import { captureException } from '@/shared/lib/sentry';
 
 type Props = {
   children: React.ReactNode;
@@ -13,6 +14,11 @@ type State = {
 /**
  * ErrorBoundary — catches unhandled JS errors in the component tree.
  * Shows a dark-mode fallback with a brand-orange retry button.
+ *
+ * Uncaught errors are reported to Sentry in prod builds (no-op in dev
+ * to avoid HMR noise). The `componentStack` gets attached as extra
+ * context so Sentry's issue view shows the React tree that exploded,
+ * not just the JS call stack.
  */
 export class ErrorBoundary extends React.Component<Props, State> {
   constructor(props: Props) {
@@ -26,6 +32,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   componentDidCatch(error: Error, info: React.ErrorInfo): void {
     console.error('[ErrorBoundary] Uncaught error:', error, info.componentStack);
+    captureException(error, { componentStack: info.componentStack });
   }
 
   handleRetry = () => {

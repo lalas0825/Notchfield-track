@@ -17,7 +17,8 @@
         "EXPO_PUBLIC_WEB_URL": "https://notchfield.com",
         "EXPO_PUBLIC_WEB_API_URL": "https://notchfield.com",
         "EXPO_PUBLIC_SIGN_BASE_URL": "https://notchfield.com/en/sign",
-        "EXPO_PUBLIC_VERIFY_BASE_URL": "notchfield.com/verify"
+        "EXPO_PUBLIC_VERIFY_BASE_URL": "notchfield.com/verify",
+        "EXPO_PUBLIC_SENTRY_DSN": "https://c195c898723be190cc02761f9a4a193b@o4511271841693696.ingest.us.sentry.io/4511271843921921"
       }
     },
     "preview": {
@@ -35,7 +36,8 @@
         "EXPO_PUBLIC_WEB_URL": "https://notchfield.com",
         "EXPO_PUBLIC_WEB_API_URL": "https://notchfield.com",
         "EXPO_PUBLIC_SIGN_BASE_URL": "https://notchfield.com/en/sign",
-        "EXPO_PUBLIC_VERIFY_BASE_URL": "notchfield.com/verify"
+        "EXPO_PUBLIC_VERIFY_BASE_URL": "notchfield.com/verify",
+        "EXPO_PUBLIC_SENTRY_DSN": "https://c195c898723be190cc02761f9a4a193b@o4511271841693696.ingest.us.sentry.io/4511271843921921"
       }
     },
     "production": {
@@ -53,7 +55,8 @@
         "EXPO_PUBLIC_WEB_URL": "https://notchfield.com",
         "EXPO_PUBLIC_WEB_API_URL": "https://notchfield.com",
         "EXPO_PUBLIC_SIGN_BASE_URL": "https://notchfield.com/en/sign",
-        "EXPO_PUBLIC_VERIFY_BASE_URL": "notchfield.com/verify"
+        "EXPO_PUBLIC_VERIFY_BASE_URL": "notchfield.com/verify",
+        "EXPO_PUBLIC_SENTRY_DSN": "https://c195c898723be190cc02761f9a4a193b@o4511271841693696.ingest.us.sentry.io/4511271843921921"
       }
     }
   },
