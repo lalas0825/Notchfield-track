@@ -12,12 +12,19 @@
 -- Create each of these with any strong password. Check
 -- "Auto confirm user" so reviewers can log in without email verification.
 --
---   apple-reviewer@notchfield.com
---   google-reviewer@notchfield.com
+--   reviewer@notchfield.com       → Apple Reviewer
+--   reviewer1@notchfield.com      → Google Reviewer
 --
 -- Save both passwords somewhere you can paste into the submission forms
 -- (Apple App Store Connect "Sign-in information", Google Play Console
 -- "Launch checklist → Content → App access").
+--
+-- NOTE: user creation will fail with "Database error creating new user"
+-- if the auth → organizations → permissions trigger chain is broken. The
+-- `fix-auth-trigger-search-path.sql` script in this folder restores the
+-- SECURITY DEFINER + search_path on auto_seed_permissions() that makes
+-- seed_default_permissions() visible during the auth admin transaction.
+-- Run it once before this seed if you see that error.
 --
 -- -------------------------------------------------------------------------
 -- Run this (Supabase SQL Editor → paste → Run)
@@ -33,14 +40,14 @@ DECLARE
   r_display_name   text;
   r_id             uuid;
   r_emails         text[] := ARRAY[
-    'apple-reviewer@notchfield.com',
-    'google-reviewer@notchfield.com'
+    'reviewer@notchfield.com',
+    'reviewer1@notchfield.com'
   ];
 BEGIN
   FOREACH r_email IN ARRAY r_emails LOOP
     r_display_name := CASE
-      WHEN r_email LIKE 'apple-%'  THEN 'Apple Reviewer'
-      WHEN r_email LIKE 'google-%' THEN 'Google Reviewer'
+      WHEN r_email = 'reviewer@notchfield.com'  THEN 'Apple Reviewer'
+      WHEN r_email = 'reviewer1@notchfield.com' THEN 'Google Reviewer'
       ELSE 'Store Reviewer'
     END;
 
@@ -117,7 +124,7 @@ JOIN organizations o       ON o.id = p.organization_id
 LEFT JOIN project_assignments pa ON pa.user_id = u.id
 LEFT JOIN projects proj    ON proj.id = pa.project_id
 WHERE u.email IN (
-  'apple-reviewer@notchfield.com',
-  'google-reviewer@notchfield.com'
+  'reviewer@notchfield.com',
+  'reviewer1@notchfield.com'
 )
 ORDER BY u.email;
