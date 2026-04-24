@@ -20,44 +20,51 @@ export function SyncStatusBar() {
     if (Platform.OS === 'web') return;
 
     let unsubscribe: (() => void) | undefined;
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { powerSync } = require('@/shared/lib/powersync/client');
       if (!powerSync) return;
 
-      // PowerSync exposes a status stream
-      const checkStatus = () => {
+      const computeState = (): SyncState => {
         const status = powerSync.currentStatus;
-        if (!status) {
-          setSyncState('disconnected');
-          return;
-        }
+        if (!status) return 'disconnected';
+        if (!status.connected) return 'disconnected';
+        const active = status.dataFlowStatus?.uploading || status.dataFlowStatus?.downloading;
+        return active ? 'connecting' : 'connected';
+      };
 
-        if (status.connected) {
-          setSyncState(status.dataFlowStatus?.uploading || status.dataFlowStatus?.downloading
-            ? 'connecting'
-            : 'connected');
+      // Debounce transitions INTO 'connecting' / 'disconnected' so brief sync
+      // bursts (<600ms) don't flash the bar. Transitions to 'connected' apply
+      // immediately so the bar hides as soon as sync finishes.
+      const applyState = () => {
+        const next = computeState();
+        if (debounceTimer) {
+          clearTimeout(debounceTimer);
+          debounceTimer = null;
+        }
+        if (next === 'connected') {
+          setSyncState(next);
         } else {
-          setSyncState('disconnected');
+          debounceTimer = setTimeout(() => {
+            setSyncState(next);
+            debounceTimer = null;
+          }, 600);
         }
       };
 
-      // Check immediately
-      checkStatus();
+      applyState();
 
-      // Subscribe to changes
       const subscription = powerSync.statusUpdates?.subscribe?.({
-        next: () => checkStatus(),
+        next: () => applyState(),
       });
 
       unsubscribe = () => subscription?.unsubscribe?.();
 
-      // Also poll every 5s as fallback
-      const interval = setInterval(checkStatus, 5000);
       return () => {
         unsubscribe?.();
-        clearInterval(interval);
+        if (debounceTimer) clearTimeout(debounceTimer);
       };
     } catch {
       // PowerSync not initialized yet

@@ -97,7 +97,6 @@ export function WeeklyToolboxCard() {
       style={{
         borderColor: '#22C55E',
         backgroundColor: '#22C55E10',
-        opacity: loading ? 0.6 : 1,
       }}
     >
       <View className="flex-row items-center">

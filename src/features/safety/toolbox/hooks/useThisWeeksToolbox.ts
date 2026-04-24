@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import {
   getToolboxLibrary,
@@ -38,7 +38,10 @@ export function useThisWeeksToolbox(
     status: string;
     content: Record<string, unknown>;
   } | null>(null);
-  const [loading, setLoading] = useState(false);
+  // Start true so the card stays hidden until the first load resolves.
+  // Subsequent focus refetches DON'T re-enter loading, so the card holds its
+  // last-known state while re-fetching silently (prevents opacity flash).
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // Collapse the array into a stable string key so callers can pass `[]`
@@ -47,8 +50,10 @@ export function useThisWeeksToolbox(
   const tradesKey = primaryTrades.join('|');
 
   const load = useCallback(async () => {
-    if (!orgId || !projectId) return;
-    setLoading(true);
+    if (!orgId || !projectId) {
+      setLoading(false);
+      return;
+    }
     setError(null);
     try {
       const now = new Date();
@@ -85,10 +90,8 @@ export function useThisWeeksToolbox(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgId, projectId, tradesKey]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
-
+  // useFocusEffect fires on initial mount AND every refocus — one effect is
+  // enough. The prior duplicate useEffect was double-loading on mount.
   useFocusEffect(
     useCallback(() => {
       load();

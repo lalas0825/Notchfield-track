@@ -22,7 +22,10 @@ export function useWorkTickets(projectId: string | null) {
       setLoading(false);
       return;
     }
-    setLoading(true);
+    // Don't toggle loading=true here — initial mount already starts true via
+    // useState(true). Realtime events + focus refetches silently refresh the
+    // tickets array; the list screen keeps showing last data while refetching
+    // (no "blank → reload → populated" flash on every postgres_change).
     try {
       const data = await listWorkTickets(projectId);
       setTickets(data);
