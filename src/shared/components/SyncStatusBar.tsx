@@ -1,30 +1,45 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 
-type SyncState = 'connected' | 'connecting' | 'disconnected';
+type SyncState = 'connected' | 'syncing' | 'reconnecting' | 'offline';
 
 /**
  * Subtle bar at the top of the app showing sync status.
- * - Connected: hidden (no distraction)
- * - Connecting/syncing: amber bar
- * - Disconnected: muted bar — copy says "Reconnecting…" instead of "Offline"
- *   because the most common cause of this state is "device has WiFi but
- *   PowerSync's WebSocket needs to re-establish" rather than "no network
- *   at all". The AppState foreground listener in _layout.tsx already
- *   nudges a reconnect; this bar also offers a tap-to-retry as a manual
- *   override (in case the user is mid-screen and doesn't want to wait).
+ *
+ *   connected (hidden)         everything OK, nothing to show
+ *   syncing (amber)            connected AND uploading/downloading data
+ *   reconnecting (slate)       briefly disconnected — still in retry window
+ *                              (first 5s of disconnect)
+ *   offline (slate, "Offline") sustained disconnect (>5s) — likely no network
+ *
+ * The reconnecting → offline transition is time-based: PowerSync's
+ * `connecting` flag oscillates during retry backoff and isn't a reliable
+ * "actually offline vs briefly dropped" signal on its own. A 5s threshold
+ * gives transient drops (network handover, brief WiFi outage) the
+ * "Reconnecting…" label without flicker, while sustained outages get the
+ * honest "Offline" label users expect.
+ *
+ * Tap-to-retry (visible in both reconnecting + offline states) forces a
+ * session refresh + PowerSync reconnect — useful for users who don't
+ * want to wait for the next AppState foreground tick.
  */
 export function SyncStatusBar() {
   const [syncState, setSyncState] = useState<SyncState>('connected');
   const [retrying, setRetrying] = useState(false);
+
+  // Tracks when we transitioned INTO a disconnected state. Used to flip
+  // 'reconnecting' → 'offline' after a sustained outage threshold.
+  const disconnectedSinceRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (Platform.OS === 'web') return;
 
     let unsubscribe: (() => void) | undefined;
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    let offlineTimer: ReturnType<typeof setTimeout> | null = null;
+    const OFFLINE_THRESHOLD_MS = 5000;
 
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -33,22 +48,25 @@ export function SyncStatusBar() {
 
       const computeState = (): SyncState => {
         const status = powerSync.currentStatus;
-        if (!status) return 'disconnected';
-        if (!status.connected) return 'disconnected';
-        // Bug fix 2026-04-25: PowerSync's API uses `dataFlow` (not
-        // `dataFlowStatus`). Diagnostic screen confirmed currentStatus
-        // looked like { connected: true, dataFlow: { uploading, downloading } }
-        // so the old `status.dataFlowStatus?.uploading` always evaluated
-        // to undefined → `active` was always falsy → would always return
-        // 'connected'. But the BIGGER bug was that we never received status
-        // updates at all (see below), so syncState got stuck at the initial
-        // 'connecting' fallback set during the first applyState() call.
+        if (!status || !status.connected) {
+          // Disconnected: figure out if it's a brief drop (reconnecting)
+          // or a sustained outage (offline) via timing.
+          const now = Date.now();
+          const since = disconnectedSinceRef.current ?? now;
+          if (disconnectedSinceRef.current === null) {
+            disconnectedSinceRef.current = now;
+          }
+          const elapsedMs = now - since;
+          return elapsedMs >= OFFLINE_THRESHOLD_MS ? 'offline' : 'reconnecting';
+        }
+        // Connected — clear the disconnect timestamp
+        disconnectedSinceRef.current = null;
         const active = status.dataFlow?.uploading || status.dataFlow?.downloading;
-        return active ? 'connecting' : 'connected';
+        return active ? 'syncing' : 'connected';
       };
 
-      // Debounce transitions INTO 'connecting' / 'disconnected' so brief sync
-      // bursts (<600ms) don't flash the bar. Transitions to 'connected' apply
+      // Debounce transitions away from 'connected' so brief sync bursts
+      // (<600ms) don't flash the bar. Transitions to 'connected' apply
       // immediately so the bar hides as soon as sync finishes.
       const applyState = () => {
         const next = computeState();
@@ -64,15 +82,29 @@ export function SyncStatusBar() {
             debounceTimer = null;
           }, 600);
         }
+
+        // Schedule a re-evaluation at the offline threshold so the
+        // "reconnecting → offline" transition fires even if PowerSync
+        // doesn't emit a status update during the 5s window (it usually
+        // doesn't if it's still backing off internally).
+        if (offlineTimer) {
+          clearTimeout(offlineTimer);
+          offlineTimer = null;
+        }
+        if (next === 'reconnecting') {
+          const since = disconnectedSinceRef.current ?? Date.now();
+          const remaining = Math.max(0, OFFLINE_THRESHOLD_MS - (Date.now() - since));
+          offlineTimer = setTimeout(() => {
+            applyState();
+          }, remaining + 100);
+        }
       };
 
       applyState();
 
-      // Bug fix 2026-04-25: the subscription to statusUpdates.subscribe()
-      // doesn't exist on the PowerSync DB instance — that was wrong API.
-      // Correct one (per @powersync/common types): registerListener accepts
-      // a partial PowerSyncDBListener, with `statusChanged` for status diffs.
-      // It returns an unsubscribe function () => void directly.
+      // Per @powersync/common, AbstractPowerSyncDatabase extends
+      // BaseObserver<PowerSyncDBListener>. registerListener returns the
+      // unsubscribe function directly.
       unsubscribe = powerSync.registerListener?.({
         statusChanged: () => applyState(),
       });
@@ -80,6 +112,7 @@ export function SyncStatusBar() {
       return () => {
         unsubscribe?.();
         if (debounceTimer) clearTimeout(debounceTimer);
+        if (offlineTimer) clearTimeout(offlineTimer);
       };
     } catch {
       // PowerSync not initialized yet
@@ -93,19 +126,27 @@ export function SyncStatusBar() {
   if (syncState === 'connected') return null;
 
   const config =
-    syncState === 'connecting'
+    syncState === 'syncing'
       ? { bg: 'bg-amber-600/90', icon: 'sync-outline' as const, text: t('sync.syncing'), color: '#FBBF24' }
-      : {
-          bg: 'bg-slate-700/90',
-          icon: 'cloud-offline-outline' as const,
-          // Copy says "Reconnecting" not "Offline" — see component header for rationale.
-          text: retrying ? t('sync.syncing') : t('sync.reconnecting'),
-          color: '#94A3B8',
-        };
+      : syncState === 'reconnecting'
+        ? {
+            bg: 'bg-slate-700/90',
+            icon: 'cloud-offline-outline' as const,
+            text: retrying ? t('sync.syncing') : t('sync.reconnecting'),
+            color: '#94A3B8',
+          }
+        : {
+            // offline (sustained disconnect)
+            bg: 'bg-slate-700/90',
+            icon: 'cloud-offline-outline' as const,
+            text: retrying ? t('sync.syncing') : t('sync.offline'),
+            color: '#94A3B8',
+          };
 
-  // Tap-to-retry: only when actually disconnected (connecting state already shows progress)
+  const isDisconnectedState = syncState === 'reconnecting' || syncState === 'offline';
+
   const handleRetry = async () => {
-    if (syncState !== 'disconnected' || retrying) return;
+    if (!isDisconnectedState || retrying) return;
     setRetrying(true);
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -115,8 +156,6 @@ export function SyncStatusBar() {
       await supabase.auth.refreshSession().catch(() => undefined);
       await reconnectPowerSync();
     } finally {
-      // After a brief flash of "Syncing…" wording, the status subscription
-      // takes over and reflects the real outcome.
       setTimeout(() => setRetrying(false), 1200);
     }
   };
@@ -132,7 +171,7 @@ export function SyncStatusBar() {
       <Text className="ml-2 text-xs font-medium" style={{ color: config.color }}>
         {config.text}
       </Text>
-      {syncState === 'disconnected' && !retrying && (
+      {isDisconnectedState && !retrying && (
         <Text className="ml-2 text-xs" style={{ color: config.color, opacity: 0.7 }}>
           · tap to retry
         </Text>
