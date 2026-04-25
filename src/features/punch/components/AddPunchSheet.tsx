@@ -58,11 +58,16 @@ type Props = {
   onCreated: () => void;
   organizationId: string;
   projectId: string;
-  drawingId: string;
   createdBy: string;
-  /** PDF-point coordinates from the FAB drop or page-center */
-  planX: number;
-  planY: number;
+  /**
+   * Plan-anchored creation context. Optional since Sprint 53A.1: the
+   * Punch list screen FAB also opens this sheet WITHOUT a drawing/coords
+   * (free-form punch creation). The service treats null plan coords as
+   * "not pinned to a plan".
+   */
+  drawingId?: string | null;
+  planX?: number | null;
+  planY?: number | null;
 };
 
 export function AddPunchSheet({
@@ -71,10 +76,10 @@ export function AddPunchSheet({
   onCreated,
   organizationId,
   projectId,
-  drawingId,
+  drawingId = null,
   createdBy,
-  planX,
-  planY,
+  planX = null,
+  planY = null,
 }: Props) {
   const { profiles: assignees } = useAssignableProfiles(organizationId);
 
@@ -199,9 +204,12 @@ export function AddPunchSheet({
         photos: uploadedUrls,
         assignedTo: assignedTo ?? undefined,
         createdBy,
-        planX,
-        planY,
-        drawingId,
+        // Sprint 53A.1 — coords/drawing are optional now (free-form
+        // create from Punch list FAB). Coerce null → undefined for the
+        // service signature.
+        planX: planX ?? undefined,
+        planY: planY ?? undefined,
+        drawingId: drawingId ?? undefined,
       });
 
       if (!result.success) {

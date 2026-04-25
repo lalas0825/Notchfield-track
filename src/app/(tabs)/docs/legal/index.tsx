@@ -57,6 +57,18 @@ export default function LegalListScreen() {
           </View>
         ) : (
           <ScrollView className="flex-1 px-4 pt-4">
+            {/* How-it-works info card — clarifies the semi-auto flow.
+                v1: NODs are detected automatically when an area stays
+                blocked >24h, but the supervisor must tap to generate a
+                draft (full control + audit trail). Manual creation of
+                NODs not tied to a blocked area is not in v1. */}
+            <View className="mb-4 flex-row items-start rounded-xl border border-sky-700/40 bg-sky-500/10 p-3">
+              <Ionicons name="information-circle" size={18} color="#0EA5E9" style={{ marginTop: 1 }} />
+              <Text className="ml-2 flex-1 text-xs text-slate-300" style={{ lineHeight: 18 }}>
+                NODs auto-detect when an area is blocked &gt;24h. Tap an alert below to generate the draft, then sign &amp; send to the GC. Manual NOD creation (not tied to a block) is on the post-pilot roadmap.
+              </Text>
+            </View>
+
             {/* Pending NODs — areas blocked >24h without a NOD */}
             {pendingNods.length > 0 && (
               <View className="mb-4">
@@ -87,7 +99,7 @@ export default function LegalListScreen() {
               <View className="items-center py-16">
                 <Ionicons name="shield-outline" size={48} color="#334155" />
                 <Text className="mt-4 text-center text-base text-slate-400">
-                  No legal documents.{'\n'}NODs are auto-generated when areas are blocked &gt;24h.
+                  No legal documents yet.{'\n'}When an area stays blocked &gt;24h,{'\n'}an alert appears here to generate a NOD.
                 </Text>
               </View>
             ) : (

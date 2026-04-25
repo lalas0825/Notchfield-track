@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { useTrackPermissions } from '@/shared/lib/permissions/TrackPermissionsContext';
-import type { TrackFeature } from '@/shared/lib/permissions/trackPermissions';
+import { normalizeTrackRole, type TrackFeature } from '@/shared/lib/permissions/trackPermissions';
 import { FeedbackModal } from '@/shared/components/FeedbackModal';
 
 type MenuItem = {
@@ -15,6 +15,7 @@ type MenuItem = {
   onPress?: () => void;
   color?: string;
   feature?: TrackFeature; // gate this entry behind a feature permission
+  supervisorOnly?: boolean; // gate this entry to canonical 'supervisor' role
 };
 
 export default function MoreScreen() {
@@ -47,6 +48,26 @@ export default function MoreScreen() {
       route: '/(tabs)/more/crew',
       color: '#3B82F6',
       feature: 'assign_crews',
+    },
+    // Sprint 53A.1 — Internal Punch List moved out of Safety screen
+    // sub-tabs into its own More entry per pilot feedback 2026-04-25.
+    // Distinct from the Procore-synced "GC Punchlist" entry above.
+    {
+      icon: 'flag',
+      label: 'Punch List',
+      subtitle: 'Internal QC items — supervisor → foreman',
+      route: '/(tabs)/docs/punch',
+      color: '#A855F7',
+    },
+    // Sprint 53A.1 — Legal Documents moved out of Safety screen sub-tabs.
+    // Supervisor-only (NOD/REA workflow) — uses normalizeTrackRole gating.
+    {
+      icon: 'document-lock',
+      label: 'Legal Documents',
+      subtitle: 'NODs auto-detected from blocked areas',
+      route: '/(tabs)/docs/legal',
+      color: '#EF4444',
+      supervisorOnly: true,
     },
     // Sprint 53A.1 — Project Notes moved to its own bottom tab (between
     // Delivery and More) per pilot feedback 2026-04-25. Removed from More
@@ -87,7 +108,12 @@ export default function MoreScreen() {
     },
   ];
 
-  const items = allItems.filter((item) => !item.feature || canUseFeature(item.feature));
+  const isSupervisor = normalizeTrackRole(profile?.role) === 'supervisor';
+  const items = allItems.filter((item) => {
+    if (item.feature && !canUseFeature(item.feature)) return false;
+    if (item.supervisorOnly && !isSupervisor) return false;
+    return true;
+  });
 
   return (
     <>
