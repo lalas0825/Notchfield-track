@@ -35,7 +35,15 @@ export function SyncStatusBar() {
         const status = powerSync.currentStatus;
         if (!status) return 'disconnected';
         if (!status.connected) return 'disconnected';
-        const active = status.dataFlowStatus?.uploading || status.dataFlowStatus?.downloading;
+        // Bug fix 2026-04-25: PowerSync's API uses `dataFlow` (not
+        // `dataFlowStatus`). Diagnostic screen confirmed currentStatus
+        // looked like { connected: true, dataFlow: { uploading, downloading } }
+        // so the old `status.dataFlowStatus?.uploading` always evaluated
+        // to undefined → `active` was always falsy → would always return
+        // 'connected'. But the BIGGER bug was that we never received status
+        // updates at all (see below), so syncState got stuck at the initial
+        // 'connecting' fallback set during the first applyState() call.
+        const active = status.dataFlow?.uploading || status.dataFlow?.downloading;
         return active ? 'connecting' : 'connected';
       };
 
@@ -60,11 +68,14 @@ export function SyncStatusBar() {
 
       applyState();
 
-      const subscription = powerSync.statusUpdates?.subscribe?.({
-        next: () => applyState(),
+      // Bug fix 2026-04-25: the subscription to statusUpdates.subscribe()
+      // doesn't exist on the PowerSync DB instance — that was wrong API.
+      // Correct one (per @powersync/common types): registerListener accepts
+      // a partial PowerSyncDBListener, with `statusChanged` for status diffs.
+      // It returns an unsubscribe function () => void directly.
+      unsubscribe = powerSync.registerListener?.({
+        statusChanged: () => applyState(),
       });
-
-      unsubscribe = () => subscription?.unsubscribe?.();
 
       return () => {
         unsubscribe?.();
