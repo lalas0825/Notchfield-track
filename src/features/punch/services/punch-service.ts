@@ -187,6 +187,56 @@ export async function rejectPunchItem(
 }
 
 /**
+ * Sprint 53B — upload a local photo URI to Supabase Storage and return
+ * the public URL. Pattern mirrors MessageComposer.uploadPhotos (Sprint 53A).
+ *
+ * Path: field-photos/punch/{org_id}/{punch_id}/{idx}_{ts}.{ext}
+ *
+ * Why direct upload (not photo-queue): photo-queue creates a field_photos row
+ * which is overkill for punch (we just want a URL in the JSONB array). Direct
+ * upload keeps the data flat and matches how Sprint 47B drawing_pins handles
+ * their pin photos.
+ *
+ * Throws on any storage error so the caller can decide whether to abort the
+ * create or fall back to text-only.
+ */
+export async function uploadPunchPhoto(params: {
+  localUri: string;
+  organizationId: string;
+  punchItemId: string;
+  index: number;
+  /** 'photos' for the original defect, 'resolution' for after-fix evidence */
+  kind?: 'photos' | 'resolution';
+}): Promise<string> {
+  // Lazy imports to keep service tree-shakeable on web
+  const FileSystem = await import('expo-file-system/legacy');
+
+  const { localUri, organizationId, punchItemId, index, kind = 'photos' } = params;
+  const ext = (localUri.split('.').pop() ?? 'jpg').toLowerCase();
+  const ts = Date.now();
+  const path = `punch/${organizationId}/${punchItemId}/${kind}-${index}-${ts}.${ext}`;
+
+  const base64 = await FileSystem.readAsStringAsync(localUri, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+  const byteCharacters = atob(base64);
+  const bytes = new Uint8Array(byteCharacters.length);
+  for (let i = 0; i < byteCharacters.length; i++) {
+    bytes[i] = byteCharacters.charCodeAt(i);
+  }
+
+  const contentType = ext === 'png' ? 'image/png' : 'image/jpeg';
+  const { error } = await supabase.storage
+    .from('field-photos')
+    .upload(path, bytes, { contentType, upsert: false });
+
+  if (error) throw new Error(error.message);
+
+  const { data } = supabase.storage.from('field-photos').getPublicUrl(path);
+  return data.publicUrl;
+}
+
+/**
  * Get punch item counts by status for a project.
  */
 export function getPunchCounts(items: PunchItem[]) {

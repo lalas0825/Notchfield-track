@@ -26,6 +26,10 @@ import { useHyperlinks, type DrawingHyperlink } from '@/features/plans/hooks/use
 import { usePins } from '@/features/plans/hooks/usePins';
 import { useSheetSiblings, type SheetSibling } from '@/features/plans/hooks/useSheetSiblings';
 import type { DrawingPin } from '@/features/plans/services/pin-service';
+// Sprint 53B — punch list plan pinning
+import { PunchPinOverlay } from '@/features/punch/components/PunchPinOverlay';
+import { AddPunchSheet } from '@/features/punch/components/AddPunchSheet';
+import { useDrawingPunchItems } from '@/features/punch/hooks/useDrawingPunchItems';
 import { haptic } from '@/shared/lib/haptics';
 
 type ViewerTarget = {
@@ -74,13 +78,20 @@ export default function PlanViewerScreen() {
   const { links } = useHyperlinks(current.id);
   const { pins, reload: reloadPins } = usePins(current.id);
   const { siblings } = useSheetSiblings(current.id);
+  // Sprint 53B — punch items pinned to this drawing
+  const { items: punchItems, reload: reloadPunch } = useDrawingPunchItems(current.id);
 
-  // UI state
+  // UI state — pins (Sprint 47B)
   const [selectedPin, setSelectedPin] = useState<DrawingPin | null>(null);
   const [showAddPin, setShowAddPin] = useState(false);
 
-  // Drop-pin mode: long-press the FAB to arm → tap the PDF to place
+  // UI state — punch items (Sprint 53B)
+  const [showAddPunch, setShowAddPunch] = useState(false);
+  const [pendingPunchCoords, setPendingPunchCoords] = useState<{ x: number; y: number } | null>(null);
+
+  // Drop modes — separate for pin vs punch, mutually exclusive
   const [dropPinMode, setDropPinMode] = useState(false);
+  const [dropPunchMode, setDropPunchMode] = useState(false);
   const [pendingPinCoords, setPendingPinCoords] = useState<{ x: number; y: number } | null>(null);
 
   // Load PDF whenever current sheet changes
@@ -289,8 +300,58 @@ export default function PlanViewerScreen() {
     [pageBounds, viewport],
   );
 
+  // Sprint 53B — Punch drop handlers (same math as pins, separate state)
+  const addPunchAtCenter = useCallback(() => {
+    if (!canOpenAddPin()) return;
+    setPendingPunchCoords({
+      x: pageBounds.pageWidth / 2,
+      y: pageBounds.pageHeight / 2,
+    });
+    setShowAddPunch(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canAddPins, profile, activeProject, user, pageBounds]);
+
+  const armDropPunchMode = useCallback(() => {
+    if (!canOpenAddPin()) return;
+    setDropPunchMode(true);
+    setDropPinMode(false); // mutually exclusive
+    haptic.light();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canAddPins, profile, activeProject, user, pageBounds]);
+
+  const handlePunchDropTap = useCallback(
+    (screenX: number, screenY: number) => {
+      if (pageBounds.pageWidth <= 0 || pageBounds.pageHeight <= 0) return;
+      const scaleFit = Math.min(
+        viewport.width / pageBounds.pageWidth,
+        viewport.height / pageBounds.pageHeight,
+      );
+      const renderedW = pageBounds.pageWidth * scaleFit;
+      const renderedH = pageBounds.pageHeight * scaleFit;
+      const offsetX = (viewport.width - renderedW) / 2;
+      const offsetY = (viewport.height - renderedH) / 2;
+      if (
+        screenX < offsetX ||
+        screenX > offsetX + renderedW ||
+        screenY < offsetY ||
+        screenY > offsetY + renderedH
+      ) {
+        return;
+      }
+      const pdfX = (screenX - offsetX) / scaleFit;
+      const pdfY = (screenY - offsetY) / scaleFit;
+
+      setPendingPunchCoords({ x: pdfX, y: pdfY });
+      setDropPunchMode(false);
+      setShowAddPunch(true);
+      haptic.success();
+    },
+    [pageBounds, viewport],
+  );
+
   const overlay = useMemo(() => {
     if (!pdfUri || viewport.width === 0) return null;
+    const dropMode = dropPinMode || dropPunchMode;
     return (
       <>
         <HyperlinkOverlay
@@ -299,7 +360,7 @@ export default function PlanViewerScreen() {
           pageHeight={pageBounds.pageHeight}
           viewportWidth={viewport.width}
           viewportHeight={viewport.height}
-          visible={overlaysVisible && !dropPinMode}
+          visible={overlaysVisible && !dropMode}
           onLinkPress={navigateToSheet}
         />
         <PinOverlay
@@ -308,12 +369,21 @@ export default function PlanViewerScreen() {
           pageHeight={pageBounds.pageHeight}
           viewportWidth={viewport.width}
           viewportHeight={viewport.height}
-          visible={overlaysVisible && !dropPinMode}
+          visible={overlaysVisible && !dropMode}
           onPinPress={setSelectedPin}
         />
+        {/* Sprint 53B — Punch items overlay */}
+        <PunchPinOverlay
+          items={punchItems}
+          pageWidth={pageBounds.pageWidth}
+          pageHeight={pageBounds.pageHeight}
+          viewportWidth={viewport.width}
+          viewportHeight={viewport.height}
+          visible={overlaysVisible && !dropMode}
+          onItemPress={(item) => router.push(`/(tabs)/docs/punch/${item.id}` as any)}
+        />
 
-        {/* Drop-pin tap catcher: full-viewport transparent Pressable that
-            captures the next tap and places a pin there. */}
+        {/* Drop mode tap catcher — pin variant (orange) */}
         {dropPinMode && (
           <Pressable
             onPress={(e) => {
@@ -342,11 +412,41 @@ export default function PlanViewerScreen() {
             </View>
           </Pressable>
         )}
+
+        {/* Drop mode tap catcher — punch variant (purple) */}
+        {dropPunchMode && (
+          <Pressable
+            onPress={(e) => {
+              const { locationX, locationY } = e.nativeEvent;
+              handlePunchDropTap(locationX, locationY);
+            }}
+            style={{
+              position: 'absolute',
+              top: 0, left: 0, right: 0, bottom: 0,
+              backgroundColor: 'rgba(15, 23, 42, 0.35)',
+            }}
+          >
+            <View className="flex-1 items-center justify-center">
+              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#A855F7', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999 }}>
+                <Ionicons name="flag" size={18} color="#FFFFFF" />
+                <Text style={{ marginLeft: 8, fontSize: 14, fontWeight: '700', color: '#FFFFFF' }}>
+                  Tap defect location to drop punch
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => setDropPunchMode(false)}
+                className="mt-3 rounded-full border border-border bg-slate-800/90 px-4 py-1.5"
+              >
+                <Text className="text-xs font-semibold text-slate-300">Cancel</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        )}
       </>
     );
   }, [
-    pdfUri, links, pins, pageBounds, viewport, overlaysVisible,
-    navigateToSheet, dropPinMode, handleDropTap,
+    pdfUri, links, pins, punchItems, pageBounds, viewport, overlaysVisible,
+    navigateToSheet, dropPinMode, dropPunchMode, handleDropTap, handlePunchDropTap, router,
   ]);
 
   return (
@@ -426,13 +526,13 @@ export default function PlanViewerScreen() {
         )}
 
         {/* Zoom hint when overlays hidden */}
-        {pdfUri && !overlaysVisible && (links.length > 0 || pins.length > 0) && (
+        {pdfUri && !overlaysVisible && (links.length > 0 || pins.length > 0 || punchItems.length > 0) && (
           <View
             className="absolute left-1/2 -translate-x-1/2 rounded-full bg-slate-800/90 px-4 py-2"
             style={{ bottom: 80 }}
           >
             <Text className="text-xs font-semibold text-slate-300">
-              Zoom to fit to see links & pins
+              Zoom to fit to see links, pins & punch items
             </Text>
           </View>
         )}
@@ -452,6 +552,14 @@ export default function PlanViewerScreen() {
                 <Text className="ml-1 text-xs font-bold text-amber-400">{pins.length}</Text>
               </View>
             )}
+            {punchItems.length > 0 && (
+              <View className="ml-3 flex-row items-center">
+                <Ionicons name="flag" size={12} color="#A855F7" />
+                <Text className="ml-1 text-xs font-bold" style={{ color: '#C4B5FD' }}>
+                  {punchItems.length}
+                </Text>
+              </View>
+            )}
           </View>
         )}
 
@@ -466,17 +574,48 @@ export default function PlanViewerScreen() {
           </View>
         )}
 
-        {/* FAB — tap: pin at center · long-press: drop-pin mode */}
+        {/* FAB stack — Sprint 53B adds a second FAB for punch items above the
+            existing pin FAB. Tap: create at center · long-press: arm drop mode. */}
         {canAddPins && pdfUri && !downloading && (
-          <Pressable
-            onPress={addPinAtCenter}
-            onLongPress={armDropPinMode}
-            delayLongPress={400}
-            className="absolute right-4 h-14 w-14 items-center justify-center rounded-full bg-brand-orange shadow-lg active:opacity-80"
-            style={{ bottom: siblings.length > 0 ? 74 : 24 }}
-          >
-            <Ionicons name="add" size={28} color="#FFFFFF" />
-          </Pressable>
+          <>
+            {/* Punch FAB — purple, stacked above pin FAB */}
+            <Pressable
+              onPress={addPunchAtCenter}
+              onLongPress={armDropPunchMode}
+              delayLongPress={400}
+              accessibilityRole="button"
+              accessibilityLabel="Add punch item"
+              style={{
+                position: 'absolute',
+                right: 16,
+                bottom: siblings.length > 0 ? 148 : 98,
+                width: 56,
+                height: 56,
+                borderRadius: 28,
+                backgroundColor: '#A855F7',
+                alignItems: 'center',
+                justifyContent: 'center',
+                shadowColor: '#000',
+                shadowOpacity: 0.4,
+                shadowRadius: 6,
+                shadowOffset: { width: 0, height: 3 },
+                elevation: 8,
+              }}
+            >
+              <Ionicons name="flag" size={26} color="#FFFFFF" />
+            </Pressable>
+
+            {/* Pin FAB — orange (Sprint 47B) */}
+            <Pressable
+              onPress={addPinAtCenter}
+              onLongPress={armDropPinMode}
+              delayLongPress={400}
+              className="absolute right-4 h-14 w-14 items-center justify-center rounded-full bg-brand-orange shadow-lg active:opacity-80"
+              style={{ bottom: siblings.length > 0 ? 74 : 24 }}
+            >
+              <Ionicons name="add" size={28} color="#FFFFFF" />
+            </Pressable>
+          </>
         )}
 
         {/* Pin detail */}
@@ -499,6 +638,21 @@ export default function PlanViewerScreen() {
             createdBy={profile.id ?? user.id}
             positionX={pendingPinCoords.x}
             positionY={pendingPinCoords.y}
+          />
+        )}
+
+        {/* Sprint 53B — Add punch item */}
+        {profile && activeProject && user && pendingPunchCoords && (
+          <AddPunchSheet
+            visible={showAddPunch}
+            onClose={() => { setShowAddPunch(false); setPendingPunchCoords(null); }}
+            onCreated={reloadPunch}
+            organizationId={profile.organization_id}
+            projectId={activeProject.id}
+            drawingId={current.id}
+            createdBy={profile.id ?? user.id}
+            planX={pendingPunchCoords.x}
+            planY={pendingPunchCoords.y}
           />
         )}
       </View>

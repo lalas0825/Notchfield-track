@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import type { ProductionArea, FloorGroup } from '../store/production-store';
 import { useAreaMessageActivity } from '@/features/messages/hooks/useAreaMessages';
+import { useAreaPunchActivity } from '@/features/punch/hooks/useDrawingPunchItems';
 
 type StatusFilter = 'all' | 'blocked' | 'in_progress' | 'completed' | 'not_started';
 
@@ -191,12 +192,14 @@ function AreaRow({ area, onPress }: { area: ProductionArea; onPress: () => void 
   const config = STATUS_CONFIG[area.status] ?? STATUS_CONFIG.not_started;
   // Sprint 53A — recent-message activity badge (last 24h)
   const { recentCount } = useAreaMessageActivity(area.id);
+  // Sprint 53B — open punch items (not closed/verified)
+  const { openCount: openPunchCount } = useAreaPunchActivity(area.id);
 
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${area.name}, ${config.label}${recentCount > 0 ? `, ${recentCount} recent notes` : ''}`}
+      accessibilityLabel={`${area.name}, ${config.label}${recentCount > 0 ? `, ${recentCount} recent notes` : ''}${openPunchCount > 0 ? `, ${openPunchCount} open punch items` : ''}`}
       className="mb-1.5 flex-row items-center rounded-xl border border-border bg-card px-4 py-3 active:opacity-80"
     >
       {/* Status dot */}
@@ -226,7 +229,27 @@ function AreaRow({ area, onPress }: { area: ProductionArea; onPress: () => void 
         )}
       </View>
 
-      {/* Activity badge — recent messages in last 24h */}
+      {/* Activity badges — punch items (purple) first, then messages (gray) */}
+      {openPunchCount > 0 && (
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: '#A855F71F',
+            borderWidth: 1,
+            borderColor: '#A855F7',
+            borderRadius: 10,
+            paddingHorizontal: 6,
+            paddingVertical: 2,
+            marginRight: 6,
+          }}
+        >
+          <Ionicons name="flag" size={11} color="#A855F7" />
+          <Text style={{ marginLeft: 3, color: '#C4B5FD', fontSize: 11, fontWeight: '700' }}>
+            {openPunchCount}
+          </Text>
+        </View>
+      )}
       {recentCount > 0 && (
         <View
           style={{
