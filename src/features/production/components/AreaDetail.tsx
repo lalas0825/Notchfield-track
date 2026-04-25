@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { ProductionArea, PhaseProgress, TemplatePhase } from '../store/production-store';
 
@@ -58,6 +58,13 @@ export function AreaDetail({
   );
 
   return (
+    /* Bug fix 2026-04-25: KAV at screen level so the keyboard doesn't
+       cover the Notes composer when typing in the per-area chat. */
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={{ flex: 1 }}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+    >
     <ScrollView className="flex-1 bg-background px-4 pt-4">
       {/* Area header */}
       <View className="mb-4 rounded-2xl border border-border bg-card p-4">
@@ -258,6 +265,7 @@ export function AreaDetail({
 
       <View className="h-24" />
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

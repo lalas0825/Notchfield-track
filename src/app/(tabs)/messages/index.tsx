@@ -13,7 +13,7 @@
  */
 
 import { useCallback } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
 import { Stack, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/features/auth/store/auth-store';
@@ -63,26 +63,38 @@ export default function ProjectNotesScreen() {
           headerTintColor: '#F8FAFC',
         }}
       />
-      <ScrollView
-        className="flex-1 bg-background px-4 pt-4"
-        keyboardShouldPersistTaps="handled"
+      {/* Bug fix 2026-04-25: keyboard covering input on Android. KAV at the
+          SCREEN level (not at composer level) is what actually works for
+          chat-style UIs nested inside ScrollViews. behavior=height on Android
+          shrinks the available space when keyboard opens, the inner ScrollView
+          reflows and the composer at its bottom stays visible above the
+          keyboard. On iOS, behavior=padding adds equivalent space. */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
-        {/* Project context header */}
-        <View className="mb-3 flex-row items-center">
-          <Ionicons name="business" size={14} color="#F97316" />
-          <Text className="ml-1.5 text-base text-brand-orange">
-            {activeProject.name}
+        <ScrollView
+          className="flex-1 bg-background px-4 pt-4"
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Project context header */}
+          <View className="mb-3 flex-row items-center">
+            <Ionicons name="business" size={14} color="#F97316" />
+            <Text className="ml-1.5 text-base text-brand-orange">
+              {activeProject.name}
+            </Text>
+          </View>
+          <Text className="mb-4 text-sm text-slate-500">
+            Project-wide announcements and notes. Use area threads for location-specific work.
           </Text>
-        </View>
-        <Text className="mb-4 text-sm text-slate-500">
-          Project-wide announcements and notes. Use area threads for location-specific work.
-        </Text>
 
-        {/* Reuses MessageThread with areaId=null = project channel */}
-        <MessageThread projectId={activeProject.id} areaId={null} />
+          {/* Reuses MessageThread with areaId=null = project channel */}
+          <MessageThread projectId={activeProject.id} areaId={null} />
 
-        <View className="h-12" />
-      </ScrollView>
+          <View className="h-12" />
+        </ScrollView>
+      </KeyboardAvoidingView>
     </>
   );
 }
