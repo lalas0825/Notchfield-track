@@ -244,9 +244,10 @@ export async function renderAndUploadNod(
     base64,
   );
 
-  // 4. Upload to Supabase Storage
+  // 4. Upload to Supabase Storage.
+  // Bug fix 2026-04-25: RLS requires {org_id}/... as first folder.
   const bytes = decodeBase64(base64);
-  const path = `legal-documents/${input.doc.organization_id}/${input.doc.id}.pdf`;
+  const path = `${input.doc.organization_id}/legal-documents/${input.doc.id}.pdf`;
   const { error: uploadErr } = await supabase.storage
     .from('field-photos')
     .upload(path, bytes, {

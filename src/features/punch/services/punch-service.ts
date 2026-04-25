@@ -214,7 +214,9 @@ export async function uploadPunchPhoto(params: {
   const { localUri, organizationId, punchItemId, index, kind = 'photos' } = params;
   const ext = (localUri.split('.').pop() ?? 'jpg').toLowerCase();
   const ts = Date.now();
-  const path = `punch/${organizationId}/${punchItemId}/${kind}-${index}-${ts}.${ext}`;
+  // Bug fix 2026-04-25: RLS requires {org_id}/... as first folder.
+  // Same pattern as gc-punch-service.uploadResolutionPhoto.
+  const path = `${organizationId}/punch/${punchItemId}/${kind}-${index}-${ts}.${ext}`;
 
   const base64 = await FileSystem.readAsStringAsync(localUri, {
     encoding: FileSystem.EncodingType.Base64,

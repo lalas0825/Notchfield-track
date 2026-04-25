@@ -91,7 +91,12 @@ export function MessageComposer({
     for (const uri of uris) {
       const ext = (uri.split('.').pop() ?? 'jpg').toLowerCase();
       const filename = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-      const path = `messages/${organizationId}/${date}/${filename}`;
+      // Bug fix 2026-04-25: RLS policy on field-photos bucket requires the
+      // FIRST folder to be the organization_id (UUID). Path was previously
+      // `messages/{org_id}/...` which made foldername[1]='messages' and
+      // failed the UUID check → 403 on every upload. Convention from the
+      // already-working gc-punch-service: `{org_id}/{kind}/...`.
+      const path = `${organizationId}/messages/${date}/${filename}`;
 
       // Read local file → bytes
       const base64 = await LegacyFileSystem.readAsStringAsync(uri, {

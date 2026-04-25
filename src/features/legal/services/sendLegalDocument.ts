@@ -70,7 +70,8 @@ async function uploadSignatureImage(params: {
   dataUrlOrBase64: string;
 }): Promise<{ url: string; path: string }> {
   const base64 = params.dataUrlOrBase64.replace(/^data:image\/\w+;base64,/, '');
-  const path = `signatures/${params.organizationId}/legal/${params.docId}.png`;
+  // Bug fix 2026-04-25: RLS requires {org_id}/... as first folder.
+  const path = `${params.organizationId}/signatures/legal/${params.docId}.png`;
 
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
