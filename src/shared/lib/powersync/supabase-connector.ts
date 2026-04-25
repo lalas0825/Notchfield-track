@@ -93,6 +93,16 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
         const refreshed = await supabase.auth.refreshSession();
         if (!refreshed.error && refreshed.data.session) {
           session = refreshed.data.session;
+        } else {
+          // Bug fix 2026-04-25 (round 2): if refresh fails, the refresh_token
+          // is dead too (Supabase default 30-day TTL). Silent retry would
+          // leave the user stuck in "Reconnecting…" forever. Sign out cleanly
+          // — AuthGate redirects to /login. The user re-auths and gets a
+          // fresh refresh_token good for another 30 days.
+          // eslint-disable-next-line no-console
+          console.warn('[PowerSync] refresh_token dead, signing out:', refreshed.error?.message);
+          await supabase.auth.signOut().catch(() => undefined);
+          throw new Error('Session expired — please sign in again');
         }
       }
     }

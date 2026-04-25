@@ -100,10 +100,18 @@ function RootLayout() {
         import('@/shared/lib/supabase/client'),
         import('@/shared/lib/powersync/client'),
       ]);
-      const handler = (next: AppStateStatus) => {
+      const handler = async (next: AppStateStatus) => {
         if (next !== 'active') return;
-        // Fire-and-forget — don't block UI on either operation
-        supabase.auth.refreshSession().catch(() => undefined);
+        // Bug fix round 2 — when refresh fails (refresh_token dead, 30-day
+        // TTL), sign out cleanly so AuthGate redirects to /login. Otherwise
+        // user gets stuck on "Reconnecting…" forever with no escape.
+        const refreshed = await supabase.auth.refreshSession().catch(() => null);
+        if (refreshed && refreshed.error) {
+          // eslint-disable-next-line no-console
+          console.warn('[Auth] refresh failed on foreground, signing out:', refreshed.error.message);
+          await supabase.auth.signOut().catch(() => undefined);
+          return;
+        }
         reconnectPowerSync().catch(() => undefined);
       };
       const sub = AppState.addEventListener('change', handler);
