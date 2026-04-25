@@ -37,7 +37,8 @@
         "android.permission.CAMERA",
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.FOREGROUND_SERVICE_LOCATION",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.POST_NOTIFICATIONS"
       ]
     },
     "plugins": [
@@ -66,6 +67,12 @@
       "expo-localization",
       "@journeyapps/react-native-quick-sqlite",
       "expo-sharing",
+      [
+        "expo-notifications",
+        {
+          "color": "#F97316"
+        }
+      ],
       [
         "@sentry/react-native/expo",
         {

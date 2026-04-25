@@ -16,6 +16,7 @@ import { ErrorBoundary } from '@/shared/components/ErrorBoundary';
 import { RoleGate } from '@/shared/components/RoleGate';
 import { TrackPermissionsProvider } from '@/shared/lib/permissions/TrackPermissionsContext';
 import { startPhotoWorker } from '@/features/photos/services/photo-worker';
+import { usePushPermission } from '@/features/notifications/hooks/usePushPermission';
 
 /**
  * Auth gate using declarative <Redirect> instead of imperative router.replace().
@@ -66,6 +67,16 @@ function PowerSyncProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * Bootstrap component that mounts side-effect-only hooks (push permission,
+ * device token registration). Renders nothing. Lives inside the providers
+ * so PowerSync + auth state are available to the hooks.
+ */
+function NotificationsBootstrap() {
+  usePushPermission();
+  return null;
+}
+
 function RootLayout() {
   const initialize = useAuthStore((s) => s.initialize);
 
@@ -79,6 +90,7 @@ function RootLayout() {
       <TrackPermissionsProvider>
         <StatusBar style="light" />
         <SyncStatusBar />
+        <NotificationsBootstrap />
         <AuthGate>
           <RoleGate>
             <ErrorBoundary>

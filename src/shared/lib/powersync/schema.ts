@@ -776,6 +776,22 @@ const feedback_reports = new TableV2({
   updated_at: column.text,
 });
 
+// Sprint 53A — Device tokens for Expo push notifications.
+// Per-user (synced via by_user bucket, NOT by_org). active=false on sign-out
+// so the fanout Edge Function skips stale tokens. UNIQUE constraint on
+// (user_id, expo_push_token) means repeated registrations no-op cleanly.
+const device_tokens = new TableV2({
+  user_id: column.text,
+  organization_id: column.text,
+  expo_push_token: column.text,
+  device_id: column.text,
+  platform: column.text,          // 'ios' | 'android'
+  app_version: column.text,
+  active: column.integer,         // boolean (1 = true)
+  last_seen_at: column.text,
+  created_at: column.text,
+});
+
 // Sprint 42B — GC Punch Items (synced from Procore / GC platforms)
 const gc_punch_items = new TableV2({
   organization_id: column.text,
@@ -918,6 +934,8 @@ export const AppSchema = new Schema({
   document_signatures,
   // Sprint 45B — Feedback reports
   feedback_reports,
+  // Sprint 53A — Push notification device tokens
+  device_tokens,
 });
 
 export type Database = (typeof AppSchema)['types'];
@@ -941,5 +959,6 @@ export type ProductionBlockLogRecord = Database['production_block_logs'];
 export type GcPunchItemRecord = Database['gc_punch_items'];
 export type DocumentSignatureRecord = Database['document_signatures'];
 export type FeedbackReportRecord = Database['feedback_reports'];
+export type DeviceTokenRecord = Database['device_tokens'];
 export type DrawingHyperlinkRecord = Database['drawing_hyperlinks'];
 export type DrawingPinRecord = Database['drawing_pins'];

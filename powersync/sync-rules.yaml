@@ -6,12 +6,14 @@
 
 bucket_definitions:
 
-  # User profile
+  # User profile + per-user state
   by_user:
     parameters:
       - SELECT id AS user_id FROM profiles WHERE id = token_parameters.user_id
     data:
       - SELECT * FROM profiles WHERE id = bucket.user_id
+      # Sprint 53A — device_tokens are per-user (push notifications)
+      - SELECT * FROM device_tokens WHERE user_id = bucket.user_id
 
   # Org-scoped data
   by_org:

@@ -347,18 +347,20 @@ export const useProductionStore = create<ProductionState & ProductionActions>((s
     // Block the area too
     await get().markAreaStatus(areaId, 'blocked', reason, userId);
 
-    // Auto-create field_message
+    // Auto-create field_message — Sprint 53A migrated to createSystemMessage
+    // so the [SYS:blocker] prefix is added; UI renders these with the lock icon.
     const area = get().areas.find((a) => a.id === areaId);
     if (area) {
-      await localInsert('field_messages', {
-        id: generateUUID(),
-        organization_id: area.organization_id,
-        project_id: area.project_id,
-        area_id: areaId,
-        sender_id: userId,
-        message_type: 'blocker',
-        message: `Gate blocked: ${reason}`,
-        created_at: new Date().toISOString(),
+      const { createSystemMessage } = await import(
+        '@/features/messages/services/messagesService'
+      );
+      await createSystemMessage({
+        organizationId: area.organization_id,
+        projectId: area.project_id,
+        areaId,
+        senderId: userId,
+        kind: 'blocker',
+        body: `Gate blocked: ${reason}`,
       });
     }
 

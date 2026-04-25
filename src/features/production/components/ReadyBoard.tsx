@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import type { ProductionArea, FloorGroup } from '../store/production-store';
+import { useAreaMessageActivity } from '@/features/messages/hooks/useAreaMessages';
 
 type StatusFilter = 'all' | 'blocked' | 'in_progress' | 'completed' | 'not_started';
 
@@ -188,12 +189,14 @@ export function ReadyBoard({
 
 function AreaRow({ area, onPress }: { area: ProductionArea; onPress: () => void }) {
   const config = STATUS_CONFIG[area.status] ?? STATUS_CONFIG.not_started;
+  // Sprint 53A — recent-message activity badge (last 24h)
+  const { recentCount } = useAreaMessageActivity(area.id);
 
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${area.name}, ${config.label}`}
+      accessibilityLabel={`${area.name}, ${config.label}${recentCount > 0 ? `, ${recentCount} recent notes` : ''}`}
       className="mb-1.5 flex-row items-center rounded-xl border border-border bg-card px-4 py-3 active:opacity-80"
     >
       {/* Status dot */}
@@ -222,6 +225,26 @@ function AreaRow({ area, onPress }: { area: ProductionArea; onPress: () => void 
           </View>
         )}
       </View>
+
+      {/* Activity badge — recent messages in last 24h */}
+      {recentCount > 0 && (
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: '#1E293B',
+            borderRadius: 10,
+            paddingHorizontal: 6,
+            paddingVertical: 2,
+            marginRight: 8,
+          }}
+        >
+          <Ionicons name="chatbubble" size={11} color="#94A3B8" />
+          <Text style={{ marginLeft: 3, color: '#CBD5E1', fontSize: 11, fontWeight: '600' }}>
+            {recentCount}
+          </Text>
+        </View>
+      )}
 
       {/* Status label */}
       <Text className="text-xs font-medium" style={{ color: config.color }}>
