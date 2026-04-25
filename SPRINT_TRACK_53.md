@@ -253,6 +253,112 @@ usePushPermission() checks expo-notifications status
 - [ ] Sign out clears device_tokens row (no orphan tokens after device handoff)
 - [ ] TypeScript clean (`npx tsc --noEmit`)
 
+### Communication expansion roadmap (post-pilot, NOT scoped here)
+
+The decision was deliberate: ship **per-area threads only** for v1 and wait for
+real Jantile usage feedback before adding any of these. Schema already
+supports them via `area_id` nullability — only UI work is needed.
+
+#### Design rationale: per-area vs global
+
+Threads stay anchored to physical areas because that's how foremen work
+in the field — they're in the bathroom, they snap a photo, they type a
+note about that bathroom. Mixing "rebar exposed in L3-E2" with "we ran
+out of thinset" in one stream creates noise. The Web team's planned
+global Messages tab in PM Shell (per [SPRINT_53_TAKEOFF_COORDINATION.md
+§3.1](SPRINT_53_TAKEOFF_COORDINATION.md)) covers the cross-area
+visibility need from the PM side; Track stays focused on the foreman's
+physical-location-anchored workflow.
+
+#### Roadmap (in order of expected value, all post-pilot)
+
+##### #1 — Project-level "General" channel (~1h, S)
+
+**What:** A single project-wide thread for announcements that aren't
+tied to one area ("we're out of thinset", "GC walkthrough at 2pm tomorrow").
+
+**Schema:** Already supported. `field_messages.area_id IS NULL` is the
+General channel. No DB change needed.
+
+**UI plan:**
+- Header chat icon on Home (top-right) with badge of recent general count
+- New full-screen route `/(tabs)/messages/general`
+- Reuses `<MessageThread projectId={projectId} areaId={null} />` (the
+  existing component already handles `area_id IS NULL` in its read query)
+- Header titled "Project Notes" with project name underneath
+- Composer defaults to `messageType='info'`, no area picker (always project-level)
+- Per-area threads stay exactly as they are — General is purely additive
+
+**Files to create when triggered:**
+```
+src/features/messages/components/ProjectNotesIcon.tsx       — header chat icon w/ badge
+src/features/messages/hooks/useGeneralChannelActivity.ts    — count of last-24h general msgs
+src/app/(tabs)/messages/general.tsx                          — route mounting MessageThread
+```
+
+**Modify:**
+```
+src/app/(tabs)/home/index.tsx — mount ProjectNotesIcon in Stack.Screen header
+```
+
+**Trigger to build:** Pilot foreman says "where do I put a project-wide
+announcement?" or "I don't know which area to anchor this to."
+
+##### #2 — Activity stream (~2-3h, M)
+
+**What:** Cross-area scroll on Home showing last 20 messages with an
+area chip on each. Read-only view; tap a message → navigates to the
+area's thread to reply.
+
+**Trigger to build:** Supervisor says "I want to scan everything that
+happened today without entering each area one by one." (Web's global
+Messages tab covers this for PMs; Track activity stream would be for
+multi-project supervisors who don't want to switch projects to see
+recent activity.)
+
+##### #3 — `@mentions` (~3h, M)
+
+**What:** Type `@Pedro` → autocomplete from project_workers list →
+mentioned worker gets a high-priority push regardless of the message
+type, and the message highlights for them in the UI.
+
+**Schema:** No change. `@username` parsed from `message` body
+client-side; recipient list resolved at fanout-field-message Edge
+Function time (parse `@\w+` patterns, lookup against project_workers).
+
+**Trigger to build:** Foreman says "I asked someone but the wrong
+person saw it" or "I want to ping Pedro specifically without him
+having to scan every area thread."
+
+##### #4 — Direct messages (~6h, L)
+
+**What:** 1-on-1 private channel between two users, distinct from the
+project's area threads.
+
+**Schema:** Requires new table or new column. Likely a
+`message_threads` table with `(user_a_id, user_b_id)` unique pair, and
+`field_messages.thread_id` nullable foreign key. Or a separate
+`direct_messages` table.
+
+**RLS:** Only sender + recipient can read.
+
+**Trigger to build:** Foreman/supervisor explicitly asks "I want to
+talk privately, not in front of the crew" — most construction crews
+already use WhatsApp for this, so the value is lower. Unlikely to be
+prioritized unless competitive feedback demands it.
+
+##### Read receipts / edit history (~2h, but DB change)
+
+**What:** `read_at`, `read_by`, `updated_at` columns on `field_messages`.
+
+**Trigger to build:** When pilot demands "did the supervisor see my
+message?" feedback. Today fire-and-forget is sufficient for the field
+ops use case.
+
+**Coordination needed:** This is a shared-table schema change — must
+align with Web team before the migration. See
+[SPRINT_53_TAKEOFF_COORDINATION.md §1](SPRINT_53_TAKEOFF_COORDINATION.md).
+
 ---
 
 ## Sub-sprint 53B — Punch List polish + plan pinning (~3-4h)
