@@ -48,14 +48,10 @@ export default function MoreScreen() {
       color: '#3B82F6',
       feature: 'assign_crews',
     },
-    // Sprint 53A.1 — Project-wide General channel
-    {
-      icon: 'chatbubbles',
-      label: 'Project Notes',
-      subtitle: 'Project-wide announcements + replies',
-      route: '/(tabs)/messages/general',
-      color: '#0EA5E9',
-    },
+    // Sprint 53A.1 — Project Notes moved to its own bottom tab (between
+    // Delivery and More) per pilot feedback 2026-04-25. Removed from More
+    // menu to avoid triplicated discoverability (header icon + bottom tab
+    // + More entry).
     // "Safety & Docs" removed — now lives as its own "Safety" top tab.
     {
       icon: 'document-text',

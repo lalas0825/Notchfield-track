@@ -77,6 +77,19 @@ export default function TabsLayout() {
           ),
         }}
       />
+      {/* Sprint 53A.1 — Project-wide General channel. Positioned between
+          Delivery and More per pilot feedback (2026-04-25). The route file
+          is `messages/index.tsx` (renamed from messages/general.tsx) so a
+          tap on the tab opens the General channel directly. */}
+      <Tabs.Screen
+        name="messages"
+        options={{
+          title: 'Messages',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="chatbubbles" size={size} color={color} />
+          ),
+        }}
+      />
       <Tabs.Screen
         name="more"
         options={{

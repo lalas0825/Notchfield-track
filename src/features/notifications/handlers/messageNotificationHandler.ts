@@ -48,10 +48,11 @@ export function handleNotificationResponse(response: NotificationResponse) {
       // Sprint 53A.1 — Project-level General channel message.
       // Previously routed to /home which left the user wondering "where's
       // the message?" since Home has no thread surface. Now lands directly
-      // in the General channel screen with the thread + composer.
+      // on the Messages tab (rooted at /messages = General channel screen
+      // since the route file is messages/index.tsx).
       setTimeout(() => {
         try {
-          router.push('/(tabs)/messages/general' as any);
+          router.push('/(tabs)/messages' as any);
         } catch (e) {
           logger.warn('[Push] deep-link navigate failed', e);
         }

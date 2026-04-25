@@ -28,7 +28,7 @@ export function ProjectNotesIcon() {
 
   return (
     <Pressable
-      onPress={() => router.push('/(tabs)/messages/general' as any)}
+      onPress={() => router.push('/(tabs)/messages' as any)}
       hitSlop={8}
       accessibilityRole="button"
       accessibilityLabel={
