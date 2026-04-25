@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { useProjectStore } from '@/features/projects/store/project-store';
+import { normalizeTrackRole } from '@/shared/lib/permissions/trackPermissions';
 import {
   fetchLegalDocs,
   detectBlockedAreas,
@@ -15,7 +16,12 @@ export function useLegalDocs() {
   const [pendingNods, setPendingNods] = useState<{ id: string; name: string; hours_blocked: number }[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const isSupervisor = ['superintendent', 'owner', 'admin', 'pm'].includes(profile?.role ?? '');
+  // Bug fix 2026-04-25: previously hardcoded ['superintendent', 'owner', 'admin', 'pm']
+  // which excluded the canonical 'supervisor' role (Sprint 40C cleanup migrated
+  // legacy 'superintendent' to 'supervisor'). 3 of 5 supervisors in prod were
+  // silently locked out of Legal. Now uses the single source of truth from
+  // trackPermissions.normalizeTrackRole.
+  const isSupervisor = normalizeTrackRole(profile?.role) === 'supervisor';
 
   const reload = useCallback(async () => {
     if (!activeProject || !profile || !isSupervisor) {

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { useProjectStore } from '@/features/projects/store/project-store';
+import { normalizeTrackRole } from '@/shared/lib/permissions/trackPermissions';
 import {
   fetchPunchItems,
   fetchAreaPunchItems,
@@ -14,7 +15,8 @@ export function usePunchList(areaId?: string) {
   const [items, setItems] = useState<PunchItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const isSupervisor = ['superintendent', 'owner', 'admin', 'pm'].includes(profile?.role ?? '');
+  // Bug fix 2026-04-25: see useLegalDocs.ts for the same fix rationale.
+  const isSupervisor = normalizeTrackRole(profile?.role) === 'supervisor';
 
   const reload = useCallback(async () => {
     if (!activeProject || !profile) return;

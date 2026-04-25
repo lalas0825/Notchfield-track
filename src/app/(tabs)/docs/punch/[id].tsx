@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '@/shared/lib/supabase/client';
 import { useAuthStore } from '@/features/auth/store/auth-store';
+import { normalizeTrackRole } from '@/shared/lib/permissions/trackPermissions';
 import {
   resolvePunchItem,
   verifyPunchItem,
@@ -41,7 +42,8 @@ export default function PunchDetailScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const isSupervisor = ['superintendent', 'owner', 'admin', 'pm'].includes(profile?.role ?? '');
+  // Bug fix 2026-04-25: see useLegalDocs.ts for the same fix rationale.
+  const isSupervisor = normalizeTrackRole(profile?.role) === 'supervisor';
 
   useEffect(() => {
     async function load() {
