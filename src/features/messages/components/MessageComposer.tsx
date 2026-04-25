@@ -170,11 +170,25 @@ export function MessageComposer({
     }
   };
 
+  // Bug fix 2026-04-25: keyboard was covering the input on Android.
+  //
+  // Android: rely on the native windowSoftInputMode=adjustResize default
+  // (Expo SDK 52+). The previous KeyboardAvoidingView with behavior=undefined
+  // was actively breaking the native resize. Plain View → activity resizes
+  // automatically, composer slides up with the keyboard.
+  //
+  // iOS: still needs KeyboardAvoidingView since iOS keyboard floats over the
+  // window. behavior='padding' adds equivalent space at the bottom; offset=0
+  // because the composer is already at the very bottom of its container
+  // (the previous offset=90 was over-correcting and pushing it too high).
+  const Wrapper = Platform.OS === 'ios' ? KeyboardAvoidingView : View;
+  const wrapperProps =
+    Platform.OS === 'ios'
+      ? { behavior: 'padding' as const, keyboardVerticalOffset: 0 }
+      : {};
+
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-    >
+    <Wrapper {...wrapperProps}>
       <View
         style={{
           borderTopWidth: 1,
@@ -324,7 +338,7 @@ export function MessageComposer({
           </Pressable>
         </View>
       </View>
-    </KeyboardAvoidingView>
+    </Wrapper>
   );
 }
 
