@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { useProjectStore } from '@/features/projects/store/project-store';
 import { useGeneralChannelActivity } from '@/features/messages/hooks/useGeneralChannelActivity';
@@ -83,8 +83,11 @@ export default function TabsLayout() {
         name="deliveries"
         options={{
           title: 'Delivery',
+          // MaterialCommunityIcons used because Ionicons has no truck glyph;
+          // 'truck-delivery' is a truck silhouette with a package indicator,
+          // matching the deliveries surface semantics better than a passenger car.
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="car" size={size} color={color} />
+            <MaterialCommunityIcons name="truck-delivery" size={size} color={color} />
           ),
         }}
       />
