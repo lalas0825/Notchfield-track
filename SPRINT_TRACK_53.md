@@ -1,0 +1,660 @@
+# Sprint 53 — Communication + Punch Polish + Legal Engine v1
+
+> **Status:** Approved 2026-04-24 · scoped after alignment with Takeoff Web team
+> **Estimated:** ~14-18h across 3 sub-sprints, sequential, one commit per sub-sprint
+> **Dependencies:** Tables `field_messages`, `punch_items`, `legal_documents`, `delay_cost_logs` already exist in Supabase (`msmpsxalfalzinuorwlg`) and are in the `powersync` publication. Verified against `information_schema` 2026-04-24.
+> **Alignment:** Web team confirmed Track is first mover on all 3 features. Web will mirror after their Sprint 62. Coordination items in [SPRINT_53_TAKEOFF_COORDINATION.md](SPRINT_53_TAKEOFF_COORDINATION.md).
+
+---
+
+## Sub-sprint 53A — Communication v1 + push notifications (~6-8h)
+
+**Scope:** Build full UI on existing `field_messages` table + add push notifications via Edge Function. v1 fire-and-forget (no read receipts).
+
+### Decisions (from Web team alignment)
+
+| Topic | Decision |
+|-------|----------|
+| Schema changes | None. Table already complete for v1. `read_at`/`read_by`/`updated_at` deferred to a future sprint when usage demands it. |
+| Write path | Direct Supabase + PowerSync local-first. No API wrapper. RLS handles security. |
+| Realtime | PowerSync sync + Supabase realtime channel as fallback for cross-app reactivity (cheap, same pattern as `useWorkTickets`). |
+| `area_id IS NULL` | Supported — renders as a virtual "General" channel for project-level notes. |
+| `blockPhase` auto-messages | Visible alongside manual messages. Distinguished by `message_type='blocker'` + a 🔒 icon. No `system_user` filtering. |
+| `message_type` enum | `info | blocker | safety | question` (DB constraint, do not modify unilaterally). |
+| Push notifications | **Included in 53A.** Edge Function on `field_messages` INSERT → fanout to relevant device tokens. Track owns the infrastructure (token registration, permissions, expo-notifications). |
+
+### Architecture
+
+```
+FOREMAN/SUPERVISOR sends a note from AreaDetail
+      │
+      ▼
+  PowerSync localInsert (offline-safe)
+      │
+      ▼ on next sync window
+  Supabase field_messages row created
+      │
+      ▼ ROW INSERT trigger
+  Edge Function: fanout-field-message
+      │
+      ├─ Query device_tokens for users in same project
+      ├─ Filter out sender's own tokens
+      └─ POST to Expo Push API in batches of 100
+                │
+                ▼
+        Recipient's device gets push
+                │
+                ▼ tap notification
+        Deep link → /(tabs)/production/[areaId]
+        MessageThread auto-scrolls to bottom
+```
+
+### New tables (Track-owned, NOT in Web yet)
+
+```sql
+-- Migration: create_track_t2_device_tokens.sql
+CREATE TABLE device_tokens (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  organization_id UUID NOT NULL REFERENCES organizations(id),
+  expo_push_token TEXT NOT NULL,
+  device_id TEXT,
+  platform TEXT NOT NULL CHECK (platform IN ('ios', 'android')),
+  app_version TEXT,
+  active BOOLEAN NOT NULL DEFAULT true,
+  last_seen_at TIMESTAMPTZ DEFAULT now(),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE (user_id, expo_push_token)
+);
+
+ALTER TABLE device_tokens ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "users manage own device tokens"
+  ON device_tokens FOR ALL
+  USING (user_id = auth.uid());
+
+-- Add to powersync publication so Track can read its own tokens
+ALTER PUBLICATION powersync ADD TABLE device_tokens;
+```
+
+### Files to create
+
+```
+src/features/messages/
+├── types/index.ts
+│   └── FieldMessage Zod schema, MessageType enum
+├── services/messagesService.ts
+│   ├── listAreaMessages(areaId, limit=50)  — local-first
+│   ├── createMessage({ projectId, areaId, type, message, photos[] })
+│   └── createSystemMessage(...) — used by blockPhase, marks message_type='blocker'
+├── hooks/useAreaMessages.ts
+│   └── PowerSync watch + Supabase realtime channel
+└── components/
+    ├── MessageThread.tsx          — vertical list, auto-scroll on new
+    ├── MessageBubble.tsx           — avatar + sender name + timestamp + body + photo grid
+    ├── MessageComposer.tsx         — text + type chips (info/blocker/safety/question) + camera
+    └── MessageTypeBadge.tsx        — colored chip per type + 🔒 for system
+
+src/features/notifications/
+├── services/pushTokenService.ts
+│   ├── registerDeviceToken() — runs on app foreground if permission granted
+│   ├── unregisterDeviceToken() — on sign out
+│   └── refreshIfStale() — re-registers if last_seen_at > 7d
+├── hooks/usePushPermission.ts
+│   └── prompt + record state; called from app root
+└── handlers/messageNotificationHandler.ts
+    └── deep-link routing on notification tap
+
+supabase/functions/
+└── fanout-field-message/
+    ├── index.ts
+    └── deno.json
+```
+
+### Files to modify
+
+```
+src/features/production/components/AreaDetail.tsx
+  └─ Mount <MessageThread areaId={area.id}/> below phase list
+
+src/features/production/components/AreaCard.tsx
+  └─ Activity badge (💬 + count) for messages in last 24h
+
+src/features/production/store/production-store.ts
+  └─ blockPhase auto-insert: switch to messagesService.createSystemMessage with type='blocker'
+
+src/app/_layout.tsx
+  └─ Mount push permission prompt + token registration on auth ready
+
+src/shared/lib/powersync/schema.ts
+  └─ Add device_tokens TableV2
+
+powersync/sync-rules.yaml
+  └─ Add device_tokens (user-scoped, not org)
+```
+
+### Edge Function: `fanout-field-message`
+
+```ts
+// supabase/functions/fanout-field-message/index.ts
+// Triggered by Postgres webhook on field_messages INSERT.
+// Body: { record: { id, project_id, area_id, sender_id, message_type, message, ... } }
+
+import { createClient } from 'jsr:@supabase/supabase-js';
+
+Deno.serve(async (req) => {
+  const { record } = await req.json();
+  const supabase = createClient(/* service role */);
+
+  // 1. Find recipients: all profiles in same project except sender
+  const { data: recipients } = await supabase
+    .from('project_workers')
+    .select('worker:workers(profile_id)')
+    .eq('project_id', record.project_id)
+    .eq('active', true);
+
+  const recipientIds = recipients
+    ?.map((r) => r.worker?.profile_id)
+    .filter((id) => id && id !== record.sender_id) ?? [];
+
+  // 2. Get sender name for the body
+  const { data: sender } = await supabase
+    .from('profiles')
+    .select('full_name')
+    .eq('id', record.sender_id)
+    .single();
+
+  // 3. Get area label if any
+  let areaLabel = 'Project';
+  if (record.area_id) {
+    const { data: area } = await supabase
+      .from('production_areas')
+      .select('label')
+      .eq('id', record.area_id)
+      .single();
+    areaLabel = area?.label ?? 'Area';
+  }
+
+  // 4. Get device tokens for recipients
+  const { data: tokens } = await supabase
+    .from('device_tokens')
+    .select('expo_push_token, user_id')
+    .in('user_id', recipientIds)
+    .eq('active', true);
+
+  if (!tokens?.length) return new Response('no recipients', { status: 200 });
+
+  // 5. Fanout to Expo Push API
+  const messages = tokens.map((t) => ({
+    to: t.expo_push_token,
+    sound: 'default',
+    title: `${sender?.full_name ?? 'Someone'} · ${areaLabel}`,
+    body: record.message.length > 100 ? record.message.slice(0, 97) + '...' : record.message,
+    data: {
+      kind: 'field_message',
+      message_id: record.id,
+      area_id: record.area_id,
+      project_id: record.project_id,
+    },
+    priority: record.message_type === 'blocker' || record.message_type === 'safety' ? 'high' : 'default',
+  }));
+
+  // Batch in 100s per Expo limit
+  for (let i = 0; i < messages.length; i += 100) {
+    const batch = messages.slice(i, i + 100);
+    await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(batch),
+    });
+  }
+
+  return new Response('ok', { status: 200 });
+});
+```
+
+### Wire-up: Postgres webhook on `field_messages` INSERT
+
+```sql
+-- Set up after edge function is deployed:
+-- Supabase Dashboard → Database → Webhooks → New Webhook
+--   Name: fanout-field-message-on-insert
+--   Table: field_messages
+--   Events: INSERT
+--   Type: HTTP Request
+--   URL: https://msmpsxalfalzinuorwlg.functions.supabase.co/fanout-field-message
+--   Headers: Authorization: Bearer {service_role_key}
+```
+
+### Permission flow on first app open
+
+```
+User signs in
+   ↓
+Auth ready event in _layout.tsx
+   ↓
+usePushPermission() checks expo-notifications status
+   ├─ undetermined → show explainer modal "Get notified when your team messages you"
+   │                  ↓
+   │                  Tap allow → request system permission
+   │                  ↓
+   │                  granted → registerDeviceToken() → INSERT into device_tokens
+   │                  ↓
+   │                  denied → no push, app continues
+   ├─ granted → registerDeviceToken() → upsert if not present
+   └─ denied → no-op (user can re-enable in Settings)
+```
+
+### Success criteria
+
+- [ ] Foreman writes a message in AreaDetail, supervisor sees it on their device within 3s while online
+- [ ] Offline message saves locally, syncs + triggers push when online
+- [ ] `blockPhase` auto-inserts now go through `createSystemMessage`, render with 🔒 icon
+- [ ] Push notification tap deep-links to the right area + scrolls to message
+- [ ] Sign out clears device_tokens row (no orphan tokens after device handoff)
+- [ ] TypeScript clean (`npx tsc --noEmit`)
+
+---
+
+## Sub-sprint 53B — Punch List polish + plan pinning (~3-4h)
+
+**Scope:** Cerrar el 80% existente + agregar plan pinning sobre el viewer del Sprint 47B.
+
+### Decisions
+
+| Topic | Decision |
+|-------|----------|
+| Status enum | `{open, in_progress, resolved, verified, rejected}` — DB CHECK confirmed, Track already aligned. |
+| Priority enum | `{low, medium, high, critical}` — DB CHECK confirmed. |
+| `assigned_to` FK | → `profiles.id` (FK formal, despite Web team mentioning auth.users — they're 1:1 UUIDs). Use `profile.id`. |
+| Coord system | PDF points (matches Sprint 47B `drawing_pins`). |
+| Naming | Live with `plan_x`/`plan_y` on punch_items vs `position_x`/`position_y` on drawing_pins. Don't migrate. |
+| GC vs internal | Already separated by route (`/docs/punch` internal vs `/more/punchlist` GC). No theme changes. |
+
+### Files to create
+
+```
+src/features/punch/components/
+├── AddPunchSheet.tsx          — bottom sheet for plan-anchored punch creation
+└── PunchPinOverlay.tsx        — overlay layer for the PDF viewer, similar to PinOverlay
+```
+
+### Files to modify
+
+```
+src/app/(tabs)/plans/[id].tsx
+  ├─ Add FAB "Add Punch" (only for supervisor + foreman roles)
+  ├─ Mount PunchPinOverlay alongside existing PinOverlay
+  └─ Tap pin → bottom sheet with item details + resolve/verify actions
+
+src/features/punch/components/PunchItemForm.tsx
+  └─ Verify assigned_to writes profile.id; verify photo upload via photo-queue
+
+src/features/punch/services/punch-service.ts
+  └─ Add createPunchFromPin({ areaId, drawingId, planX, planY, ... }) — same logic as createPunchItem but with coords
+
+src/app/(tabs)/docs/punch/[id].tsx
+  └─ Verify resolve/verify/reject buttons render correctly per role + status
+
+src/features/production/components/AreaCard.tsx
+  └─ Add open punch count badge (red dot + count)
+```
+
+### Plan-anchored creation flow
+
+```
+Supervisor on Plans tab
+   ↓
+FAB "Add Punch" → enters pin-drop mode (visual hint at top: "Tap on plan to drop a pin")
+   ↓
+Tap on PDF at (px, py) in PDF points
+   ↓
+AddPunchSheet opens with:
+   • Title (required)
+   • Description (optional)
+   • Priority chips (low/medium/high/critical)
+   • Assigned to (worker picker from project_workers)
+   • Photo (camera or gallery, required — defect evidence)
+   • plan_x, plan_y, drawing_id pre-filled, area_id resolved from current sheet's primary area
+   ↓
+Save → localInsert into punch_items + photo via photo-queue
+   ↓
+Pin appears on plan immediately (optimistic). Foreman who opens Plans tab sees it after sync.
+```
+
+### Success criteria
+
+- [ ] Supervisor creates a punch item from Plans tab, pin appears on plan, foreman sees it after sync
+- [ ] Tap pin → bottom sheet with details, foreman can mark in_progress, take after photo, mark resolved
+- [ ] Supervisor opens resolved item → can verify (closes) or reject with reason (re-opens)
+- [ ] Area cards in Ready Board show red dot + count when open punch items exist
+- [ ] Resolution photos load correctly in detail screen alongside original photos
+- [ ] TypeScript clean
+
+---
+
+## Sub-sprint 53C — Legal Engine fix + complete v1 (~6-8h)
+
+**Scope:** Fix critical status enum bug + complete sign + send + tracking pixel via Track-owned Edge Functions.
+
+### The fix (PRIORITY #1 — current code would fail in prod)
+
+```diff
+// src/features/legal/services/legal-service.ts
+
+- export type LegalDocStatus = 'draft' | 'signed' | 'sent' | 'opened';
++ export type LegalDocStatus = 'draft' | 'sent' | 'opened' | 'no_response';
+
+- await supabase.from('legal_documents').update({
+-   status: 'signed',
+-   signed_by,
+-   signed_at,
+-   sha256_hash: hash,
+- }).eq('id', docId);
++ // sign + send is ONE transaction (Web team Hipótesis A confirmed)
++ // signed_at + signed_by are columns, NOT a status state
++ await supabase.from('legal_documents').update({
++   status: 'sent',                       // direct draft → sent
++   signed_at: new Date().toISOString(),
++   signed_by: supervisorProfileId,
++   sha256_hash: hash,                    // SHA-256 of PDF bytes
++   pdf_url: uploadedPdfUrl,
++   recipient_email: gcEmail,
++   sent_at: new Date().toISOString(),
++ }).eq('id', docId);
+```
+
+### Decisions
+
+| Topic | Decision |
+|-------|----------|
+| Status enum | `{draft, sent, opened, no_response}`. NO `'signed'` state. |
+| Sign + send | One transaction. `signed_*` columns fill at the same moment as `sent_*`. |
+| Offline pending-send | Client-side queue in AsyncStorage. DB never sees an intermediate state. |
+| PDF rendering v1 | Track local via `expo-print` (mirror of `safety-export.ts`). Web will replace with server renderer later. |
+| Email pipeline v1 | **Option A (chosen):** Track-owned Supabase Edge Function `send-legal-document` using Resend (since Zoho is in Web's `sendEmail()`, not callable from Track-owned Edge Function without duplicating credentials). Edge Function sends with embedded tracking pixel. |
+| Tracking pixel | Track-owned Edge Function `legal-tracking-pixel` returns 1×1 PNG + UPDATEs `opened_at`/`receipt_ip`/`receipt_device`. |
+| Cost engine | Client-side. Track writes to `delay_cost_logs` at sign time. Source of truth (Web confirmed). |
+| Boilerplate body | Hardcoded NY DOB / NYC Local Law in v1. Abstract to `legal_templates` later. |
+| Recipients v1 | Single `recipient_email` field in send modal. `project_legal_recipients` table is v2. |
+| 48h auto-escalation | Skipped. Web cron later flips `status='no_response'`. |
+
+### New tables (none — `delay_cost_logs` already exists, verified)
+
+### Files to create
+
+```
+src/features/legal/
+├── services/
+│   ├── nodPdfRenderer.ts
+│   │   └─ generateNodPdf({ doc, area, costLog, project, org }) → local file URI
+│   ├── costEngine.ts
+│   │   └─ computeDelayCost(areaId, blockedAt) → { crew_size, daily_rate_cents, days_lost, total_cost_cents }
+│   │       reads area_time_entries + workers, sums distinct workers × daily_rate × days_lost
+│   └── sendLegalDocument.ts
+│       └─ wraps the Edge Function call; on offline → queues to AsyncStorage
+├── components/
+│   ├── NodSignModal.tsx
+│   │   └─ SignaturePad reuse + cost preview + recipient email input + send button
+│   ├── NodSendStatusBanner.tsx
+│   │   └─ shows current status (draft/sent/opened/no_response) + timestamps
+│   └── DelayCostCard.tsx
+│       └─ rendered inside NodSignModal AND detail screen — shows crew size × rate × days
+└── hooks/
+    └── useLegalDocs.ts (modify) — remove 'signed' from filter, add 'opened' display
+
+supabase/functions/
+├── send-legal-document/
+│   ├── index.ts
+│   └── deno.json
+└── legal-tracking-pixel/
+    ├── index.ts
+    └── deno.json
+```
+
+### Files to modify
+
+```
+src/app/(tabs)/docs/legal/[id].tsx
+  └─ Wire NodSignModal trigger from "Sign & Send" button on draft status
+  └─ Show NodSendStatusBanner on top
+  └─ PDF download button on sent/opened status
+
+src/features/legal/services/legal-service.ts
+  └─ FIX: status enum, signNod → renamed signAndSend, full transaction update
+
+src/shared/lib/powersync/schema.ts
+  └─ Add delay_cost_logs TableV2 (currently not declared)
+
+powersync/sync-rules.yaml
+  └─ Add delay_cost_logs (org-scoped)
+```
+
+### Cost engine spec
+
+```ts
+// src/features/legal/services/costEngine.ts
+
+export async function computeDelayCost(params: {
+  areaId: string;
+  blockedAt: string;  // ISO timestamp from production_areas.blocked_at
+  projectId: string;
+  organizationId: string;
+}): Promise<DelayCost> {
+  const blockedDate = new Date(params.blockedAt);
+  const now = Date.now();
+  const hoursBlocked = (now - blockedDate.getTime()) / 3600000;
+  const days_lost = Math.ceil(hoursBlocked / 8); // 8h workday
+
+  // 1. Distinct workers who worked this area before/around the block
+  const { data: entries } = await supabase
+    .from('area_time_entries')
+    .select('worker_id')
+    .eq('area_id', params.areaId)
+    .gte('started_at', new Date(blockedDate.getTime() - 14 * 86400000).toISOString());
+
+  const workerIds = [...new Set((entries ?? []).map((e) => e.worker_id))];
+
+  // 2. Pull daily_rate_cents for each
+  // NOTE: area_time_entries.worker_id still references profiles.id (Sprint MANPOWER FK note)
+  // We need to join through workers via workers.profile_id to get daily_rate_cents
+  const { data: workers } = await supabase
+    .from('workers')
+    .select('id, profile_id, daily_rate_cents')
+    .in('profile_id', workerIds);
+
+  const ratesSum = (workers ?? []).reduce((sum, w) => sum + (w.daily_rate_cents ?? 0), 0);
+  const crew_size = workers?.length ?? 0;
+  const daily_rate_cents = crew_size > 0 ? Math.round(ratesSum / crew_size) : 0; // average for display
+  const total_cost_cents = (workers ?? []).reduce(
+    (sum, w) => sum + (w.daily_rate_cents ?? 0) * days_lost,
+    0
+  );
+
+  return { crew_size, daily_rate_cents, days_lost, total_cost_cents };
+}
+```
+
+### Edge Function: `send-legal-document`
+
+```ts
+// supabase/functions/send-legal-document/index.ts
+// Body: { docId, recipientEmail, pdfUrl, senderName, projectName, gcCompany }
+// Output: { success, sent_at, tracking_token } | { error }
+
+import { createClient } from 'jsr:@supabase/supabase-js';
+import { Resend } from 'npm:resend';
+
+Deno.serve(async (req) => {
+  const { docId, recipientEmail, pdfUrl, senderName, projectName, gcCompany } = await req.json();
+
+  const supabase = createClient(/* service role */);
+  const resend = new Resend(Deno.env.get('RESEND_API_KEY'));
+
+  // Generate tracking token (used in pixel URL)
+  const trackingToken = crypto.randomUUID();
+
+  // Build email body with embedded tracking pixel
+  const trackingPixelUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/legal-tracking-pixel/${trackingToken}`;
+
+  const html = `
+    <p>Dear ${gcCompany},</p>
+    <p>Please find attached a Notice of Delay regarding ongoing work at <strong>${projectName}</strong>.</p>
+    <p>Per the General Conditions of our contract, please acknowledge receipt within 48 hours. Failure to respond will be documented as no-response and may form the basis of a future Request for Equitable Adjustment.</p>
+    <p>Sincerely,<br/>${senderName}</p>
+    <img src="${trackingPixelUrl}" width="1" height="1" alt="" />
+  `;
+
+  const { error: emailError } = await resend.emails.send({
+    from: `${senderName} <noreply@notchfield.com>`,
+    to: recipientEmail,
+    subject: `Notice of Delay — ${projectName}`,
+    html,
+    attachments: [{ filename: 'NOD.pdf', path: pdfUrl }],
+  });
+
+  if (emailError) {
+    return new Response(JSON.stringify({ error: emailError.message }), { status: 500 });
+  }
+
+  // Store the tracking token in legal_documents for the pixel endpoint to find
+  await supabase
+    .from('legal_documents')
+    .update({ tracking_token: trackingToken, sent_at: new Date().toISOString() })
+    .eq('id', docId);
+
+  return new Response(
+    JSON.stringify({ success: true, sent_at: new Date().toISOString(), tracking_token: trackingToken }),
+    { status: 200 }
+  );
+});
+```
+
+> ⚠️ **Schema migration required for tracking:** add `tracking_token TEXT` column to `legal_documents`. Will include in 53C migration along with `delay_cost_logs` PowerSync wiring.
+
+### Edge Function: `legal-tracking-pixel`
+
+```ts
+// supabase/functions/legal-tracking-pixel/[token]/index.ts
+// GET /functions/v1/legal-tracking-pixel/{token}
+// Returns: 1×1 transparent PNG + UPDATEs legal_documents.opened_at + receipt_ip + receipt_device
+
+const PIXEL_PNG = new Uint8Array([
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+  // ... 1×1 transparent PNG bytes
+]);
+
+Deno.serve(async (req) => {
+  const url = new URL(req.url);
+  const token = url.pathname.split('/').pop();
+
+  if (token) {
+    const supabase = createClient(/* service role */);
+    const ip = req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip') ?? null;
+    const device = req.headers.get('user-agent') ?? null;
+
+    // Update only if not already opened (first read wins)
+    await supabase
+      .from('legal_documents')
+      .update({
+        status: 'opened',
+        opened_at: new Date().toISOString(),
+        receipt_ip: ip,
+        receipt_device: device,
+      })
+      .eq('tracking_token', token)
+      .is('opened_at', null);
+  }
+
+  return new Response(PIXEL_PNG, {
+    status: 200,
+    headers: {
+      'Content-Type': 'image/png',
+      'Cache-Control': 'no-store',
+    },
+  });
+});
+```
+
+### Boilerplate v1 hardcoded
+
+```ts
+// src/features/legal/services/nodBoilerplate.ts
+
+export function buildNodBody(params: {
+  area_label: string;
+  blocked_at: string;
+  blocked_reason: string;
+  hours_blocked: number;
+  cost: DelayCost;
+  organization_name: string;
+  gc_name: string;
+  project_name: string;
+}): string {
+  return `
+NOTICE OF DELAY
+
+Project: ${params.project_name}
+Area Affected: ${params.area_label}
+Blocked Since: ${formatUSDate(params.blocked_at)}
+Duration: ${Math.round(params.hours_blocked)} hours (${params.cost.days_lost} workday${params.cost.days_lost !== 1 ? 's' : ''})
+
+REASON FOR DELAY:
+${params.blocked_reason}
+
+CREW IMPACT:
+- Crew size impacted: ${params.cost.crew_size} workers
+- Daily labor rate (avg): $${(params.cost.daily_rate_cents / 100).toFixed(2)}
+- Days lost to date: ${params.cost.days_lost}
+- Total documented impact: $${(params.cost.total_cost_cents / 100).toFixed(2)}
+
+LEGAL BASIS:
+This Notice is issued pursuant to the General Conditions of the contract
+between ${params.organization_name} (Subcontractor) and ${params.gc_name}
+(General Contractor), and applicable provisions of New York City Local Law
+and NY DOB Industrial Code Section 23 governing impacted construction work.
+
+ACKNOWLEDGMENT REQUIRED:
+Please acknowledge receipt of this Notice within forty-eight (48) hours.
+Failure to respond will be documented as non-response and incorporated
+into a future Request for Equitable Adjustment (REA).
+
+This document is digitally signed and tamper-evident via SHA-256 hash.
+Modification after signature is prevented at the database level.
+  `.trim();
+}
+```
+
+### Success criteria
+
+- [ ] `signNod` no longer fails on sync (status enum aligned with DB CHECK)
+- [ ] Supervisor signs a NOD → PDF rendered locally → email sent via Edge Function → tracking token stored
+- [ ] GC opens email → tracking pixel UPDATEs `opened_at`/`receipt_ip`/`receipt_device` → status flips to `'opened'`
+- [ ] `delay_cost_logs` row created at sign time, `legal_documents.related_delay_log_id` set
+- [ ] Detail screen shows current status banner + cost breakdown + signature image + SHA-256 hash
+- [ ] Offline sign → queues in AsyncStorage → flushes on next online
+- [ ] TypeScript clean
+
+---
+
+## Sequencing & Commits
+
+| Order | Sub-sprint | Commit message prefix |
+|-------|-----------|------------------------|
+| 1 | 53A — Communication + Push | `feat(messages): area threads + push notifications` |
+| 2 | 53B — Punch polish + plan pinning | `feat(punch): plan-anchored punch items + flow polish` |
+| 3 | 53C — Legal Engine | `feat(legal): NOD sign+send flow + cost engine + tracking pixel` |
+
+Each sub-sprint:
+1. Implementation
+2. `npx tsc --noEmit` (clean before commit)
+3. Update `TASKS_TRACK.md` with sprint summary
+4. Commit + tag with sprint identifier
+5. Verify nothing else regresses (manual smoke test on dev-client APK after rebuild)
+
+After 53C, push notifications + legal can be field-tested with Jantile on next preview APK build.
+
+---
+
+## Coordination with Takeoff Web team
+
+See [SPRINT_53_TAKEOFF_COORDINATION.md](SPRINT_53_TAKEOFF_COORDINATION.md) for the list of Web-side items that depend on or follow this sprint.
