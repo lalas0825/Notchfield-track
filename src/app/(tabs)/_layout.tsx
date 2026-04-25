@@ -97,7 +97,10 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="messages"
         options={{
-          title: 'Messages',
+          // "Messages" was truncating to "Messa..." in the tab bar (8 tabs
+          // total, narrow per-tab width). "Notes" matches the screen's
+          // header title (Project Notes) and is shorter.
+          title: 'Notes',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="chatbubbles" size={size} color={color} />
           ),
