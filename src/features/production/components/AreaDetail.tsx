@@ -187,9 +187,6 @@ export function AreaDetail({
       {/* Photo gallery (rendered via renderPhotoGallery prop) */}
       {renderPhotoGallery}
 
-      {/* Sprint 53A — Communication thread (notes between foreman/supervisor) */}
-      {renderMessages}
-
       {/* Action buttons */}
       <View className="mb-4 gap-2">
         {/* Photo button */}
@@ -251,6 +248,13 @@ export function AreaDetail({
           ))}
         </View>
       )}
+
+      {/* Sprint 53A — Notes section. Mounted as the LAST piece of content
+          per user request 2026-04-25: chat can grow long, primary actions
+          (Mark Complete / Report Blocked) shouldn't be pushed off-screen.
+          MessageThread itself caps the messages-container height with
+          internal scroll so it doesn't dominate the page. */}
+      {renderMessages}
 
       <View className="h-24" />
     </ScrollView>

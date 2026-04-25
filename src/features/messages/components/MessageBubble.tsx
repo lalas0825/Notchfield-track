@@ -71,17 +71,21 @@ export function MessageBubble({
         </Text>
 
         {message.photos.length > 0 && (
+          // Bug fix 2026-04-25: explicit height on the horizontal ScrollView.
+          // Without it, the ScrollView took unbounded vertical space and
+          // stretched the bubble to whatever the parent gave it (which
+          // looked like a huge empty area under the thumbnail).
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            className="mt-2"
+            style={{ marginTop: 8, height: 96 }}
             contentContainerStyle={{ gap: 6 }}
           >
             {message.photos.map((uri, i) => (
               <Pressable
                 key={`${uri}-${i}`}
                 onPress={() => onPhotoPress?.(uri, i)}
-                className="active:opacity-70"
+                style={{ opacity: 1 }}
               >
                 <Image
                   source={{ uri }}

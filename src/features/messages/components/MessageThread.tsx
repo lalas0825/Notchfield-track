@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/features/auth/store/auth-store';
@@ -8,20 +8,21 @@ import { MessageBubble } from './MessageBubble';
 import { MessageComposer } from './MessageComposer';
 
 /**
- * Inline thread mounted in AreaDetail. Shows the last 50 messages for an
- * area (or project-level if areaId is null). Composer at the bottom.
+ * Inline thread. Shows the last 50 messages for an area (or project-level
+ * if areaId is null). Composer pinned at the bottom of the box.
  *
- * Renders messages with View.map() (no FlatList) because this is mounted
- * INSIDE AreaDetail's vertical ScrollView. Nesting a vertical FlatList in
- * a vertical ScrollView triggers RN's "VirtualizedLists should never be
- * nested" warning + breaks windowing. We cap at 50 messages on the
- * service side, so virtualization isn't needed. The parent ScrollView
- * handles all scrolling — the entire AreaDetail screen scrolls as one
- * unit, with the composer at the bottom.
- *
- * Realtime updates from other users append silently. The user is typically
- * scrolled to this section when interacting (composer is below messages),
- * so explicit auto-scroll-to-bottom on new message isn't needed.
+ * Layout (Sprint 53A.2 — refined per pilot feedback 2026-04-25):
+ *   - Mounted as the LAST item in AreaDetail (after action buttons + block
+ *     reasons) so it doesn't push primary controls off-screen.
+ *   - Messages container has fixed max-height (~360dp) with INTERNAL
+ *     vertical ScrollView. Page-level scroll stops just above the chat;
+ *     scrolling within the chat is independent.
+ *   - `nestedScrollEnabled` lets Android route the touch correctly to
+ *     whichever ScrollView the user is gesturing in.
+ *   - Inner ScrollView is fine (no VirtualizedList warning) because
+ *     ScrollView-in-ScrollView is allowed; only nested FlatList triggers
+ *     the windowing warning. We cap at 50 messages so non-virtualized
+ *     rendering is plenty.
  */
 export function MessageThread({
   projectId,
@@ -83,8 +84,9 @@ export function MessageThread({
         </View>
       </View>
 
-      {/* Body — list, loading, or empty state. No internal scroll: parent
-          AreaDetail ScrollView handles it. Messages render inline via .map(). */}
+      {/* Body — list, loading, or empty state. Internal scroll capped at
+          ~360dp so the chat box doesn't dominate the page even when the
+          thread grows long. */}
       <View style={{ borderRadius: 16, backgroundColor: '#0B1220', overflow: 'hidden' }}>
         {loading && messages.length === 0 ? (
           <View style={{ minHeight: 120, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
@@ -105,7 +107,13 @@ export function MessageThread({
             </Text>
           </View>
         ) : (
-          <View style={{ padding: 12 }}>
+          <ScrollView
+            style={{ maxHeight: 360 }}
+            contentContainerStyle={{ padding: 12 }}
+            nestedScrollEnabled
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator
+          >
             {messages.map((item) => (
               <MessageBubble
                 key={item.id}
@@ -114,7 +122,7 @@ export function MessageThread({
                 onPhotoPress={(uri) => setPhotoModal({ uri })}
               />
             ))}
-          </View>
+          </ScrollView>
         )}
 
         <MessageComposer organizationId={profile.organization_id} onSend={onSend} />
