@@ -68,6 +68,9 @@ bucket_definitions:
       - SELECT * FROM project_workers WHERE organization_id = bucket.organization_id AND active = true
       - SELECT * FROM toolbox_library WHERE organization_id = bucket.organization_id AND active = true
       - SELECT * FROM toolbox_schedule_overrides WHERE organization_id = bucket.organization_id
+      # Sprint 53C — Legal engine (supervisor-only reads enforced in-app)
+      - SELECT * FROM legal_documents WHERE organization_id = bucket.organization_id
+      - SELECT * FROM delay_cost_logs WHERE organization_id = bucket.organization_id
 
   # Global toolbox topics (organization_id IS NULL) — shared across all orgs.
   # PowerSync's validator rules on this bucket:

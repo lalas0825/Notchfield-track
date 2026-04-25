@@ -792,6 +792,52 @@ const device_tokens = new TableV2({
   created_at: column.text,
 });
 
+// Sprint 53C — Legal documents (NOD / REA / evidence).
+// CHECK constraints verified in DB 2026-04-24:
+//   document_type IN ('nod', 'rea', 'evidence')
+//   status        IN ('draft', 'sent', 'opened', 'no_response')
+// NOTE: there is NO 'signed' status. Sign + send is ONE transaction.
+// signed_by + signed_at fill at the same moment status flips draft → sent.
+const legal_documents = new TableV2({
+  organization_id: column.text,
+  project_id: column.text,
+  document_type: column.text,     // 'nod' | 'rea' | 'evidence'
+  status: column.text,            // 'draft' | 'sent' | 'opened' | 'no_response'
+  related_area_id: column.text,
+  related_delay_log_id: column.text,
+  title: column.text,
+  description: column.text,
+  sha256_hash: column.text,
+  pdf_url: column.text,
+  signed_by: column.text,
+  signed_at: column.text,
+  sent_at: column.text,
+  opened_at: column.text,
+  recipient_email: column.text,
+  recipient_name: column.text,    // Sprint 53C — Hybrid Sender display
+  receipt_ip: column.text,
+  receipt_device: column.text,
+  tracking_token: column.text,    // Sprint 53C
+  created_at: column.text,
+  updated_at: column.text,
+});
+
+// Sprint 53C — Cost engine output. Track is source of truth (Web confirmed).
+// Foreign-keyed from legal_documents.related_delay_log_id. Track computes
+// from area_time_entries JOIN workers.daily_rate_cents at sign time.
+const delay_cost_logs = new TableV2({
+  organization_id: column.text,
+  project_id: column.text,
+  area_id: column.text,
+  delay_log_id: column.text,      // self-reference / nullable
+  crew_size: column.integer,
+  daily_rate_cents: column.integer,
+  days_lost: column.real,
+  total_cost_cents: column.integer,
+  calculated_at: column.text,
+  created_at: column.text,
+});
+
 // Sprint 42B — GC Punch Items (synced from Procore / GC platforms)
 const gc_punch_items = new TableV2({
   organization_id: column.text,
@@ -936,6 +982,9 @@ export const AppSchema = new Schema({
   feedback_reports,
   // Sprint 53A — Push notification device tokens
   device_tokens,
+  // Sprint 53C — Legal engine
+  legal_documents,
+  delay_cost_logs,
 });
 
 export type Database = (typeof AppSchema)['types'];
@@ -960,5 +1009,7 @@ export type GcPunchItemRecord = Database['gc_punch_items'];
 export type DocumentSignatureRecord = Database['document_signatures'];
 export type FeedbackReportRecord = Database['feedback_reports'];
 export type DeviceTokenRecord = Database['device_tokens'];
+export type LegalDocumentRecord = Database['legal_documents'];
+export type DelayCostLogRecord = Database['delay_cost_logs'];
 export type DrawingHyperlinkRecord = Database['drawing_hyperlinks'];
 export type DrawingPinRecord = Database['drawing_pins'];

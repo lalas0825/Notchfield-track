@@ -1,26 +1,49 @@
 /**
- * Legal Document Service — NOD (Notice of Delay)
- * =================================================
- * Lifecycle: draft → signed → sent → opened
+ * Legal Document Service — Sprint 53C REWRITE
+ * =============================================
  *
- * Once signed, the Postgres trigger guard_legal_immutability()
- * prevents modification of title, description, sha256_hash, signed_by, signed_at.
- * The SHA-256 hash acts as tamper-detection.
+ * CRITICAL FIX: the prior flow set status='signed' after the supervisor
+ * signed the document. The DB CHECK constraint is:
+ *   status IN ('draft', 'sent', 'opened', 'no_response')
+ * There is NO 'signed' state. Web team confirmed (Hipótesis A):
+ *   "El acto de firmar IS el acto de enviar — son una sola transición."
  *
- * Supervisor only — foreman NEVER sees legal documents.
+ * Flow:
+ *   draft    → user taps "Sign & Send" in the NodSignModal
+ *               → signature pad + recipient email + cost preview
+ *   (submit) → signature PNG uploaded to Storage
+ *               → PDF rendered locally via expo-print
+ *               → PDF uploaded to Storage
+ *               → SHA-256 of PDF bytes
+ *               → delay_cost_logs row INSERTed
+ *               → Edge Function called (email + tracking_token)
+ *               → UPDATE legal_documents in ONE transaction:
+ *                   status='sent', signed_at, signed_by, sha256_hash,
+ *                   pdf_url, recipient_email, recipient_name, sent_at,
+ *                   tracking_token, related_delay_log_id
+ *   sent     → GC opens email → tracking pixel UPDATEs:
+ *                   status='opened', opened_at, receipt_ip, receipt_device
+ *   opened   → (final state for v1; 48h cron flips to 'no_response' in v2)
+ *
+ * The guard_legal_immutability trigger prevents modification of
+ * title/description/sha256_hash/signed_by/signed_at on sent+ docs.
+ *
+ * Supervisor-only — foreman NEVER sees legal documents (RLS + in-app gate).
  */
 
-import * as Crypto from 'expo-crypto';
 import { supabase } from '@/shared/lib/supabase/client';
 import { logger } from '@/shared/lib/logger';
+
+export type LegalDocStatus = 'draft' | 'sent' | 'opened' | 'no_response';
 
 export type LegalDoc = {
   id: string;
   organization_id: string;
   project_id: string;
-  document_type: string; // 'nod' | 'rea'
-  status: string; // 'draft' | 'signed' | 'sent' | 'opened'
+  document_type: 'nod' | 'rea' | 'evidence';
+  status: LegalDocStatus;
   related_area_id: string | null;
+  related_delay_log_id: string | null;
   title: string;
   description: string | null;
   sha256_hash: string | null;
@@ -30,16 +53,29 @@ export type LegalDoc = {
   sent_at: string | null;
   opened_at: string | null;
   recipient_email: string | null;
+  recipient_name: string | null;
+  receipt_ip: string | null;
+  receipt_device: string | null;
+  tracking_token: string | null;
   created_at: string;
+  updated_at: string;
 };
 
 /**
  * Detect areas blocked > threshold hours. Returns areas eligible for NOD.
+ * Default threshold 24h — the pilot ops window.
  */
 export async function detectBlockedAreas(
   projectId: string,
   thresholdHours = 24,
-): Promise<{ id: string; name: string; floor: string | null; blocked_reason: string | null; blocked_at: string; hours_blocked: number }[]> {
+): Promise<{
+  id: string;
+  name: string;
+  floor: string | null;
+  blocked_reason: string | null;
+  blocked_at: string;
+  hours_blocked: number;
+}[]> {
   const { data } = await supabase
     .from('production_areas')
     .select('id, name, floor, blocked_reason, blocked_at')
@@ -50,7 +86,13 @@ export async function detectBlockedAreas(
   if (!data) return [];
 
   const now = Date.now();
-  return (data as any[])
+  return (data as Array<{
+    id: string;
+    name: string;
+    floor: string | null;
+    blocked_reason: string | null;
+    blocked_at: string;
+  }>)
     .map((area) => ({
       ...area,
       hours_blocked: (now - new Date(area.blocked_at).getTime()) / 3600000,
@@ -60,6 +102,9 @@ export async function detectBlockedAreas(
 
 /**
  * Check if a NOD already exists for an area (avoid duplicates).
+ * Only matches active states (draft/sent/opened). no_response does NOT
+ * count as "already exists" — it means the GC never acknowledged, so a
+ * re-issue is valid.
  */
 export async function hasExistingNod(areaId: string): Promise<boolean> {
   const { count } = await supabase
@@ -67,13 +112,14 @@ export async function hasExistingNod(areaId: string): Promise<boolean> {
     .select('*', { count: 'exact', head: true })
     .eq('related_area_id', areaId)
     .eq('document_type', 'nod')
-    .in('status', ['draft', 'signed', 'sent']);
+    .in('status', ['draft', 'sent', 'opened']);
 
   return (count ?? 0) > 0;
 }
 
 /**
- * Generate a NOD draft for a blocked area.
+ * Generate a NOD draft for a blocked area. Status='draft'; supervisor
+ * reviews + adds recipient + signs via NodSignModal.
  */
 export async function generateNodDraft(params: {
   organizationId: string;
@@ -84,7 +130,6 @@ export async function generateNodDraft(params: {
   blockedAt: string;
   hoursBlocked: number;
 }): Promise<{ success: boolean; id?: string; error?: string }> {
-  // Check for existing NOD
   const exists = await hasExistingNod(params.areaId);
   if (exists) {
     return { success: false, error: 'A NOD already exists for this area' };
@@ -121,56 +166,62 @@ export async function generateNodDraft(params: {
 }
 
 /**
- * Sign a NOD. Generates SHA-256 hash of content + signature.
- * Once signed, the Postgres trigger prevents modification.
+ * Load a single legal document (for the detail screen / signing modal).
  */
-export async function signNod(
-  docId: string,
-  signedBy: string,
-  signatureData: string, // base64 signature image
-): Promise<{ success: boolean; error?: string }> {
-  // Fetch the document to hash
-  const { data: doc, error: fetchError } = await supabase
+export async function getLegalDoc(docId: string): Promise<LegalDoc | null> {
+  const { data, error } = await supabase
     .from('legal_documents')
-    .select('title, description, related_area_id, created_at')
+    .select('*')
     .eq('id', docId)
-    .single();
-
-  if (fetchError || !doc) {
-    return { success: false, error: 'Document not found' };
+    .maybeSingle();
+  if (error) {
+    logger.warn('[Legal] getLegalDoc failed', error);
+    return null;
   }
+  return data as LegalDoc | null;
+}
 
-  // Generate SHA-256 hash of content + signer + timestamp
-  const now = new Date().toISOString();
-  const hashInput = JSON.stringify({
-    title: doc.title,
-    description: doc.description,
-    related_area_id: doc.related_area_id,
-    created_at: doc.created_at,
-    signed_by: signedBy,
-    signed_at: now,
-    signature_data_length: signatureData.length,
-  });
-
-  const hash = await Crypto.digestStringAsync(
-    Crypto.CryptoDigestAlgorithm.SHA256,
-    hashInput,
-  );
-
-  // Update with signature + hash (trigger allows this on unsigned docs)
+/**
+ * Apply the sign + send transaction to legal_documents.
+ * Called by NodSignModal after:
+ *   1. signature PNG uploaded
+ *   2. PDF rendered + uploaded
+ *   3. SHA-256 computed
+ *   4. delay_cost_logs row INSERTed (cost engine)
+ *   5. Edge Function returned tracking_token + sent_at
+ *
+ * This is the ONLY legitimate path from draft → sent. No separate "sign"
+ * state exists in the schema.
+ */
+export async function applySignAndSend(params: {
+  docId: string;
+  signedBy: string;
+  sha256Hash: string;
+  pdfUrl: string;
+  recipientEmail: string;
+  recipientName: string | null;
+  sentAt: string;
+  trackingToken: string;
+  delayLogId: string;
+}): Promise<{ success: boolean; error?: string }> {
   const { error } = await supabase
     .from('legal_documents')
     .update({
-      status: 'signed',
-      signed_by: signedBy,
-      signed_at: now,
-      sha256_hash: hash,
+      status: 'sent',
+      signed_by: params.signedBy,
+      signed_at: params.sentAt,              // sign and send happen together
+      sha256_hash: params.sha256Hash,
+      pdf_url: params.pdfUrl,
+      recipient_email: params.recipientEmail,
+      recipient_name: params.recipientName,
+      sent_at: params.sentAt,
+      tracking_token: params.trackingToken,
+      related_delay_log_id: params.delayLogId,
     })
-    .eq('id', docId);
+    .eq('id', params.docId);
 
   if (error) return { success: false, error: error.message };
-
-  logger.info(`[Legal] NOD signed: ${docId} hash=${hash.substring(0, 16)}...`);
+  logger.info(`[Legal] NOD sent: ${params.docId}`);
   return { success: true };
 }
 
@@ -192,13 +243,14 @@ export async function fetchLegalDocs(
 }
 
 /**
- * Get counts by status.
+ * Counts by status for the Docs tab badge + KPI bar.
  */
 export function getLegalCounts(docs: LegalDoc[]) {
   return {
     draft: docs.filter((d) => d.status === 'draft').length,
-    signed: docs.filter((d) => d.status === 'signed').length,
     sent: docs.filter((d) => d.status === 'sent').length,
+    opened: docs.filter((d) => d.status === 'opened').length,
+    noResponse: docs.filter((d) => d.status === 'no_response').length,
     total: docs.length,
   };
 }

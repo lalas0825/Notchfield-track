@@ -7,10 +7,10 @@ import { useLegalDocs } from '@/features/legal/hooks/useLegalDocs';
 import { generateNodDraft } from '@/features/legal/services/legal-service';
 
 const STATUS_CONFIG: Record<string, { color: string; label: string; icon: keyof typeof Ionicons.glyphMap }> = {
-  draft: { color: '#F59E0B', label: 'Draft', icon: 'document-text-outline' },
-  signed: { color: '#3B82F6', label: 'Signed', icon: 'checkmark-done' },
-  sent: { color: '#22C55E', label: 'Sent', icon: 'send' },
-  opened: { color: '#22C55E', label: 'Opened', icon: 'eye' },
+  draft:       { color: '#F59E0B', label: 'Draft',       icon: 'document-text-outline' },
+  sent:        { color: '#22C55E', label: 'Sent',        icon: 'send' },
+  opened:      { color: '#22C55E', label: 'Opened',      icon: 'eye' },
+  no_response: { color: '#EF4444', label: 'No response', icon: 'alert-circle' },
 };
 
 export default function LegalListScreen() {
