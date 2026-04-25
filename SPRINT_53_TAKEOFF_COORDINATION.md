@@ -2,21 +2,36 @@
 
 > **Audience:** Takeoff Web team
 > **Companion to:** [SPRINT_TRACK_53.md](SPRINT_TRACK_53.md)
-> **Status:** Track is first mover. Items below are what Web should add to backlog (post-Sprint 62) or build in parallel if priorities change.
-> **Pattern:** Same as Sprint 50A/B → TOOLBOX, 43A → 45B, CREW → MANPOWER. Track ships v1, Web mirrors and replaces Track-owned infrastructure later.
+> **Status (updated 2026-04-25):** Track has shipped 53A + 53B + 53C Track-side code. **Sprint 53C is partially blocked on Web** — Option B was chosen for the email pipeline (Track calls Web endpoint, no duplicated Zoho credentials). See §2.1 below — that section is now a **BLOCKER**, not a post-sprint TODO.
+> **Pattern:** Same as Sprint 50A/B → TOOLBOX, 43A → 45B, CREW → MANPOWER. Track ships v1, Web mirrors. For Legal, the call is inverted: **Web ships the send pipeline first**, Track already has the render/sign/record side ready to use it.
+
+---
+
+## 🚨 BLOCKERS for Track Sprint 53 completion
+
+These must ship on Web side before the corresponding Track feature works end-to-end. Track draft + UI work is done — only the send path is blocked.
+
+| Track feature state | Blocker on Web |
+|----------------------|----------------|
+| Legal NOD drafts + cost engine + PDF render + UI — ✅ shipped | **§2.1 `POST /api/pm/legal-documents/[docId]/distribute`** — required for "Sign & Send" to work |
+| Legal open-receipt tracking — ✅ Track writes/reads `tracking_token`, `opened_at` | **§2.2 `GET /api/legal/{token}/pixel`** — required for email opens to register |
+
+Jantile pilot can draft NODs today. The "Sign & Send" button will 404 until §2.1 lands. Target: next Web sprint cycle after Sprint 62 or sooner if pilot needs the Legal feature live for a real NOD event.
 
 ---
 
 ## TL;DR for Web team
 
-| Feature | Track v1 ships | Web TODO (no urgency) | Web replaces Track when |
-|---------|----------------|------------------------|-------------------------|
-| Communication | Direct UI on `field_messages` + Edge Function for push | Web UI for messages thread (Production Dashboard area panel + global "Messages" tab) | Web UI ready post-Sprint 62 |
-| Punch List plan pinning | First writes to `plan_x`/`plan_y`/`drawing_id` | Plan viewer with pin overlay | Web Plan Viewer feature |
-| Legal sign + send + tracking | Track-owned Edge Functions (`send-legal-document`, `legal-tracking-pixel`) + local PDF render | Server-side `nodPdfRenderer` + `/api/pm/legal-documents/[id]/distribute` + tracking pixel + 48h cron | Web endpoint feature-complete |
+| Feature | Track v1 ships | Web TODO | Status |
+|---------|----------------|----------|--------|
+| Communication | Direct UI on `field_messages` + Edge Function for push notifications | Web UI for messages thread (Production Dashboard area panel + global "Messages" tab) | Post-Sprint 62 backlog |
+| Punch List plan pinning | First writes to `plan_x`/`plan_y`/`drawing_id` | Plan viewer with pin overlay alongside `drawing_pins` | Post-Sprint 62 backlog |
+| **Legal email pipeline** | PDF render (expo-print) + upload + SHA-256 + draft UI + send orchestrator (Option B — calls Web endpoint) | **`POST /api/pm/legal-documents/[docId]/distribute` (via Zoho sendEmail wrapper)** | 🚨 **BLOCKER — required to unblock Track Legal send** |
+| **Legal tracking pixel** | Track writes `tracking_token` returned by the distribute endpoint + observes `status`/`opened_at` changes | **`GET /api/legal/{token}/pixel` — 1×1 PNG + UPDATE on `legal_documents`** | 🚨 **BLOCKER — embedded in distribute email body** |
 | Cost engine | Track writes `delay_cost_logs` client-side at sign time | None — Track is source of truth (Web confirmed) | Never (Track owns this) |
-| Boilerplate body | Hardcoded NY DOB / NYC Local Law in Track | `legal_templates` per-jurisdiction table | Web templates ready |
+| Boilerplate body | Hardcoded NY DOB / NYC Local Law in Track | `legal_templates` per-jurisdiction table | Web v2 |
 | Recipients | Single email field at send time | `project_legal_recipients` table + selector | Web v2 |
+| Server-side NOD PDF renderer | Track renders locally via expo-print for v1 | `legalDocPdfRenderer.ts` (server) to replace Track's local render; Track passes pre-rendered URL in the meantime | Web v2 |
 
 ---
 
@@ -25,105 +40,165 @@
 These are explicit *no-ops* — Track handles them. Listed here so Web doesn't start parallel work and create conflicts.
 
 1. **No schema changes for Communication.** `field_messages` table is final for v1. Track will leave `read_at`/`read_by`/`updated_at` for a future joint sprint when usage demands it.
-2. **No PowerSync rule changes for `field_messages`/`punch_items`/`legal_documents`** — already published.
-3. **No new server-side renderer for NOD/REA in Web.** Track is using local `expo-print` for v1, same pattern as `safety-export.ts`.
-4. **No `delay_cost_logs` server-side computation.** Track computes from `area_time_entries` + `workers.daily_rate_cents` and writes the row at sign time.
+2. **No PowerSync rule changes for `field_messages`/`punch_items`/`legal_documents`/`delay_cost_logs`** — already published (Track added Legal tables in Sprint 53C).
+3. **No server-side NOD PDF renderer for v1.** Track is using local `expo-print` (mirror of `safety-export.ts`). Web can build a proper server renderer in v2 — no rush.
+4. **No `delay_cost_logs` server-side computation.** Track computes from `area_time_entries` + `workers.daily_rate_cents` and writes the row at sign time. Web endpoint should trust the row Track wrote (reachable via `legal_documents.related_delay_log_id`).
+5. **No new DB schema for Legal distribute.** Track's Sprint 53C migration (`add_legal_tracking_token`) added the only columns Web needs: `legal_documents.tracking_token TEXT` + `recipient_name TEXT`.
 
 ---
 
-## Section 2 — Track-owned infrastructure that Web should plan to replace
+## Section 2 — Web endpoints Track needs (BLOCKERS)
 
-These are the v1 escape hatches. Track is taking on responsibilities that conceptually belong to Web (server-side PDF, distribute endpoints) because they don't exist in Web yet. When Web is ready, Track gets refactored to call Web instead.
+Track chose Option B for email: **no duplicated Zoho credentials**. The
+`send-legal-document` Supabase Edge Function was removed from the Track
+codebase (commit log has the reference). Track now calls Web's endpoint
+directly. The email pipeline + tracking pixel are Web's responsibility
+from v1 onward — not a post-v1 migration.
 
-### 2.1 — Edge Function `send-legal-document` (Track-owned)
+### 2.1 — BLOCKER: `POST /api/pm/legal-documents/[docId]/distribute` (Web-side)
 
-**Replace with:** `POST /api/pm/legal-documents/[docId]/distribute`
+**Track's call site:** [`src/features/legal/services/sendLegalDocument.ts`](../notchfield-track/src/features/legal/services/sendLegalDocument.ts) stage 4.
 
-**Suggested contract** (mirror of `/api/pm/safety-documents/[docId]/distribute` from Sprint 52H):
+**Auth:** dual-auth pattern from Sprint 52H (`4a84abf`). Accept bearer JWT
+in `Authorization` header, fall back to cookie. Supabase client built from
+the resolved session so RLS sees `auth.uid()` correctly. Reject if the
+signed-in user can't access the `legal_documents` row.
 
-```ts
-// Request
+**Request (sent by Track):**
+```json
 POST /api/pm/legal-documents/{docId}/distribute
-Authorization: Bearer {jwt}  // dual-auth: cookie OR bearer
+Authorization: Bearer {session.access_token}
 Content-Type: application/json
 
 {
-  recipientEmail: string;       // single recipient v1; v2 array
-  pdfLabels: NodPdfLabels;      // canonical label shape — see TAKEOFF_PDF_ALIGNMENT.md
-  oshaCitationsIncluded: boolean;
-  // server resolves: org name, project name, gc info from joins
+  "recipientEmail":         "gc-contact@example.com",
+  "recipientName":          "ABC General Contractor",
+  "senderName":             "John Supervisor",
+  "senderTitle":            "Project Supervisor",
+  "projectName":            "Residence Tower A",
+  "gcCompany":              "ABC General Contractor",
+  "areaLabel":              "L3-E2 — Toilet 0113",
+  "pdfUrl":                 "https://msmpsxalfalzinuorwlg.supabase.co/storage/v1/object/public/field-photos/legal-documents/{org_id}/{doc_id}.pdf",
+  "pdfSha256":              "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+  "oshaCitationsIncluded":  false
 }
+```
 
-// Response
+**Server responsibilities (Takeoff side):**
+
+1. **Validate access.** Fetch `legal_documents` by `docId` — confirm org matches user org, status is `'draft'`.
+2. **Generate tracking_token** — `crypto.randomUUID()`. This goes both in the response AND embedded in the email HTML body as a tracking pixel.
+3. **Fetch PDF** — Track uploaded it to public Storage at `pdfUrl`. Fetch bytes, use as email attachment.
+4. **Build email HTML body** with an inline tracking pixel:
+   ```html
+   <img src="https://notchfield.com/api/legal/{tracking_token}/pixel" width="1" height="1" alt=""/>
+   ```
+5. **Send via `sendEmail()`** — the central Zoho wrapper from `src/lib/email/emailService.ts`. Use `resolveBusinessSender()` for the Hybrid Sender pattern → "John Supervisor (Jantile) <noreply@notchfield.com>".
+   - Subject: `Notice of Delay — {projectName}`
+   - Attachment: `NOD-{projectName-slug}.pdf` (from the fetched bytes)
+6. **Return** the tracking_token + sent_at timestamp:
+
+**Response (success):**
+```json
 {
-  success: true,
-  sent_at: ISO,
-  tracking_token: UUID,
-  pdf_sha256: string,
+  "success":        true,
+  "sent_at":        "2026-04-25T10:00:00.000Z",
+  "tracking_token": "c7a1f700-ad03-4524-a367-3f6dcc01d391"
 }
 ```
 
-**Pattern to copy from Sprint 52H (Web `4a84abf` commit):**
-- Build Supabase client with bearer JWT first, fall back to cookie
-- RLS sees `auth.uid()` correctly
-- Defensive null coercion (the `jsPDF.text(undefined)` crash from Sprint 52)
-- `labels` carries pre-resolved object maps, not raw enum keys
-- Strip trailing `(N)` from any text counts before appending count from `selected_tasks.length`
-
-**Track-side change required when Web ships this:**
-
-```ts
-// src/features/legal/services/sendLegalDocument.ts
-- await fetch(`${SUPABASE_URL}/functions/v1/send-legal-document`, ...);
-+ await fetch(`${WEB_API_URL}/api/pm/legal-documents/${docId}/distribute`, {
-+   headers: { Authorization: `Bearer ${session.access_token}` },
-+   body: JSON.stringify({ recipientEmail, pdfLabels, oshaCitationsIncluded }),
-+ });
+**Response (error):**
+```json
+{
+  "success": false,
+  "error":   "description of what went wrong"
+}
 ```
 
-The Edge Function `send-legal-document` can stay deployed as a fallback for offline-flush queue retry (until Web endpoint is verified stable).
+**Do NOT update `legal_documents` from this endpoint.** Track owns the
+single-point-of-truth UPDATE transaction (`applySignAndSend`). Web just
+returns the two values Track needs (`sent_at`, `tracking_token`); Track
+writes them atomically along with `status='sent'`, `signed_at`, `signed_by`,
+`sha256_hash`, `pdf_url`, `recipient_email`, `recipient_name`. This keeps
+the guard_legal_immutability trigger semantics clean.
 
-### 2.2 — Edge Function `legal-tracking-pixel` (Track-owned)
+**Known gotchas from Sprint 52:**
+- Dual-auth bearer FIRST, cookie fallback. See commit `4a84abf`.
+- Defensive null coercion on request body (the `jsPDF.text(undefined)` crash lesson from `3c094a0`).
+- Do NOT re-render the PDF on this endpoint — trust Track's `pdfUrl` in v1. Verify SHA-256 if paranoid.
 
-**Replace with:** `GET /api/legal/{trackingToken}/pixel`
+### 2.2 — BLOCKER: `GET /api/legal/{tracking_token}/pixel` (Web-side)
 
-**Behavior identical:** 1×1 transparent PNG, UPDATE `legal_documents` SET `opened_at`, `receipt_ip`, `receipt_device`, `status='opened'` WHERE `tracking_token = ?` AND `opened_at IS NULL`.
+**Why Track can't do this from a Supabase Edge Function:** the pixel URL
+ends up in the email body. A customer-facing `notchfield.com` domain is
+more professional than `msmpsxalfalzinuorwlg.supabase.co`. Also — if
+Track-owned infrastructure got decommissioned, years-old NODs would
+lose their open-receipt tracking.
 
-**Why migrate to Web:** the pixel URL gets embedded in the email body. Long-term, the URL on the customer-facing domain `notchfield.com/api/legal/.../pixel` looks more professional than a Supabase functions URL.
+**Behavior:**
+- Accept GET at `/api/legal/{tracking_token}/pixel`
+- Return a 1×1 transparent PNG (inline bytes — no external fetch)
+- Fire-and-forget DB update:
+  ```sql
+  UPDATE legal_documents
+  SET status       = 'opened',
+      opened_at    = NOW(),
+      receipt_ip   = $1,
+      receipt_device = $2
+  WHERE tracking_token = $3
+    AND opened_at IS NULL  -- first-read-wins
+  ```
+  - `$1` = `X-Forwarded-For` or `X-Real-IP` header
+  - `$2` = `User-Agent` header (truncated to 500 chars)
+  - `$3` = token from URL segment
+- Return headers: `Content-Type: image/png`, `Cache-Control: no-store, no-cache, must-revalidate`, `Content-Length: <n>`
+- **No auth** — tracking token is the auth (unguessable UUID). Use service-role client internally to bypass RLS for the update.
+- Don't await the DB update before returning the pixel — email clients shouldn't hang on DB writes.
 
-**Schema column added by Track in 53C:** `legal_documents.tracking_token TEXT` (UUID). Web should keep this column when implementing the server-side pixel.
+Track has reference implementations that were deleted along with the
+Edge Functions — if useful, the git history at commit `4f17adf` →
+`supabase/functions/legal-tracking-pixel/index.ts` has the exact PNG
+bytes and update logic.
 
-### 2.3 — Server-side `nodPdfRenderer.ts`
+### 2.3 — DEFERRED: Server-side `nodPdfRenderer.ts` (post v1)
 
-**Replace:** Track's local `expo-print` HTML template.
+Track v1 renders PDFs locally (`src/features/legal/services/nodPdfRenderer.ts`).
+Web will eventually replace this with a server-side renderer using the
+same pattern as `ptpPdfRenderer.ts` / `workTicketPdfRenderer.ts`. When
+that lands, Track switches from "render locally + upload + pass URL" to
+"pass labels, server renders". For now **trust Track's pre-rendered PDF**.
 
-**Pattern:** mirror Track's HTML structure. The 17 PDF gaps from Sprint 52 (TAKEOFF_PDF_ALIGNMENT.md) apply here too — Title Case headers, MM/DD/YYYY dates, full 64-char SHA-256, ACTIVE not DRAFT race, customer letterhead via `OrgLetterhead` pattern.
-
-**Canonical labels shape** (Track will pass these in the distribute body):
+**Canonical labels shape** (will be added to Track's request body when
+Web ships its renderer — for v1, ignore and use `pdfUrl`):
 
 ```ts
 type NodPdfLabels = {
-  title: string;             // "NOTICE OF DELAY"
-  projectName: string;
+  title:          string;  // "NOTICE OF DELAY"
+  projectName:    string;
   organizationName: string;
-  gcName: string;
-  areaLabel: string;
-  blockedAt: string;         // MM/DD/YYYY
-  duration: string;          // "5 workdays (40 hours)"
-  blockedReason: string;     // free text
-  legalBasis: string;        // boilerplate paragraph
-  acknowledgment: string;    // "Please acknowledge within 48 hours..."
-  signedAt: string;          // MM/DD/YYYY HH:mm local TZ
-  signerName: string;
-  signerTitle: string;       // e.g. "Project Supervisor"
+  gcName:         string;
+  areaLabel:      string;
+  blockedAt:      string;  // MM/DD/YYYY
+  duration:       string;  // "5 workdays (40 hours)"
+  blockedReason:  string;
+  legalBasis:     string;  // boilerplate paragraph
+  acknowledgment: string;  // "Please acknowledge within 48 hours..."
+  signedAt:       string;  // MM/DD/YYYY HH:mm local TZ
+  signerName:     string;
+  signerTitle:    string;
   costSummary: {
-    crewSize: number;
-    avgDailyRateUsd: string; // "$1,750.00"
-    daysLost: number;
-    totalImpactUsd: string;  // "$17,500.00"
+    crewSize:         number;
+    avgDailyRateUsd:  string;  // "$1,750.00"
+    daysLost:         number;
+    totalImpactUsd:   string;  // "$17,500.00"
   };
 };
 ```
+
+The 17 PDF gaps from Sprint 52 ([TAKEOFF_PDF_ALIGNMENT.md](TAKEOFF_PDF_ALIGNMENT.md))
+apply to this renderer too — Title Case headers, MM/DD/YYYY dates, full
+64-char SHA-256, ACTIVE not DRAFT race, customer letterhead via
+`OrgLetterhead` pattern.
 
 ---
 
@@ -242,16 +317,26 @@ WHERE status = 'sent'
 
 These changes hit shared tables. Web will sync naturally via PowerSync, but Web team should be aware so any in-flight Web migration doesn't conflict.
 
-### 4.1 — `legal_documents.tracking_token TEXT`
+### 4.1 — `legal_documents.tracking_token TEXT` + `recipient_name TEXT` (applied)
+
+Migration: `add_legal_tracking_token` (already applied to prod DB 2026-04-24).
 
 ```sql
 ALTER TABLE legal_documents ADD COLUMN tracking_token TEXT;
-CREATE INDEX legal_documents_tracking_token_idx ON legal_documents (tracking_token) WHERE tracking_token IS NOT NULL;
+CREATE INDEX legal_documents_tracking_token_idx
+  ON legal_documents (tracking_token)
+  WHERE tracking_token IS NOT NULL;
+
+ALTER TABLE legal_documents ADD COLUMN recipient_name TEXT;
 ```
 
-**Used by:** `legal-tracking-pixel` Edge Function to find the document when GC opens the email.
+**Used by:**
+- `POST /api/pm/legal-documents/[docId]/distribute` (§2.1, Web) — generates the token and returns it to Track. Track writes it to this column in the sign-and-send transaction.
+- `GET /api/legal/{tracking_token}/pixel` (§2.2, Web) — looks up the document on open via this column.
 
-**Web replaces by:** keeping the column when migrating to `/api/legal/{trackingToken}/pixel`. Same column, different handler.
+**`recipient_name`** supports the Hybrid Sender pattern ("John Supervisor
+(Jantile) <noreply@notchfield.com>") — Track writes the GC company name
+at send time.
 
 ### 4.2 — `device_tokens` table (Track-owned, NEW)
 

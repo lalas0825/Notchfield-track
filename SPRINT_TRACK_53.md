@@ -334,7 +334,11 @@ Pin appears on plan immediately (optimistic). Foreman who opens Plans tab sees i
 
 ## Sub-sprint 53C — Legal Engine fix + complete v1 (~6-8h)
 
-**Scope:** Fix critical status enum bug + complete sign + send + tracking pixel via Track-owned Edge Functions.
+**Scope:** Fix critical status enum bug + complete sign + send pipeline. Email
+goes through Takeoff Web's `/api/pm/legal-documents/[docId]/distribute` endpoint
+(Option B, chosen 2026-04-25). Web reuses their Zoho SMTP `sendEmail()`
+wrapper. Track renders the PDF locally and uploads to Storage; Web fetches,
+attaches, and sends. Tracking pixel is 100% Web-side.
 
 ### The fix (PRIORITY #1 — current code would fail in prod)
 
@@ -371,8 +375,8 @@ Pin appears on plan immediately (optimistic). Foreman who opens Plans tab sees i
 | Sign + send | One transaction. `signed_*` columns fill at the same moment as `sent_*`. |
 | Offline pending-send | Client-side queue in AsyncStorage. DB never sees an intermediate state. |
 | PDF rendering v1 | Track local via `expo-print` (mirror of `safety-export.ts`). Web will replace with server renderer later. |
-| Email pipeline v1 | **Option A (chosen):** Track-owned Supabase Edge Function `send-legal-document` using Resend (since Zoho is in Web's `sendEmail()`, not callable from Track-owned Edge Function without duplicating credentials). Edge Function sends with embedded tracking pixel. |
-| Tracking pixel | Track-owned Edge Function `legal-tracking-pixel` returns 1×1 PNG + UPDATEs `opened_at`/`receipt_ip`/`receipt_device`. |
+| Email pipeline | **Option B (chosen 2026-04-25):** Track calls Takeoff Web's `POST /api/pm/legal-documents/[docId]/distribute`, which uses Web's existing `sendEmail()` wrapper over Zoho SMTP. No credential duplication. **Blocker:** Web must ship this endpoint before Legal send is usable (draft creation works either way). See [SPRINT_53_TAKEOFF_COORDINATION.md §2.1](SPRINT_53_TAKEOFF_COORDINATION.md#21--blocker-post-api-pm-legal-documentsdocid-distribute-web-side). |
+| Tracking pixel | **Web-side** — `GET /api/legal/{token}/pixel` returns 1×1 PNG + UPDATEs `opened_at`/`receipt_ip`/`receipt_device`. Web embeds the pixel URL in the email HTML body they build. Track does zero pixel work. |
 | Cost engine | Client-side. Track writes to `delay_cost_logs` at sign time. Source of truth (Web confirmed). |
 | Boilerplate body | Hardcoded NY DOB / NYC Local Law in v1. Abstract to `legal_templates` later. |
 | Recipients v1 | Single `recipient_email` field in send modal. `project_legal_recipients` table is v2. |
@@ -386,30 +390,26 @@ Pin appears on plan immediately (optimistic). Foreman who opens Plans tab sees i
 src/features/legal/
 ├── services/
 │   ├── nodPdfRenderer.ts
-│   │   └─ generateNodPdf({ doc, area, costLog, project, org }) → local file URI
+│   │   └─ generateNodPdf({ doc, area, cost, project, org, signer, ... })
+│   │       → local expo-print URI + SHA-256 + upload to Storage.
+│   │       NO pixel embed (pixel is email-body only, Web owns it).
 │   ├── costEngine.ts
-│   │   └─ computeDelayCost(areaId, blockedAt) → { crew_size, daily_rate_cents, days_lost, total_cost_cents }
-│   │       reads area_time_entries + workers, sums distinct workers × daily_rate × days_lost
+│   │   └─ computeDelayCost + persistDelayCostLog
 │   └── sendLegalDocument.ts
-│       └─ wraps the Edge Function call; on offline → queues to AsyncStorage
+│       └─ signAndSendNod pipeline → POST to Web /api/pm/legal-documents/[id]/distribute
 ├── components/
 │   ├── NodSignModal.tsx
-│   │   └─ SignaturePad reuse + cost preview + recipient email input + send button
-│   ├── NodSendStatusBanner.tsx
-│   │   └─ shows current status (draft/sent/opened/no_response) + timestamps
+│   │   └─ SignaturePad + cost preview + recipient email + submit
 │   └── DelayCostCard.tsx
-│       └─ rendered inside NodSignModal AND detail screen — shows crew size × rate × days
+│       └─ crew × rate × days — rendered in modal preview AND detail screen
 └── hooks/
-    └── useLegalDocs.ts (modify) — remove 'signed' from filter, add 'opened' display
-
-supabase/functions/
-├── send-legal-document/
-│   ├── index.ts
-│   └── deno.json
-└── legal-tracking-pixel/
-    ├── index.ts
-    └── deno.json
+    └── useLegalDocs.ts (existing; status enum aligned in service)
 ```
+
+**No Track-owned Supabase Edge Functions for Legal.** The email pipeline +
+tracking pixel are Takeoff Web responsibilities. See
+[SPRINT_53_TAKEOFF_COORDINATION.md §2.1](SPRINT_53_TAKEOFF_COORDINATION.md)
+for the full endpoint contract.
 
 ### Files to modify
 
@@ -474,106 +474,52 @@ export async function computeDelayCost(params: {
 }
 ```
 
-### Edge Function: `send-legal-document`
+### Web endpoint contract (Track calls this)
 
-```ts
-// supabase/functions/send-legal-document/index.ts
-// Body: { docId, recipientEmail, pdfUrl, senderName, projectName, gcCompany }
-// Output: { success, sent_at, tracking_token } | { error }
+Track does **not** own the email pipeline or tracking pixel. Both live on
+Takeoff Web. Track's `sendLegalDocument.ts` calls this endpoint once the PDF
+has been rendered locally and uploaded to Storage:
 
-import { createClient } from 'jsr:@supabase/supabase-js';
-import { Resend } from 'npm:resend';
+**`POST {WEB_API_URL}/api/pm/legal-documents/{docId}/distribute`** (Web-side)
 
-Deno.serve(async (req) => {
-  const { docId, recipientEmail, pdfUrl, senderName, projectName, gcCompany } = await req.json();
+Headers: `Authorization: Bearer {session.access_token}` · `Content-Type: application/json`
 
-  const supabase = createClient(/* service role */);
-  const resend = new Resend(Deno.env.get('RESEND_API_KEY'));
-
-  // Generate tracking token (used in pixel URL)
-  const trackingToken = crypto.randomUUID();
-
-  // Build email body with embedded tracking pixel
-  const trackingPixelUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/legal-tracking-pixel/${trackingToken}`;
-
-  const html = `
-    <p>Dear ${gcCompany},</p>
-    <p>Please find attached a Notice of Delay regarding ongoing work at <strong>${projectName}</strong>.</p>
-    <p>Per the General Conditions of our contract, please acknowledge receipt within 48 hours. Failure to respond will be documented as no-response and may form the basis of a future Request for Equitable Adjustment.</p>
-    <p>Sincerely,<br/>${senderName}</p>
-    <img src="${trackingPixelUrl}" width="1" height="1" alt="" />
-  `;
-
-  const { error: emailError } = await resend.emails.send({
-    from: `${senderName} <noreply@notchfield.com>`,
-    to: recipientEmail,
-    subject: `Notice of Delay — ${projectName}`,
-    html,
-    attachments: [{ filename: 'NOD.pdf', path: pdfUrl }],
-  });
-
-  if (emailError) {
-    return new Response(JSON.stringify({ error: emailError.message }), { status: 500 });
-  }
-
-  // Store the tracking token in legal_documents for the pixel endpoint to find
-  await supabase
-    .from('legal_documents')
-    .update({ tracking_token: trackingToken, sent_at: new Date().toISOString() })
-    .eq('id', docId);
-
-  return new Response(
-    JSON.stringify({ success: true, sent_at: new Date().toISOString(), tracking_token: trackingToken }),
-    { status: 200 }
-  );
-});
+Request body:
+```json
+{
+  "recipientEmail": "gc@example.com",
+  "recipientName": "ABC General Contractor",
+  "senderName": "John Supervisor",
+  "senderTitle": "Project Supervisor",
+  "projectName": "Residence Tower A",
+  "gcCompany": "ABC General Contractor",
+  "areaLabel": "L3-E2 — Toilet 0113",
+  "pdfUrl": "https://.../legal-documents/{org_id}/{doc_id}.pdf",
+  "pdfSha256": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+  "oshaCitationsIncluded": false
+}
 ```
 
-> ⚠️ **Schema migration required for tracking:** add `tracking_token TEXT` column to `legal_documents`. Will include in 53C migration along with `delay_cost_logs` PowerSync wiring.
-
-### Edge Function: `legal-tracking-pixel`
-
-```ts
-// supabase/functions/legal-tracking-pixel/[token]/index.ts
-// GET /functions/v1/legal-tracking-pixel/{token}
-// Returns: 1×1 transparent PNG + UPDATEs legal_documents.opened_at + receipt_ip + receipt_device
-
-const PIXEL_PNG = new Uint8Array([
-  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
-  // ... 1×1 transparent PNG bytes
-]);
-
-Deno.serve(async (req) => {
-  const url = new URL(req.url);
-  const token = url.pathname.split('/').pop();
-
-  if (token) {
-    const supabase = createClient(/* service role */);
-    const ip = req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip') ?? null;
-    const device = req.headers.get('user-agent') ?? null;
-
-    // Update only if not already opened (first read wins)
-    await supabase
-      .from('legal_documents')
-      .update({
-        status: 'opened',
-        opened_at: new Date().toISOString(),
-        receipt_ip: ip,
-        receipt_device: device,
-      })
-      .eq('tracking_token', token)
-      .is('opened_at', null);
-  }
-
-  return new Response(PIXEL_PNG, {
-    status: 200,
-    headers: {
-      'Content-Type': 'image/png',
-      'Cache-Control': 'no-store',
-    },
-  });
-});
+Expected response (success):
+```json
+{
+  "success": true,
+  "sent_at": "2026-04-25T10:00:00Z",
+  "tracking_token": "c7a1f700-ad03-4524-a367-3f6dcc01d391"
+}
 ```
+
+Web implementation (Takeoff side) is responsible for:
+1. Dual-auth bearer/cookie (Sprint 52H pattern).
+2. Fetching the PDF from the public Storage URL.
+3. Generating `tracking_token` (UUID) + embedding the tracking pixel URL
+   `https://notchfield.com/api/legal/{token}/pixel` in the email HTML body.
+4. Calling `sendEmail()` via Zoho SMTP with the PDF attached.
+5. Returning `{ sent_at, tracking_token }`. Track writes both values to
+   `legal_documents` in a single UPDATE (via `applySignAndSend`).
+
+Full blocker details + implementation notes are in
+[SPRINT_53_TAKEOFF_COORDINATION.md §2.1](SPRINT_53_TAKEOFF_COORDINATION.md).
 
 ### Boilerplate v1 hardcoded
 
@@ -626,13 +572,20 @@ Modification after signature is prevented at the database level.
 
 ### Success criteria
 
-- [ ] `signNod` no longer fails on sync (status enum aligned with DB CHECK)
-- [ ] Supervisor signs a NOD → PDF rendered locally → email sent via Edge Function → tracking token stored
-- [ ] GC opens email → tracking pixel UPDATEs `opened_at`/`receipt_ip`/`receipt_device` → status flips to `'opened'`
-- [ ] `delay_cost_logs` row created at sign time, `legal_documents.related_delay_log_id` set
-- [ ] Detail screen shows current status banner + cost breakdown + signature image + SHA-256 hash
-- [ ] Offline sign → queues in AsyncStorage → flushes on next online
-- [ ] TypeScript clean
+- [x] Status enum fix applied (no 'signed' state; `sign + send` is one tx)
+- [x] `delay_cost_logs` declared in PowerSync + sync rules; `persistDelayCostLog` writes at sign-time
+- [x] `nodPdfRenderer` renders locally, uploads to Storage, computes SHA-256
+- [x] `sendLegalDocument.signAndSendNod` orchestrator calls Web distribute endpoint
+- [x] Detail screen: draft → "Sign & Send" modal → sent/opened timeline + PDF actions
+- [x] TypeScript clean
+- [ ] **Blocker — Web side:** `/api/pm/legal-documents/[docId]/distribute` deployed
+- [ ] **Blocker — Web side:** `/api/legal/{token}/pixel` deployed
+- [ ] End-to-end field test: supervisor signs → GC receives email → opens → status flips to 'opened'
+
+Drafts can be created + cost engine + PDF render all work offline and
+independent of Web. Only the "Sign & Send" button is gated on Web's
+endpoint. Once Web ships both endpoints, Track needs zero code change —
+`EXPO_PUBLIC_WEB_API_URL` already points at `https://notchfield.com`.
 
 ---
 
@@ -642,7 +595,8 @@ Modification after signature is prevented at the database level.
 |-------|-----------|------------------------|
 | 1 | 53A — Communication + Push | `feat(messages): area threads + push notifications` |
 | 2 | 53B — Punch polish + plan pinning | `feat(punch): plan-anchored punch items + flow polish` |
-| 3 | 53C — Legal Engine | `feat(legal): NOD sign+send flow + cost engine + tracking pixel` |
+| 3 | 53C v1 — Legal (Track Edge Functions) | `feat(legal): NOD sign+send flow + cost engine + tracking pixel` |
+| 4 | 53C v2 — Switch email pipeline to Web endpoint | `refactor(legal): route email pipeline through Takeoff Web distribute endpoint (Option B)` |
 
 Each sub-sprint:
 1. Implementation
@@ -651,7 +605,9 @@ Each sub-sprint:
 4. Commit + tag with sprint identifier
 5. Verify nothing else regresses (manual smoke test on dev-client APK after rebuild)
 
-After 53C, push notifications + legal can be field-tested with Jantile on next preview APK build.
+After 53C v2, Communication + Push + Punch pinning can be field-tested with
+Jantile on the next preview APK build. Legal can be drafted immediately;
+end-to-end send requires Web endpoint ship (tracked in coordination doc).
 
 ---
 
