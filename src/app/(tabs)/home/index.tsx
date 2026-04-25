@@ -23,6 +23,7 @@ import { AlertsList, type Alert } from '@/features/home/components/AlertsList';
 import { ProjectSwitcher } from '@/features/projects/components/ProjectSwitcher';
 import { MorningPtpCard } from '@/features/safety/ptp/components/MorningPtpCard';
 import { WeeklyToolboxCard } from '@/features/safety/toolbox/components/WeeklyToolboxCard';
+import { ProjectNotesIcon } from '@/features/messages/components/ProjectNotesIcon';
 
 export default function HomeScreen() {
   const { t } = useTranslation();
@@ -153,13 +154,17 @@ export default function HomeScreen() {
       {/* Header */}
       <View className="mb-6">
         <View className="flex-row items-start justify-between">
-          <View>
+          <View className="flex-1">
             <Text className="text-sm text-slate-400">{greeting}</Text>
             <Text className="text-2xl font-bold text-white">
               {profile?.full_name ?? 'Foreman'}
             </Text>
           </View>
-          <ProjectSwitcher />
+          <View className="flex-row items-center" style={{ gap: 8 }}>
+            <ProjectSwitcher />
+            {/* Sprint 53A.1 — General channel access */}
+            <ProjectNotesIcon />
+          </View>
         </View>
         <View className="mt-1 flex-row items-center">
           <Ionicons name="business" size={14} color="#F97316" />

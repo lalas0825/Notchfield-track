@@ -48,6 +48,14 @@ export default function MoreScreen() {
       color: '#3B82F6',
       feature: 'assign_crews',
     },
+    // Sprint 53A.1 — Project-wide General channel
+    {
+      icon: 'chatbubbles',
+      label: 'Project Notes',
+      subtitle: 'Project-wide announcements + replies',
+      route: '/(tabs)/messages/general',
+      color: '#0EA5E9',
+    },
     // "Safety & Docs" removed — now lives as its own "Safety" top tab.
     {
       icon: 'document-text',

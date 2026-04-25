@@ -35,7 +35,8 @@ export function handleNotificationResponse(response: NotificationResponse) {
 
   if (data.kind === 'field_message') {
     if (data.area_id) {
-      // Defer to next tick — gives expo-router time to mount on cold start
+      // Per-area message → deep-link to that area's Board detail.
+      // Defer to next tick to give expo-router time to mount on cold start.
       setTimeout(() => {
         try {
           router.push(`/(tabs)/board/${data.area_id}` as any);
@@ -44,7 +45,17 @@ export function handleNotificationResponse(response: NotificationResponse) {
         }
       }, 50);
     } else {
-      setTimeout(() => router.push('/(tabs)/home' as any), 50);
+      // Sprint 53A.1 — Project-level General channel message.
+      // Previously routed to /home which left the user wondering "where's
+      // the message?" since Home has no thread surface. Now lands directly
+      // in the General channel screen with the thread + composer.
+      setTimeout(() => {
+        try {
+          router.push('/(tabs)/messages/general' as any);
+        } catch (e) {
+          logger.warn('[Push] deep-link navigate failed', e);
+        }
+      }, 50);
     }
     return;
   }
