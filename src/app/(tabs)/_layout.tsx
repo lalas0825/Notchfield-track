@@ -83,11 +83,9 @@ export default function TabsLayout() {
         name="deliveries"
         options={{
           title: 'Delivery',
-          // MaterialCommunityIcons used because Ionicons has no truck glyph;
-          // 'truck-delivery' is a truck silhouette with a package indicator,
-          // matching the deliveries surface semantics better than a passenger car.
+          // MaterialCommunityIcons used because Ionicons has no truck glyph.
           tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="truck-delivery" size={size} color={color} />
+            <MaterialCommunityIcons name="truck" size={size} color={color} />
           ),
         }}
       />
