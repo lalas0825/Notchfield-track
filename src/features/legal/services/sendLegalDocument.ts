@@ -182,11 +182,24 @@ export async function signAndSendNod(input: SignAndSendParams): Promise<SignAndS
       }),
     });
 
-    // Web endpoint not deployed yet (interim blocker — see coordination doc)
+    // 404 — endpoint should be live (Web shipped 2026-04-25 commit cc16f75).
+    // If we hit this in the field, Web rolled back or the WEB_API_URL is
+    // pointing somewhere wrong (e.g. staging build with stale env var).
     if (resp.status === 404) {
       return {
         success: false,
-        error: 'Legal send endpoint not yet deployed on Takeoff Web. Ask the Web team for the /api/pm/legal-documents/distribute ship date.',
+        error: 'Legal distribute endpoint not found on Takeoff Web. Check EXPO_PUBLIC_WEB_API_URL points at the correct Web deploy.',
+        stage: 'email',
+      };
+    }
+
+    // 409 — server rejected because the doc is no longer in draft status.
+    // Most common cause: another supervisor already sent this NOD on a
+    // different device, and PowerSync hasn't synced the new status yet.
+    if (resp.status === 409) {
+      return {
+        success: false,
+        error: 'This NOD has already been sent (or is no longer a draft). Pull to refresh and check the latest status.',
         stage: 'email',
       };
     }

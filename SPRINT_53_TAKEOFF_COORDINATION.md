@@ -2,21 +2,37 @@
 
 > **Audience:** Takeoff Web team
 > **Companion to:** [SPRINT_TRACK_53.md](SPRINT_TRACK_53.md)
-> **Status (updated 2026-04-25):** Track has shipped 53A + 53B + 53C Track-side code. **Sprint 53C is partially blocked on Web** — Option B was chosen for the email pipeline (Track calls Web endpoint, no duplicated Zoho credentials). See §2.1 below — that section is now a **BLOCKER**, not a post-sprint TODO.
-> **Pattern:** Same as Sprint 50A/B → TOOLBOX, 43A → 45B, CREW → MANPOWER. Track ships v1, Web mirrors. For Legal, the call is inverted: **Web ships the send pipeline first**, Track already has the render/sign/record side ready to use it.
+> **Status (updated 2026-04-25, end of day):** Track shipped 53A + 53B + 53C Track-side code. **Web shipped both blockers in commit `cc16f75`** — `/api/pm/legal-documents/[docId]/distribute` and `/api/legal/[token]/pixel` are live. Track Sprint 53 is now **end-to-end unblocked**.
+> **Pattern:** Same as Sprint 50A/B → TOOLBOX, 43A → 45B, CREW → MANPOWER. Track ships v1, Web mirrors. For Legal, the call was inverted: Web shipped the send pipeline first, Track already had the render/sign/record side ready. Tight coordination, single sprint cycle.
 
 ---
 
-## 🚨 BLOCKERS for Track Sprint 53 completion
+## ✅ Blockers — RESOLVED (Web commit `cc16f75`, 2026-04-25)
 
-These must ship on Web side before the corresponding Track feature works end-to-end. Track draft + UI work is done — only the send path is blocked.
+Both endpoints live in production. Track's `sendLegalDocument.signAndSendNod` calls them directly with no further changes needed (the URL was already pointed at `WEB_API_URL` since the Option B refactor — same APK works the moment the Web deploy lands).
 
-| Track feature state | Blocker on Web |
-|----------------------|----------------|
-| Legal NOD drafts + cost engine + PDF render + UI — ✅ shipped | **§2.1 `POST /api/pm/legal-documents/[docId]/distribute`** — required for "Sign & Send" to work |
-| Legal open-receipt tracking — ✅ Track writes/reads `tracking_token`, `opened_at` | **§2.2 `GET /api/legal/{token}/pixel`** — required for email opens to register |
+| Track feature state | Web endpoint | Status |
+|---------------------|--------------|--------|
+| Legal NOD drafts + cost engine + PDF render + UI | **§2.1 `POST /api/pm/legal-documents/[docId]/distribute`** | ✅ Live (cc16f75) |
+| Legal open-receipt tracking via `tracking_token`/`opened_at` | **§2.2 `GET /api/legal/{token}/pixel`** | ✅ Live (cc16f75) |
 
-Jantile pilot can draft NODs today. The "Sign & Send" button will 404 until §2.1 lands. Target: next Web sprint cycle after Sprint 62 or sooner if pilot needs the Legal feature live for a real NOD event.
+**Web confirmed implementation details (matches §2.1 + §2.2 spec exactly):**
+- Dual-auth Bearer JWT (Sprint 52H pattern)
+- 409 on non-draft status (Track now surfaces a clear "already sent" message — see `sendLegalDocument.ts`)
+- `tracking_token = randomUUID()` generated server-side, embedded in email HTML body, returned to Track
+- Track keeps `applySignAndSend` as the single source of truth for the DB transaction (Web does NOT touch `legal_documents`) ✓
+- Pixel endpoint: 1×1 transparent PNG (43-byte hardcoded), no auth (token IS the auth), service-role UPDATE with `WHERE opened_at IS NULL AND status='sent'` first-read-wins ✓
+- Cache-Control: no-store + Pragma: no-cache for corporate email clients ✓
+- Audit log to `pm_activity_logs` with `action='legal_distributed'`
+
+End-to-end test path:
+1. Foreman/supervisor creates a NOD draft in Track (auto from blocked >24h area)
+2. Tap "Sign & Send" → SignaturePad → modal submit
+3. Track renders PDF locally → uploads to Storage → POSTs to Web `/distribute`
+4. Web fetches PDF, sends email via Zoho SMTP `sendEmail()`, returns `tracking_token`
+5. Track writes `applySignAndSend` transaction (status='sent', signed_at, sent_at, tracking_token, sha256_hash, pdf_url, recipient_email, signed_by)
+6. GC opens email → tracking pixel hits Web `/api/legal/{token}/pixel` → server flips `status='opened'`, fills `opened_at`/`receipt_ip`/`receipt_device`
+7. PowerSync syncs the row → Track UI shows "Opened HH:MM" timeline event
 
 ---
 
@@ -26,8 +42,8 @@ Jantile pilot can draft NODs today. The "Sign & Send" button will 404 until §2.
 |---------|----------------|----------|--------|
 | Communication | Direct UI on `field_messages` + Edge Function for push notifications | Web UI for messages thread (Production Dashboard area panel + global "Messages" tab) | Post-Sprint 62 backlog |
 | Punch List plan pinning | First writes to `plan_x`/`plan_y`/`drawing_id` | Plan viewer with pin overlay alongside `drawing_pins` | Post-Sprint 62 backlog |
-| **Legal email pipeline** | PDF render (expo-print) + upload + SHA-256 + draft UI + send orchestrator (Option B — calls Web endpoint) | **`POST /api/pm/legal-documents/[docId]/distribute` (via Zoho sendEmail wrapper)** | 🚨 **BLOCKER — required to unblock Track Legal send** |
-| **Legal tracking pixel** | Track writes `tracking_token` returned by the distribute endpoint + observes `status`/`opened_at` changes | **`GET /api/legal/{token}/pixel` — 1×1 PNG + UPDATE on `legal_documents`** | 🚨 **BLOCKER — embedded in distribute email body** |
+| **Legal email pipeline** | PDF render (expo-print) + upload + SHA-256 + draft UI + send orchestrator (Option B — calls Web endpoint) | **`POST /api/pm/legal-documents/[docId]/distribute` (via Zoho sendEmail wrapper)** | ✅ **Live (Web cc16f75, 2026-04-25)** |
+| **Legal tracking pixel** | Track writes `tracking_token` returned by the distribute endpoint + observes `status`/`opened_at` changes | **`GET /api/legal/{token}/pixel` — 1×1 PNG + UPDATE on `legal_documents`** | ✅ **Live (Web cc16f75, 2026-04-25)** |
 | Cost engine | Track writes `delay_cost_logs` client-side at sign time | None — Track is source of truth (Web confirmed) | Never (Track owns this) |
 | Boilerplate body | Hardcoded NY DOB / NYC Local Law in Track | `legal_templates` per-jurisdiction table | Web v2 |
 | Recipients | Single email field at send time | `project_legal_recipients` table + selector | Web v2 |

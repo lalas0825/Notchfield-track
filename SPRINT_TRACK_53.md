@@ -578,14 +578,15 @@ Modification after signature is prevented at the database level.
 - [x] `sendLegalDocument.signAndSendNod` orchestrator calls Web distribute endpoint
 - [x] Detail screen: draft → "Sign & Send" modal → sent/opened timeline + PDF actions
 - [x] TypeScript clean
-- [ ] **Blocker — Web side:** `/api/pm/legal-documents/[docId]/distribute` deployed
-- [ ] **Blocker — Web side:** `/api/legal/{token}/pixel` deployed
-- [ ] End-to-end field test: supervisor signs → GC receives email → opens → status flips to 'opened'
+- [x] **Web blocker shipped:** `/api/pm/legal-documents/[docId]/distribute` (Web commit `cc16f75`, 2026-04-25)
+- [x] **Web blocker shipped:** `/api/legal/{token}/pixel` (Web commit `cc16f75`, 2026-04-25)
+- [x] Track 409 handler: surfaces "already sent" message when Web rejects non-draft status
+- [ ] End-to-end field test: supervisor signs → GC receives email → opens → status flips to `'opened'` (pending preview APK install)
 
-Drafts can be created + cost engine + PDF render all work offline and
-independent of Web. Only the "Sign & Send" button is gated on Web's
-endpoint. Once Web ships both endpoints, Track needs zero code change —
-`EXPO_PUBLIC_WEB_API_URL` already points at `https://notchfield.com`.
+All Track-side code is done. The "Sign & Send" button is now fully wired
+end-to-end. `EXPO_PUBLIC_WEB_API_URL` was always pointing at
+`https://notchfield.com`, so no Track redeploy was needed when Web shipped —
+the next dev-client APK build picks up the live endpoints automatically.
 
 ---
 
