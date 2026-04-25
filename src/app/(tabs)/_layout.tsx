@@ -1,5 +1,8 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuthStore } from '@/features/auth/store/auth-store';
+import { useProjectStore } from '@/features/projects/store/project-store';
+import { useGeneralChannelActivity } from '@/features/messages/hooks/useGeneralChannelActivity';
 
 const TAB_BAR_STYLE = {
   backgroundColor: '#0F172A',
@@ -12,6 +15,14 @@ const ACTIVE_COLOR = '#F97316';
 const INACTIVE_COLOR = '#94A3B8';
 
 export default function TabsLayout() {
+  // Sprint 53A.1 fix 2026-04-25: subscribe to General channel activity here
+  // so the Messages tab's tabBarBadge re-renders when the count changes.
+  // Same hook as the Home header ProjectNotesIcon — single source of truth.
+  // ProjectNotesScreen calls markGeneralChannelVisited on blur to reset.
+  const userId = useAuthStore((s) => s.user?.id ?? null);
+  const activeProjectId = useProjectStore((s) => s.activeProject?.id ?? null);
+  const { recentCount } = useGeneralChannelActivity(userId, activeProjectId);
+
   return (
     <Tabs
       screenOptions={{
@@ -80,7 +91,9 @@ export default function TabsLayout() {
       {/* Sprint 53A.1 — Project-wide General channel. Positioned between
           Delivery and More per pilot feedback (2026-04-25). The route file
           is `messages/index.tsx` (renamed from messages/general.tsx) so a
-          tap on the tab opens the General channel directly. */}
+          tap on the tab opens the General channel directly. tabBarBadge
+          shows recentCount (unread, computed against last_visited from
+          AsyncStorage); resets to 0 when the user leaves the screen. */}
       <Tabs.Screen
         name="messages"
         options={{
@@ -88,6 +101,8 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="chatbubbles" size={size} color={color} />
           ),
+          tabBarBadge: recentCount > 0 ? recentCount : undefined,
+          tabBarBadgeStyle: { backgroundColor: '#EF4444', color: '#FFFFFF', fontSize: 10, fontWeight: '700' },
         }}
       />
       <Tabs.Screen

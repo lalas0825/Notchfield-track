@@ -7,22 +7,38 @@
  * 100% — only difference is `areaId={null}` on the thread.
  *
  * Entry points:
- *   - Home header chat icon (ProjectNotesIcon)
- *   - More tab → "Project Notes"
+ *   - Bottom tab "Messages" (chatbubbles, between Delivery + More)
+ *   - Home header chat icon (ProjectNotesIcon) — quick badge on Home
  *   - Push notification when the message has area_id=null
  */
 
+import { useCallback } from 'react';
 import { ScrollView, Text, View } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { useProjectStore } from '@/features/projects/store/project-store';
 import { MessageThread } from '@/features/messages/components/MessageThread';
+import { markGeneralChannelVisited } from '@/features/messages/hooks/useGeneralChannelActivity';
 
 export default function ProjectNotesScreen() {
   const user = useAuthStore((s) => s.user);
   const profile = useAuthStore((s) => s.profile);
   const activeProject = useProjectStore((s) => s.activeProject);
+
+  // Sprint 53A.1 fix 2026-04-25: when the user leaves the screen, mark
+  // visited. The header icon + bottom tab badge then query the count of
+  // messages newer than the last visit (excluding own messages), so the
+  // badge resets to 0 next time they're on Home / another tab.
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        if (user?.id && activeProject?.id) {
+          markGeneralChannelVisited(user.id, activeProject.id).catch(() => undefined);
+        }
+      };
+    }, [user?.id, activeProject?.id]),
+  );
 
   if (!user || !profile || !activeProject) {
     return (

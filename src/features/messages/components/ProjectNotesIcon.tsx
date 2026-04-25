@@ -16,13 +16,15 @@
 import { Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useAuthStore } from '@/features/auth/store/auth-store';
 import { useProjectStore } from '@/features/projects/store/project-store';
 import { useGeneralChannelActivity } from '../hooks/useGeneralChannelActivity';
 
 export function ProjectNotesIcon() {
   const router = useRouter();
+  const userId = useAuthStore((s) => s.user?.id ?? null);
   const activeProject = useProjectStore((s) => s.activeProject);
-  const { recentCount } = useGeneralChannelActivity(activeProject?.id ?? null);
+  const { recentCount } = useGeneralChannelActivity(userId, activeProject?.id ?? null);
 
   if (!activeProject) return null;
 
