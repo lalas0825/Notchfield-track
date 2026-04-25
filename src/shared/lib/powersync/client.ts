@@ -46,6 +46,25 @@ export async function disconnectPowerSync(): Promise<void> {
   await powerSync.disconnectAndClear();
 }
 
+/**
+ * Force a reconnect attempt. Safe to call repeatedly — PowerSync no-ops if
+ * already connected; if disconnected, it kicks off a fresh handshake (which
+ * goes through fetchCredentials → forces JWT refresh if expiring).
+ *
+ * Used by the AppState foreground listener in src/app/_layout.tsx to recover
+ * from "stuck offline" scenarios where the device has WiFi but PowerSync's
+ * WebSocket gave up during the offline period and never retried.
+ */
+export async function reconnectPowerSync(): Promise<void> {
+  if (Platform.OS === 'web' || !powerSync || !connector) return;
+  try {
+    await powerSync.connect(connector);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn('[PowerSync] reconnect attempt failed (will retry on next AppState change):', err);
+  }
+}
+
 export async function forceSync(): Promise<void> {
   if (Platform.OS === 'web' || !connector || !powerSync) return;
   await connector.uploadData(powerSync);

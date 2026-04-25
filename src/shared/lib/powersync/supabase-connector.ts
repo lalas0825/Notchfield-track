@@ -72,10 +72,29 @@ function cleanData(data: Record<string, unknown> | undefined): Record<string, un
 
 export class SupabaseConnector implements PowerSyncBackendConnector {
   async fetchCredentials() {
-    const { data: { session }, error } = await supabase.auth.getSession();
-
-    if (error || !session) {
+    const initial = await supabase.auth.getSession();
+    if (initial.error || !initial.data.session) {
       throw new Error('Not authenticated — cannot sync');
+    }
+    let session = initial.data.session;
+
+    // Bug fix 2026-04-25: PowerSync was getting stuck "connected: false" after
+    // offline → online transitions because getSession() returns the CACHED token,
+    // not a refreshed one. If the cached JWT was expired, PowerSync handshake
+    // failed and the WebSocket gave up. autoRefreshToken in supabase-js doesn't
+    // fire reliably on RN when the app was backgrounded.
+    //
+    // Fix: proactively refresh if the token expires within 60 seconds. PowerSync
+    // calls fetchCredentials on every reconnect attempt, so this self-heals
+    // without an external nudge.
+    if (session.expires_at) {
+      const secondsUntilExpiry = session.expires_at - Math.floor(Date.now() / 1000);
+      if (secondsUntilExpiry < 60) {
+        const refreshed = await supabase.auth.refreshSession();
+        if (!refreshed.error && refreshed.data.session) {
+          session = refreshed.data.session;
+        }
+      }
     }
 
     return {

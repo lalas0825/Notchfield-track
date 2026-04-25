@@ -7,7 +7,7 @@ import { initSentry, Sentry } from '@/shared/lib/sentry';
 initSentry();
 
 import { useEffect } from 'react';
-import { ActivityIndicator, Platform, View } from 'react-native';
+import { ActivityIndicator, AppState, type AppStateStatus, Platform, View } from 'react-native';
 import { Redirect, Slot, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useAuthStore } from '@/features/auth/store/auth-store';
@@ -84,6 +84,35 @@ function RootLayout() {
     initialize();
     startPhotoWorker();
   }, [initialize]);
+
+  // Bug fix 2026-04-25 — Recover from "stuck offline" after device WiFi
+  // returns. When the app comes to foreground:
+  //   1. Refresh the Supabase auth session (forces a fresh JWT — needed
+  //      because autoRefreshToken doesn't fire reliably on RN when the
+  //      app was backgrounded)
+  //   2. Trigger PowerSync reconnect (safe no-op if already connected)
+  // Cheap, idempotent, no external deps.
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    let unsubFns: Array<() => void> = [];
+    (async () => {
+      const [{ supabase }, { reconnectPowerSync }] = await Promise.all([
+        import('@/shared/lib/supabase/client'),
+        import('@/shared/lib/powersync/client'),
+      ]);
+      const handler = (next: AppStateStatus) => {
+        if (next !== 'active') return;
+        // Fire-and-forget — don't block UI on either operation
+        supabase.auth.refreshSession().catch(() => undefined);
+        reconnectPowerSync().catch(() => undefined);
+      };
+      const sub = AppState.addEventListener('change', handler);
+      unsubFns.push(() => sub.remove());
+    })();
+    return () => {
+      unsubFns.forEach((fn) => fn());
+    };
+  }, []);
 
   return (
     <PowerSyncProvider>

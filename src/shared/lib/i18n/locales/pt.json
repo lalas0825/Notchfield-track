@@ -18,7 +18,8 @@
   "sync": {
     "syncing": "Sincronizando...",
     "offline": "Sem conexão — alterações salvas localmente",
-    "connected": "Conectado"
+    "connected": "Conectado",
+    "reconnecting": "Reconectando…"
   },
   "auth": {
     "sign_in": "Entrar",
