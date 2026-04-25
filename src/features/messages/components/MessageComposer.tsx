@@ -128,13 +128,15 @@ export function MessageComposer({
           uploadedUrls = await uploadPhotos(photoUris);
         } catch (e) {
           logger.warn('[Messages] photo upload failed', e);
-          // Offer to send text-only
+          // Offer to send text-only. v1 limitation documented in Sprint 53A
+          // expansion roadmap: offline photo queue (auto-attach when online)
+          // is post-pilot — for now the user must re-attach manually.
           await new Promise<void>((resolve, reject) => {
             Alert.alert(
-              'Photos failed to upload',
-              'Send the message without photos? You can re-attach them later when back online.',
+              'Photos need internet',
+              'You\'re offline. Send the text now and add the photos later in a new message when you\'re back online?',
               [
-                { text: 'Cancel', style: 'cancel', onPress: () => reject(new Error('User cancelled')) },
+                { text: 'Wait for connection', style: 'cancel', onPress: () => reject(new Error('User cancelled')) },
                 { text: 'Send text only', onPress: () => resolve() },
               ],
             );

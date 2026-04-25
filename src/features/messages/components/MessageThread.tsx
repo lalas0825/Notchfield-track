@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Modal, Pressable, Text, View } from 'react-native';
+import { useState } from 'react';
+import { ActivityIndicator, Modal, Pressable, Text, View } from 'react-native';
 import { Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/features/auth/store/auth-store';
@@ -11,8 +11,17 @@ import { MessageComposer } from './MessageComposer';
  * Inline thread mounted in AreaDetail. Shows the last 50 messages for an
  * area (or project-level if areaId is null). Composer at the bottom.
  *
- * Auto-scrolls to bottom on first load and on new messages from self.
- * Realtime updates from other users append silently.
+ * Renders messages with View.map() (no FlatList) because this is mounted
+ * INSIDE AreaDetail's vertical ScrollView. Nesting a vertical FlatList in
+ * a vertical ScrollView triggers RN's "VirtualizedLists should never be
+ * nested" warning + breaks windowing. We cap at 50 messages on the
+ * service side, so virtualization isn't needed. The parent ScrollView
+ * handles all scrolling — the entire AreaDetail screen scrolls as one
+ * unit, with the composer at the bottom.
+ *
+ * Realtime updates from other users append silently. The user is typically
+ * scrolled to this section when interacting (composer is below messages),
+ * so explicit auto-scroll-to-bottom on new message isn't needed.
  */
 export function MessageThread({
   projectId,
@@ -23,18 +32,7 @@ export function MessageThread({
 }) {
   const { user, profile } = useAuthStore();
   const { messages, loading, error, send } = useAreaMessages({ projectId, areaId });
-  const listRef = useRef<FlatList>(null);
   const [photoModal, setPhotoModal] = useState<{ uri: string } | null>(null);
-  const lastCountRef = useRef(0);
-
-  // Auto-scroll on new messages (only when count grows — not on hydration)
-  useEffect(() => {
-    if (messages.length > lastCountRef.current && listRef.current) {
-      // Defer to next tick so layout settles
-      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 50);
-    }
-    lastCountRef.current = messages.length;
-  }, [messages.length]);
 
   if (!user || !profile || !projectId) {
     return null;
@@ -85,50 +83,39 @@ export function MessageThread({
         </View>
       </View>
 
-      {/* Body — list, loading, or empty state */}
+      {/* Body — list, loading, or empty state. No internal scroll: parent
+          AreaDetail ScrollView handles it. Messages render inline via .map(). */}
       <View style={{ borderRadius: 16, backgroundColor: '#0B1220', overflow: 'hidden' }}>
-        <View style={{ minHeight: 120, maxHeight: 420 }}>
-          {loading && messages.length === 0 ? (
-            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-              <ActivityIndicator size="small" color="#F97316" />
-            </View>
-          ) : error && messages.length === 0 ? (
-            <View style={{ padding: 24, alignItems: 'center' }}>
-              <Ionicons name="alert-circle" size={28} color="#EF4444" />
-              <Text style={{ color: '#94A3B8', marginTop: 6, fontSize: 13, textAlign: 'center' }}>
-                {error}
-              </Text>
-            </View>
-          ) : messages.length === 0 ? (
-            <View style={{ padding: 24, alignItems: 'center' }}>
-              <Ionicons name="chatbubble-ellipses-outline" size={32} color="#334155" />
-              <Text style={{ color: '#64748B', marginTop: 8, fontSize: 13, textAlign: 'center' }}>
-                No notes yet.{'\n'}Add the first one for your team.
-              </Text>
-            </View>
-          ) : (
-            <FlatList
-              ref={listRef}
-              data={messages}
-              keyExtractor={(m) => m.id}
-              contentContainerStyle={{ padding: 12 }}
-              keyboardShouldPersistTaps="handled"
-              renderItem={({ item }) => (
-                <MessageBubble
-                  message={item}
-                  isOwn={item.sender_id === user.id}
-                  onPhotoPress={(uri) => setPhotoModal({ uri })}
-                />
-              )}
-              onContentSizeChange={() => {
-                // Keep at bottom on initial render
-                if (lastCountRef.current === 0 && messages.length > 0) {
-                  listRef.current?.scrollToEnd({ animated: false });
-                }
-              }}
-            />
-          )}
-        </View>
+        {loading && messages.length === 0 ? (
+          <View style={{ minHeight: 120, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+            <ActivityIndicator size="small" color="#F97316" />
+          </View>
+        ) : error && messages.length === 0 ? (
+          <View style={{ minHeight: 120, padding: 24, alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="alert-circle" size={28} color="#EF4444" />
+            <Text style={{ color: '#94A3B8', marginTop: 6, fontSize: 13, textAlign: 'center' }}>
+              {error}
+            </Text>
+          </View>
+        ) : messages.length === 0 ? (
+          <View style={{ minHeight: 120, padding: 24, alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="chatbubble-ellipses-outline" size={32} color="#334155" />
+            <Text style={{ color: '#64748B', marginTop: 8, fontSize: 13, textAlign: 'center' }}>
+              No notes yet.{'\n'}Add the first one for your team.
+            </Text>
+          </View>
+        ) : (
+          <View style={{ padding: 12 }}>
+            {messages.map((item) => (
+              <MessageBubble
+                key={item.id}
+                message={item}
+                isOwn={item.sender_id === user.id}
+                onPhotoPress={(uri) => setPhotoModal({ uri })}
+              />
+            ))}
+          </View>
+        )}
 
         <MessageComposer organizationId={profile.organization_id} onSend={onSend} />
       </View>
