@@ -1118,6 +1118,38 @@ Sprint 52 burned this: `createDraftPtp` added `forceSync()` after `localInsert` 
 ### Critical: PM drawings live in `drawing_register`, NOT `drawings` + `drawing_sets`
 Takeoff has two disjoint schemas for "drawings": Estimator-side (`drawings` + `drawing_sets` + `drawing_revisions`, for takeoff polygons) and PM-side (`drawing_register`, for PM → Drawings tab uploads). Field needs the PM side. `drawing_register.file_url` is a full public URL (bucket: `documents`), not a bucket-relative path. Track reads via `useDrawings` from drawing_register first; falls back to Supabase if PowerSync hasn't synced. The `drawing_hyperlinks` and `drawing_pins` tables still FK to `drawings.id`, so Sprint 47B features only work for drawings seeded through the Estimator side — cross-schema pins/links is a Takeoff-side follow-up.
 
+### Critical: PowerSync status API — `dataFlow` + `registerListener` (Sprint 53A.1)
+Burned a multi-day debug session because `SyncStatusBar` was reading the wrong API:
+1. Property is `status.dataFlow.uploading` / `.downloading` — **NOT** `status.dataFlowStatus`. Those fields don't exist; optional chaining silently returned undefined → "active" was always falsy → state computation looked OK but…
+2. Subscription API is `powerSync.registerListener({ statusChanged: (status) => {...} })` returning `() => void` unsubscribe directly — **NOT** `powerSync.statusUpdates.subscribe({ next })`. The optional chained `.subscribe?.({...})` silently no-op'd when method didn't exist → handler ran exactly ONCE on mount (capturing whatever transient state existed at the WebSocket handshake moment, typically `connecting: true`) → banner stuck on "Reconnecting…" forever even after PowerSync was fully connected.
+
+When in doubt about PowerSync API shape: check `node_modules/@powersync/common/lib/db/crud/SyncStatus.d.ts` and `node_modules/@powersync/common/lib/client/AbstractPowerSyncDatabase.d.ts`. The DB extends `BaseObserver<PowerSyncDBListener>` — `registerListener` is the canonical observer pattern.
+
+### Critical: Storage RLS path — `{org_id}` MUST be the FIRST folder (Sprint 53A.1)
+The `field-photos` bucket policy enforces `(storage.foldername(name))[1]::uuid = profiles.organization_id`. Any upload path that doesn't have the user's `organization_id` as the first folder gets a silent 403, surfaced in the app as "Photos need internet" or "needs internet" generic errors.
+
+Working pattern (from gc-punch-service): `${organizationId}/{kind}/...`
+Bug pattern (caused all photo upload failures in Sprint 53A): `{kind}/${organizationId}/...`
+
+When adding any new photo/file upload to `field-photos`, copy the path-building from `gc-punch-service.uploadResolutionPhoto` — it has the right shape.
+
+### Critical: New tab folders under (tabs)/ ALWAYS need `_layout.tsx` (Sprint 53A.1)
+Every tab folder in the project has its own `_layout.tsx` (typically a Stack navigator). When adding a new tab (e.g. `messages/`), creating only `index.tsx` is NOT enough — without `_layout.tsx`, expo-router auto-discovers the route but the explicit `<Tabs.Screen name="...">` config in `(tabs)/_layout.tsx` is silently bypassed:
+- Tab gets auto-appended at the END of the tab bar (after explicit children)
+- Icon falls back to placeholder (box with diagonal lines)
+- Title gets truncated to "...messa..." style
+- All `tabBarBadge`, `tabBarIcon`, `title` options ignored
+
+No cache clear / force-quit / EAS rebuild fixes this — only adding the missing `_layout.tsx`. Verify before declaring tab "done": every folder under `(tabs)/` should have `_layout.tsx`.
+
+### Critical: Auto sign-out when refresh_token dies (Sprint 53A.1)
+`SupabaseConnector.fetchCredentials` calls `supabase.auth.getSession()` which returns the CACHED session, not a refreshed one. If the cached JWT is expired AND the refresh_token is also expired (Supabase default 30-day TTL), `refreshSession()` returns an error. Silent error swallow leaves the user stuck in "Reconnecting…" forever with no escape — auto sign-out + redirect to /login is the right behavior so they can re-auth and get a fresh refresh_token.
+
+The fix lives in two places: (1) `supabase-connector.ts.fetchCredentials` proactively refreshes if expiring within 60s and signs out if refresh fails; (2) `_layout.tsx` AppState 'active' listener does the same on foreground.
+
+### Critical: isSupervisor checks must use `normalizeTrackRole` (Sprint 40C cleanup)
+The Sprint 40C role consolidation made `'supervisor'` the canonical role (with `'superintendent'` and `'owner'` as legacy aliases via `ROLE_ALIASES`). Three hooks/screens hardcoded `['superintendent', 'owner', 'admin', 'pm'].includes(role)` and silently locked out everyone with the canonical `'supervisor'` role. Always use `normalizeTrackRole(profile?.role) === 'supervisor'` instead. Affected files cleaned up in commit `35434db`: `useLegalDocs.ts`, `usePunchList.ts`, `docs/punch/[id].tsx`.
+
 ### Supabase Migrations Applied (Track-owned tables)
 | Migration | Tables |
 |-----------|--------|

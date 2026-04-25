@@ -246,12 +246,13 @@ usePushPermission() checks expo-notifications status
 
 ### Success criteria
 
-- [ ] Foreman writes a message in AreaDetail, supervisor sees it on their device within 3s while online
-- [ ] Offline message saves locally, syncs + triggers push when online
-- [ ] `blockPhase` auto-inserts now go through `createSystemMessage`, render with 🔒 icon
-- [ ] Push notification tap deep-links to the right area + scrolls to message
-- [ ] Sign out clears device_tokens row (no orphan tokens after device handoff)
-- [ ] TypeScript clean (`npx tsc --noEmit`)
+- [x] Foreman writes a message in AreaDetail, supervisor sees it on their device within 3s while online
+- [x] Offline message saves locally, syncs + triggers push when online
+- [x] `blockPhase` auto-inserts now go through `createSystemMessage`, render with 🔒 icon
+- [x] Push notification tap deep-links to the right area + scrolls to message (and to /messages for area_id=NULL — Sprint 53A.1)
+- [x] Sign out clears device_tokens row (no orphan tokens after device handoff)
+- [x] TypeScript clean (`npx tsc --noEmit`)
+- [x] **53A.1 follow-ups (post-field-test fixes):** General channel UI shipped, RLS path fixed, missing tab `_layout.tsx` fixed, SyncStatusBar root cause fixed (wrong PowerSync API), keyboard avoidance fixed (JS partial + native config pending next rebuild)
 
 ### Communication expansion roadmap (post-pilot, NOT scoped here)
 
@@ -429,12 +430,13 @@ Pin appears on plan immediately (optimistic). Foreman who opens Plans tab sees i
 
 ### Success criteria
 
-- [ ] Supervisor creates a punch item from Plans tab, pin appears on plan, foreman sees it after sync
-- [ ] Tap pin → bottom sheet with details, foreman can mark in_progress, take after photo, mark resolved
-- [ ] Supervisor opens resolved item → can verify (closes) or reject with reason (re-opens)
-- [ ] Area cards in Ready Board show red dot + count when open punch items exist
-- [ ] Resolution photos load correctly in detail screen alongside original photos
-- [ ] TypeScript clean
+- [x] Supervisor creates a punch item from Plans tab, pin appears on plan, foreman sees it after sync
+- [x] Tap pin → bottom sheet with details, foreman can mark in_progress, take after photo, mark resolved
+- [x] Supervisor opens resolved item → can verify (closes) or reject with reason (re-opens)
+- [x] Area cards in Ready Board show red dot + count when open punch items exist
+- [x] Resolution photos load correctly in detail screen alongside original photos (post-Sprint 53A.1 RLS path fix for `uploadPunchPhoto`)
+- [x] TypeScript clean
+- [x] `isSupervisor` check uses `normalizeTrackRole` so role='supervisor' canonical users aren't locked out (Sprint 53A.1 commit `35434db`)
 
 ---
 
