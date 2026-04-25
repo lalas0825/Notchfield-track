@@ -74,6 +74,15 @@ export default function MoreScreen() {
       onPress: () => setShowFeedback(true),
       color: '#F97316',
     },
+    // Sprint 53A pilot debug — visible to all roles, easy access for
+    // diagnosing the "Reconnecting…" stuck state.
+    {
+      icon: 'pulse',
+      label: 'Sync Diagnostics',
+      subtitle: 'Inspect PowerSync state + recovery options',
+      route: '/(tabs)/more/sync-debug',
+      color: '#0EA5E9',
+    },
     {
       icon: 'log-out',
       label: 'Sign Out',
