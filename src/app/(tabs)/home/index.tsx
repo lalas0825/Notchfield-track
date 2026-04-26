@@ -25,6 +25,7 @@ import { MorningPtpCard } from '@/features/safety/ptp/components/MorningPtpCard'
 import { WeeklyToolboxCard } from '@/features/safety/toolbox/components/WeeklyToolboxCard';
 import { ProjectNotesIcon } from '@/features/messages/components/ProjectNotesIcon';
 import { NotificationBell } from '@/features/notifications/components/NotificationBell';
+import { TodayHeaderIcon } from '@/features/todos/components/TodayHeaderIcon';
 
 export default function HomeScreen() {
   const { t } = useTranslation();
@@ -167,6 +168,8 @@ export default function HomeScreen() {
             <ProjectNotesIcon />
             {/* Sprint 69 — Notifications Hub bell + unread badge */}
             <NotificationBell />
+            {/* Sprint 70 — Today action queue + actionable badge */}
+            <TodayHeaderIcon />
           </View>
         </View>
         <View className="mt-1 flex-row items-center">

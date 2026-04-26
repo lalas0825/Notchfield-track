@@ -17,6 +17,14 @@ bucket_definitions:
       # Sprint 69 — Notifications Hub (per-user inbox; Web team owns the
       # notifications table + RLS; Track only reads via this rule).
       - SELECT * FROM notifications WHERE recipient_id = bucket.user_id
+      # Sprint 70 — Todos Hub (per-user action queue). Web team owns the
+      # todos table + RLS + INSERT pipeline. Track READS only the active
+      # set (excludes done/dismissed) so the local SQLite payload stays
+      # small. Status flips from snoozed → pending happen server-side
+      # via Web's snooze_until trigger.
+      - SELECT * FROM todos
+        WHERE owner_profile_id = bucket.user_id
+          AND status IN ('pending', 'in_progress', 'snoozed')
 
   # Org-scoped data
   by_org:

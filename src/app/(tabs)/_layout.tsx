@@ -130,6 +130,15 @@ export default function TabsLayout() {
           href: null,
         }}
       />
+      {/* Sprint 70 — Today action queue. Hidden tab; entry is the
+          checkbox icon in the Home header (<TodayHeaderIcon/>). Same
+          href:null rationale as notifications above. */}
+      <Tabs.Screen
+        name="today"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }

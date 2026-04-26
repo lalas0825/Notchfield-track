@@ -815,6 +815,35 @@ const notifications = new TableV2({
   created_at: column.text,
 });
 
+// Sprint 70 — Todos Hub. Per-user action queue synced via by_user bucket.
+// Web team owns the table + RLS + auto-completion engine + cron creation;
+// Track only READS active rows (status pending/in_progress/snoozed) and
+// POSTs to /api/todos/{id}/{done|snooze|dismiss} or /api/todos/create for
+// manual entries. Track NEVER inserts directly — the DB CHECK on `type`
+// rejects unknown values and Web's recipient resolver decides the owner.
+const todos = new TableV2({
+  organization_id: column.text,
+  owner_profile_id: column.text,
+  type: column.text,              // matches TodoType union (Web team registry)
+  entity_type: column.text,       // e.g. 'safety_document', 'production_area'
+  entity_id: column.text,
+  project_id: column.text,
+  title: column.text,
+  description: column.text,
+  link_url: column.text,          // Web URL — Track parses to local route
+  status: column.text,            // 'pending' | 'in_progress' | 'snoozed' (sync filter excludes done/dismissed)
+  priority: column.text,          // 'critical' | 'high' | 'normal' | 'low'
+  due_date: column.text,          // YYYY-MM-DD or full ISO timestamp
+  snooze_until: column.text,
+  done_at: column.text,
+  done_by: column.text,
+  dismissed_at: column.text,
+  source: column.text,            // 'auto_event' | 'auto_cron' | 'manual'
+  created_by: column.text,
+  created_at: column.text,
+  updated_at: column.text,
+});
+
 // Sprint 53C — Legal documents (NOD / REA / evidence).
 // CHECK constraints verified in DB 2026-04-24:
 //   document_type IN ('nod', 'rea', 'evidence')
@@ -1010,6 +1039,8 @@ export const AppSchema = new Schema({
   delay_cost_logs,
   // Sprint 69 — Notifications Hub
   notifications,
+  // Sprint 70 — Todos Hub
+  todos,
 });
 
 export type Database = (typeof AppSchema)['types'];
@@ -1035,6 +1066,7 @@ export type DocumentSignatureRecord = Database['document_signatures'];
 export type FeedbackReportRecord = Database['feedback_reports'];
 export type DeviceTokenRecord = Database['device_tokens'];
 export type NotificationRecord = Database['notifications'];
+export type TodoRecord = Database['todos'];
 export type LegalDocumentRecord = Database['legal_documents'];
 export type DelayCostLogRecord = Database['delay_cost_logs'];
 export type DrawingHyperlinkRecord = Database['drawing_hyperlinks'];
