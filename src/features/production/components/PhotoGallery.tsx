@@ -140,7 +140,14 @@ export function PhotoGallery({ areaId }: Props) {
   };
 
   const getImageUri = (photo: FieldPhoto): string | undefined => {
-    return photo.local_uri ?? photo.thumbnail_url ?? photo.remote_url ?? undefined;
+    // Bug fix 2026-04-25: prefer remote URL (persistent across reinstalls)
+    // over local_uri. The previous order put local_uri first, but after the
+    // user uninstalls/reinstalls the dev-client APK Android wipes the app's
+    // documentDirectory — local_uri then points to a file that no longer
+    // exists, and the <Image> renders the placeholder. remote_url survives
+    // because it lives in Supabase Storage. local_uri is only useful for
+    // photos still queued offline (no remote yet).
+    return photo.thumbnail_url ?? photo.remote_url ?? photo.local_uri ?? undefined;
   };
 
   const formatDate = (iso: string): string => {

@@ -58,7 +58,13 @@ export function PhotoViewer({ photos, initialIndex, visible, onClose }: Props) {
   const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 50 }).current;
 
   const getImageUri = (photo: Photo): string | undefined => {
-    return photo.local_uri ?? photo.remote_url ?? photo.thumbnail_url ?? undefined;
+    // Bug fix 2026-04-25: prefer remote URL (persistent) over local_uri.
+    // After APK reinstalls, local_uri files are wiped from Android's
+    // documentDirectory but remote_url still works. For full-screen
+    // viewer we want the original (not thumbnail) so prefer remote_url
+    // first, fall back to thumbnail (still remote, lower-res), then
+    // local_uri as last resort for fresh-pending offline photos.
+    return photo.remote_url ?? photo.thumbnail_url ?? photo.local_uri ?? undefined;
   };
 
   const formatDateTime = (iso: string): string => {
