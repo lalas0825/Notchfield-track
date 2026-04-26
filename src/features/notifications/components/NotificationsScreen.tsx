@@ -68,7 +68,9 @@ export default function NotificationsScreen() {
 
   const onPressItem = useCallback(
     (n: Notification) => {
-      // Optimistic dim
+      // Optimistic remove — adds the id to localRead, which the displayList
+      // memo excludes so the row drops out of the list immediately. No
+      // animation for now (Phase 2 can layout-animate the removal).
       if (!n.read_at) {
         setLocalRead((prev) => {
           const next = new Set(prev);
@@ -86,15 +88,16 @@ export default function NotificationsScreen() {
     [],
   );
 
-  // Apply the optimistic overlay before grouping so the dot/tint update
-  // immediately on tap.
+  // Hide read notifications from the list — once tapped (or marked read on
+  // another device), the row clears out of the active view. The unread
+  // badge on the bell is the source of truth; if the user wants to see
+  // history, that's an "archive" UX we'll add when there's demand.
+  //
+  // The localRead overlay is what makes the row disappear instantly on tap
+  // (without waiting for the server roundtrip + realtime echo). After
+  // reload(), localRead resets and the server's read_at is authoritative.
   const displayList = useMemo(
-    () =>
-      notifications.map((n) =>
-        localRead.has(n.id) && !n.read_at
-          ? ({ ...n, read_at: new Date().toISOString() } as Notification)
-          : n,
-      ),
+    () => notifications.filter((n) => !n.read_at && !localRead.has(n.id)),
     [notifications, localRead],
   );
 
