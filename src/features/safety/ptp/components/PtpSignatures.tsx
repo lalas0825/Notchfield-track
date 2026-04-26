@@ -34,6 +34,7 @@ import {
   type CertStatus,
 } from '@/features/workers/utils/certStatus';
 import { workerFullName, type Worker } from '@/features/workers/types';
+import { notifyAndForget } from '@/features/notifications/services/notifyApiClient';
 import type { PtpSignature } from '../types';
 
 type CandidateSigner = {
@@ -185,6 +186,23 @@ export function PtpSignatures({
       Alert.alert('Failed to save signature', result.error ?? 'Unknown error');
       return;
     }
+
+    // Sprint 69 — fire ptp_signed_to_pm only on foreman sign. Web's recipient
+    // resolver decides who gets in_app/email/push (typically the project PM
+    // and superintendent). Crew signatures don't trigger; they're snapshotted
+    // into the same JSONB array but the "PTP is signed and ready for PM
+    // attention" milestone is the foreman's signature. notifyAndForget swallows
+    // errors per "auxiliary, not blocking" rule.
+    if (isForeman) {
+      notifyAndForget({
+        type: 'ptp_signed_to_pm',
+        entity: { type: 'safety_document', id: _docId },
+        projectId,
+        organizationId,
+        actorId: createdBy,
+      });
+    }
+
     setActiveSigner(null);
   };
 

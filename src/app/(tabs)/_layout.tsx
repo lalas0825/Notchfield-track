@@ -118,6 +118,18 @@ export default function TabsLayout() {
           ),
         }}
       />
+      {/* Sprint 69 — Notifications screen. Hidden from the tab bar; entry
+          is the bell icon in the Home header (<NotificationBell/>). The
+          `href: null` hint is what tells expo-router not to render a
+          tab-bar button for this route while still keeping it inside the
+          Tabs navigator (so the bottom bar stays visible while reading
+          notifications). */}
+      <Tabs.Screen
+        name="notifications"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }

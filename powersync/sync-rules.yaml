@@ -14,6 +14,9 @@ bucket_definitions:
       - SELECT * FROM profiles WHERE id = bucket.user_id
       # Sprint 53A — device_tokens are per-user (push notifications)
       - SELECT * FROM device_tokens WHERE user_id = bucket.user_id
+      # Sprint 69 — Notifications Hub (per-user inbox; Web team owns the
+      # notifications table + RLS; Track only reads via this rule).
+      - SELECT * FROM notifications WHERE recipient_id = bucket.user_id
 
   # Org-scoped data
   by_org:

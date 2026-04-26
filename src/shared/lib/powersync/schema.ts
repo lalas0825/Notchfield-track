@@ -792,6 +792,29 @@ const device_tokens = new TableV2({
   created_at: column.text,
 });
 
+// Sprint 69 — Notifications Hub. Per-user inbox synced via by_user bucket.
+// Web team owns the table schema + RLS + INSERT pipeline (Track NEVER
+// inserts directly — always POSTs to /api/notifications/notify). Track
+// only READS rows scoped to its recipient_id.
+const notifications = new TableV2({
+  organization_id: column.text,
+  recipient_id: column.text,
+  type: column.text,              // matches NotificationEventType enum
+  entity_type: column.text,       // e.g. 'safety_document', 'production_area'
+  entity_id: column.text,
+  project_id: column.text,
+  title: column.text,
+  body: column.text,
+  icon: column.text,              // lucide-style name (mapped to Ionicons)
+  severity: column.text,          // 'info' | 'warning' | 'critical'
+  link_url: column.text,          // Web URL — Track parses to local route
+  read_at: column.text,
+  archived_at: column.text,
+  email_sent_at: column.text,
+  push_sent_at: column.text,
+  created_at: column.text,
+});
+
 // Sprint 53C — Legal documents (NOD / REA / evidence).
 // CHECK constraints verified in DB 2026-04-24:
 //   document_type IN ('nod', 'rea', 'evidence')
@@ -985,6 +1008,8 @@ export const AppSchema = new Schema({
   // Sprint 53C — Legal engine
   legal_documents,
   delay_cost_logs,
+  // Sprint 69 — Notifications Hub
+  notifications,
 });
 
 export type Database = (typeof AppSchema)['types'];
@@ -1009,6 +1034,7 @@ export type GcPunchItemRecord = Database['gc_punch_items'];
 export type DocumentSignatureRecord = Database['document_signatures'];
 export type FeedbackReportRecord = Database['feedback_reports'];
 export type DeviceTokenRecord = Database['device_tokens'];
+export type NotificationRecord = Database['notifications'];
 export type LegalDocumentRecord = Database['legal_documents'];
 export type DelayCostLogRecord = Database['delay_cost_logs'];
 export type DrawingHyperlinkRecord = Database['drawing_hyperlinks'];

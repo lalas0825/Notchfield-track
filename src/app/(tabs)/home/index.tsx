@@ -24,6 +24,7 @@ import { ProjectSwitcher } from '@/features/projects/components/ProjectSwitcher'
 import { MorningPtpCard } from '@/features/safety/ptp/components/MorningPtpCard';
 import { WeeklyToolboxCard } from '@/features/safety/toolbox/components/WeeklyToolboxCard';
 import { ProjectNotesIcon } from '@/features/messages/components/ProjectNotesIcon';
+import { NotificationBell } from '@/features/notifications/components/NotificationBell';
 
 export default function HomeScreen() {
   const { t } = useTranslation();
@@ -164,6 +165,8 @@ export default function HomeScreen() {
             <ProjectSwitcher />
             {/* Sprint 53A.1 — General channel access */}
             <ProjectNotesIcon />
+            {/* Sprint 69 — Notifications Hub bell + unread badge */}
+            <NotificationBell />
           </View>
         </View>
         <View className="mt-1 flex-row items-center">

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { supabase } from '@/shared/lib/supabase/client';
 import { localInsert, localUpdate, localUpdateWhere, localQuery, generateUUID } from '@/shared/lib/powersync/write';
 import { haptic } from '@/shared/lib/haptics';
+import { notifyAndForget } from '@/features/notifications/services/notifyApiClient';
 
 export type ProductionArea = {
   id: string;
@@ -332,6 +333,34 @@ export const useProductionStore = create<ProductionState & ProductionActions>((s
       }
       return { phases: newPhases };
     });
+
+    // Sprint 69 — fire gate_verification_requested when the completed phase
+    // is a gate (requires_inspection on the template). The PM/supervisor gets
+    // an in-app + email + push notification (severity=warning) so the
+    // verification queue moves while the area sits in ⛔ AWAITING state.
+    // Fire-and-forget — phase completion never blocks on notify.
+    const { phases, templatePhases, areas } = get();
+    let progressRow = null as PhaseProgress | null;
+    for (const list of phases.values()) {
+      const found = list.find((p) => p.id === progressId);
+      if (found) {
+        progressRow = found;
+        break;
+      }
+    }
+    if (progressRow) {
+      const tp = templatePhases.find((t) => t.id === progressRow!.phase_id);
+      const area = areas.find((a) => a.id === progressRow!.area_id);
+      if (tp?.requires_inspection && area) {
+        notifyAndForget({
+          type: 'gate_verification_requested',
+          entity: { type: 'phase_progress', id: progressId },
+          projectId: area.project_id,
+          organizationId: area.organization_id,
+          actorId: userId,
+        });
+      }
+    }
 
     return { success: true };
   },
