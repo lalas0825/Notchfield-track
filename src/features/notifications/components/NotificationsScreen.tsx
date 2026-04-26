@@ -29,6 +29,7 @@ import {
 import { Stack, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useNotifications } from '../hooks/useNotifications';
+import { useLocalReadStore } from '../state/localReadStore';
 import { groupBucket } from '../services/relativeTime';
 import { markNotificationRead } from '../services/notifyApiClient';
 import { NotificationItem } from './NotificationItem';
@@ -49,18 +50,14 @@ const SECTION_ORDER: ReadonlyArray<ReturnType<typeof groupBucket>> = [
 
 export default function NotificationsScreen() {
   const router = useRouter();
-  const { notifications, unreadCount, loading, reload } = useNotifications();
-
-  // Local optimistic read-state overlay. Lets the row dim instantly without
-  // waiting for the API roundtrip + realtime echo. Reset on each refetch.
-  const [localRead, setLocalRead] = useState<Set<string>>(new Set());
+  const { notifications, unreadCount, loading, reload, localRead } = useNotifications();
+  const markLocalRead = useLocalReadStore((s) => s.markRead);
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
       await reload();
-      setLocalRead(new Set()); // server is the source of truth after reload
     } finally {
       setRefreshing(false);
     }
@@ -68,15 +65,12 @@ export default function NotificationsScreen() {
 
   const onPressItem = useCallback(
     (n: Notification) => {
-      // Optimistic remove — adds the id to localRead, which the displayList
-      // memo excludes so the row drops out of the list immediately. No
-      // animation for now (Phase 2 can layout-animate the removal).
+      // Optimistic remove — adds the id to the shared localRead store, which
+      // BOTH this screen's displayList AND the bell's unreadCount filter
+      // against. The row drops from the list and the badge decrements in
+      // the same render tick, no server roundtrip required.
       if (!n.read_at) {
-        setLocalRead((prev) => {
-          const next = new Set(prev);
-          next.add(n.id);
-          return next;
-        });
+        markLocalRead(n.id);
         // Fire-and-forget — `.catch` inside markNotificationRead already
         // logs failures and doesn't throw.
         markNotificationRead(n.id);
@@ -85,7 +79,7 @@ export default function NotificationsScreen() {
       // are the user's entry into the system; specific entity navigation
       // happens via the regular tabs (Production Board, Safety, etc).
     },
-    [],
+    [markLocalRead],
   );
 
   // Hide read notifications from the list — once tapped (or marked read on

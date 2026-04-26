@@ -25,13 +25,14 @@
  *   - reload(): manual refetch trigger
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '@/shared/lib/supabase/client';
 import { localQuery } from '@/shared/lib/powersync/write';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import type { Notification } from '../types';
 import { MOCK_NOTIFICATIONS } from '../mocks/MOCK_NOTIFICATIONS';
+import { useLocalReadStore } from '../state/localReadStore';
 
 /**
  * While Web is still building the backend (DB table + recipient resolver +
@@ -71,12 +72,17 @@ function sortDesc(list: Notification[]): Notification[] {
   );
 }
 
-function countUnread(list: Notification[]): number {
-  return list.filter((n) => !n.read_at && !n.archived_at).length;
+function countUnread(list: Notification[], localRead: ReadonlySet<string>): number {
+  return list.filter((n) => !n.read_at && !n.archived_at && !localRead.has(n.id)).length;
 }
 
 export function useNotifications() {
   const userId = useAuthStore((s) => s.user?.id ?? null);
+  // Sprint 69 — subscribe to the optimistic local-read store. The bell
+  // (Home header) and the notifications list both call this hook; sharing
+  // this slice via the store keeps the badge in sync with list-row taps
+  // without requiring a server roundtrip.
+  const localRead = useLocalReadStore((s) => s.ids);
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -161,7 +167,13 @@ export function useNotifications() {
     };
   }, [userId, reload]);
 
-  const unreadCount = countUnread(notifications);
+  // Memoize derived values so consumers don't re-render on every parent
+  // tick. unreadCount excludes anything in the optimistic localRead set so
+  // the bell badge decrements the moment a row is tapped on the screen.
+  const unreadCount = useMemo(
+    () => countUnread(notifications, localRead),
+    [notifications, localRead],
+  );
 
-  return { notifications, unreadCount, loading, reload };
+  return { notifications, unreadCount, loading, reload, localRead };
 }
