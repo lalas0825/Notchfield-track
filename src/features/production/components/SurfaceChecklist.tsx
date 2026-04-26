@@ -17,6 +17,7 @@ import { useProjectStore } from '@/features/projects/store/project-store';
 import { enqueuePhoto } from '@/features/photos/services/photo-queue';
 import { localUpdate, localQuery } from '@/shared/lib/powersync/write';
 import { haptic } from '@/shared/lib/haptics';
+import { autoCompleteAndForget } from '@/features/todos/services/todoApiClient';
 import { calculateSurfaceProgress, type SurfaceRow } from '../utils/progressCalculation';
 import { useProductionStore, type ProductionArea } from '../store/production-store';
 
@@ -255,6 +256,19 @@ export function SurfaceChecklist({ areaId }: Props) {
 
       await localUpdate('production_area_objects', surface.id, updates);
       await propagateAreaStatus(updatedSurfaces);
+
+      // Sprint 70 — fire surface_progress_stale auto-complete when the
+      // foreman marks a surface complete. Cron creates this todo on areas
+      // that haven't been updated in N days; ANY surface flip to
+      // 'completed' is progress and clears it. Web's auto-completion
+      // engine matches by entity_type='production_area_objects' + entity_id.
+      // .catch via and-forget — never blocks the user action.
+      if (next === 'completed') {
+        autoCompleteAndForget(
+          { type: 'production_area_objects', id: surface.id },
+          'surface_progress_stale',
+        );
+      }
     },
     [user, surfaces, propagateAreaStatus],
   );

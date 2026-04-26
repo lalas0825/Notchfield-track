@@ -43,11 +43,12 @@ import { MOCK_TODOS } from '../mocks/MOCK_TODOS';
 import { useTodoOptimisticStore } from '../state/optimisticStore';
 
 /**
- * While Web is still building the backend (W1 table + W36–W39 endpoints),
- * Track shows MOCK_TODOS so the UI can be exercised. Web confirms via
- * "Sprint 70 backend ready" → flip this to false → ship.
+ * Web team posted "Sprint 70 backend ready" on 2026-04-26 — table is live,
+ * 4 mutation endpoints + auto-complete + 4 cron jobs all active. Mocks
+ * stay in tree as a fallback if the live branch ever misbehaves: setting
+ * this back to true surfaces MOCK_TODOS again without code changes.
  */
-const USE_MOCK_TODOS = true;
+const USE_MOCK_TODOS = false;
 
 type RawRow = Record<string, unknown>;
 

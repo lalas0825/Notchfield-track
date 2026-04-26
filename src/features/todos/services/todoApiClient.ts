@@ -114,3 +114,59 @@ export function dismissAndForget(todoId: string): void {
     logger.warn('[todos] dismiss failed (non-fatal)', err);
   });
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// Auto-complete (Web Sprint 70 — `/api/todos/auto-complete`)
+//
+// Generic endpoint that closes todos matching an entity (and optionally a
+// type). Fired from Track action handlers AFTER the local mutation succeeds,
+// so the foreman's signing-a-PTP / submitting-a-report / completing-a-surface
+// /  assigning-crew action immediately removes the matching todo from their
+// Today screen via the realtime path.
+//
+// Web team confirmed (2026-04-26):
+//   - Distribute completes ptp_distribute_due (PM todo).
+//   - Foreman sign completes ptp_sign_today (foreman todo).
+//   - Both Web-side and Track-side calls converge on the same auto-complete
+//     endpoint; Web flips status='done' + done_at + done_by transactionally,
+//     PowerSync replicates, sync rule excludes done rows → row falls out of
+//     the local SQLite cleanly.
+// ─────────────────────────────────────────────────────────────────────────
+
+export type AutoCompleteEntity = {
+  /** e.g. 'safety_document', 'production_area_objects', 'daily_report', 'project'. */
+  type: string;
+  /** UUID of the entity being acted on. */
+  id: string;
+};
+
+export type AutoCompleteResult = { ok: true; closedCount: number };
+
+/**
+ * Generic auto-complete. If `type` is provided, only closes todos whose
+ * type matches. Omit to close ALL todos pointing at the entity (rare —
+ * mostly useful for "everything related to this PTP is now resolved").
+ */
+export async function autoCompleteTodosViaWeb(
+  entity: AutoCompleteEntity,
+  type?: string,
+): Promise<AutoCompleteResult> {
+  return postJson<AutoCompleteResult>(`${WEB_API_URL}/api/todos/auto-complete`, {
+    entity,
+    ...(type ? { type } : {}),
+  });
+}
+
+/**
+ * Fire-and-forget wrapper. Auxiliary, never blocks the user action — if
+ * the call fails (network, server error, anything), Web's daily reconcile
+ * will catch it on the next cron run. Pattern matches notifyAndForget.
+ */
+export function autoCompleteAndForget(
+  entity: AutoCompleteEntity,
+  type?: string,
+): void {
+  autoCompleteTodosViaWeb(entity, type).catch((err) => {
+    logger.warn('[todos] auto-complete failed (non-fatal)', err);
+  });
+}

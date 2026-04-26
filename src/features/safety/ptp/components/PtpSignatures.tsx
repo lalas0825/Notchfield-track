@@ -35,6 +35,7 @@ import {
 } from '@/features/workers/utils/certStatus';
 import { workerFullName, type Worker } from '@/features/workers/types';
 import { notifyAndForget } from '@/features/notifications/services/notifyApiClient';
+import { autoCompleteAndForget } from '@/features/todos/services/todoApiClient';
 import type { PtpSignature } from '../types';
 
 type CandidateSigner = {
@@ -193,6 +194,13 @@ export function PtpSignatures({
     // into the same JSONB array but the "PTP is signed and ready for PM
     // attention" milestone is the foreman's signature. notifyAndForget swallows
     // errors per "auxiliary, not blocking" rule.
+    //
+    // Sprint 70 — also fire auto-complete for the foreman's `ptp_sign_today`
+    // todo. Web's auto-completion engine flips status='done', PowerSync
+    // replicates, and the row falls out of the foreman's Today screen
+    // immediately. Per Web team handoff (2026-04-26):
+    //   - Distribute → completes ptp_distribute_due (PM todo)
+    //   - Foreman sign → completes ptp_sign_today (foreman todo)
     if (isForeman) {
       notifyAndForget({
         type: 'ptp_signed_to_pm',
@@ -201,6 +209,10 @@ export function PtpSignatures({
         organizationId,
         actorId: createdBy,
       });
+      autoCompleteAndForget(
+        { type: 'safety_document', id: _docId },
+        'ptp_sign_today',
+      );
     }
 
     setActiveSigner(null);

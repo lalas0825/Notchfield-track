@@ -9,6 +9,7 @@
 import { supabase } from '@/shared/lib/supabase/client';
 import { localInsert, localUpdate, generateUUID } from '@/shared/lib/powersync/write';
 import { logger } from '@/shared/lib/logger';
+import { autoCompleteAndForget } from '@/features/todos/services/todoApiClient';
 
 export type DailyReportDraft = {
   projectId: string;
@@ -117,6 +118,14 @@ export async function submitReport(reportId: string): Promise<{ success: boolean
   if (!result.success) {
     return { success: false, error: result.error };
   }
+
+  // Sprint 70 — fire daily_report_submit auto-complete. The cron creates
+  // this todo daily for every foreman with assigned crew; submit clears it.
+  // Fire-and-forget — never blocks the submit success path.
+  autoCompleteAndForget(
+    { type: 'daily_report', id: reportId },
+    'daily_report_submit',
+  );
 
   logger.info(`[Report] Submitted: ${reportId}`);
   return { success: true };

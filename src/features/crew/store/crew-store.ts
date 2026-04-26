@@ -3,6 +3,7 @@ import { supabase } from '@/shared/lib/supabase/client';
 import { localInsert, localUpdate, localDelete, localUpdateWhere, localDeleteWhere, generateUUID } from '@/shared/lib/powersync/write';
 import { haptic } from '@/shared/lib/haptics';
 import { logger } from '@/shared/lib/logger';
+import { autoCompleteAndForget } from '@/features/todos/services/todoApiClient';
 
 export type Worker = {
   id: string;
@@ -194,6 +195,15 @@ export const useCrewStore = create<CrewState & CrewActions>((set, get) => ({
     // Refresh state
     await get().fetchAssignments(projectId, organizationId);
     await get().fetchTodayTimeEntries(projectId, organizationId);
+
+    // Sprint 70 — fire crew_assign_today auto-complete. Cron creates this
+    // todo daily at 6 AM for foremen with areas needing crew; first
+    // assignment of the day clears it. Web matches by entity_type='project'
+    // + entity_id (one project-scoped todo, not per-area). Fire-and-forget.
+    autoCompleteAndForget(
+      { type: 'project', id: projectId },
+      'crew_assign_today',
+    );
 
     haptic.medium();
     return { success: true };

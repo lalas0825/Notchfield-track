@@ -1,21 +1,30 @@
 /**
  * Sprint 70 — Todo type registry.
  *
- * Web team owns the canonical TodoType union (DB CHECK constraint on
- * `todos.type`). Track keeps a registry of KNOWN types here for styling
- * (icon, default priority, role hint). When PowerSync delivers a todo
- * with an unknown type, the resolver falls back to a neutral default —
- * the row still renders, just with the generic clipboard icon.
+ * Web team owns the canonical TodoType union. The DB CHECK constraint on
+ * `todos.type` enforces alignment — any type Track invents that isn't in
+ * Web's enum will fail to INSERT. Track keeps a registry here for STYLING
+ * (icon, default priority, role hint). Unknown types fall back to a
+ * neutral default so the row still renders with the generic clipboard
+ * icon — never crashes.
  *
- * Track must coordinate with Web before adding a new entry to this map:
- * a Track-side type that doesn't exist on Web's enum can never be created
- * via /api/todos/create, and Web's auto-creation triggers won't write it
- * either. The registry is descriptive, not authoritative.
+ * 17 Phase 1 types per Web's SPRINT_70_TODOS_HUB.md §3 (commit `bfdee08`):
+ *   PM (8):
+ *     rfi_response_due, submittal_review_due, co_approval_due,
+ *     gate_verification_due, block_resolution_due, ptp_distribute_due,
+ *     punch_item_due, bid_response_due
+ *   Foreman (5):
+ *     ptp_sign_today, crew_assign_today, surface_progress_stale,
+ *     block_unresolved_self, daily_report_submit
+ *   Supervisor (4):
+ *     sst_expiring_crew, block_escalation_4h, worker_intake_pending,
+ *     foreman_missed_report
+ *   Manual: manual
  *
- * This is the Track-known subset of Web Sprint 70 § 3 — full verbatim copy
- * pending Web team handoff. The 8 entries below cover the mock data set
- * and the cases the spec explicitly calls out (block_escalation_4h,
- * sst_expiring_crew, surface_progress_stale, etc).
+ * Icons / default priorities below are Track's best-fit pending verbatim
+ * sync with Web's todoRegistry.ts:51-235 (commit `bfdee08`). DB-side
+ * priority on each row is authoritative — defaultPriority here is only
+ * the visual fallback if a row arrives with `priority` somehow null.
  */
 
 import type { TodoPriority } from '../types';
@@ -23,24 +32,25 @@ import type { TodoPriority } from '../types';
 export type TodoRole = 'pm' | 'foreman' | 'supervisor' | 'any';
 
 export type TodoTypeDefinition = {
-  /** Stable string id — matches Web's TodoType union. */
+  /** Stable string id — matches Web's TodoType union exactly. */
   type: string;
   /** Lucide-style icon name. Mapped to Ionicons via iconMapper.ts. */
   icon: string;
-  /** Default priority if none is set on the row (Web is authoritative). */
+  /** Default priority if the row arrives without one. Web's row.priority
+   * is authoritative when present. */
   defaultPriority: TodoPriority;
-  /** Which role typically owns this todo. Used to filter the supervisor
-   * Compliance screen vs the foreman Today screen. */
+  /** Which role typically owns this todo. Hint only — Web's recipient
+   * resolver is the source of truth for who actually gets it. */
   role: TodoRole;
-  /** i18n key for the title (Web translates server-side; Track only uses
-   * the key as a hint when Web doesn't fill `title`). */
+  /** i18n key for the title. Track uses Web's row.title verbatim; this
+   * key is for fallback strings + future translation. */
   titleKey: string;
 };
 
 /**
  * Default style for unknown todo types. Track never crashes on a type
- * Web added between sprints — the row renders with a neutral clipboard
- * icon and the row's own `priority` field (NOT the registry default).
+ * Web added between sprints — the row renders with a clipboard icon and
+ * its own `priority` field (NOT the registry default).
  */
 export const DEFAULT_TODO_DEFINITION: TodoTypeDefinition = {
   type: 'unknown',
@@ -51,7 +61,65 @@ export const DEFAULT_TODO_DEFINITION: TodoTypeDefinition = {
 };
 
 export const TODO_TYPES: Record<string, TodoTypeDefinition> = {
-  // —— Foreman ——
+  // ━━━ PM (8) ━━━
+  rfi_response_due: {
+    type: 'rfi_response_due',
+    icon: 'help-circle',
+    defaultPriority: 'high',
+    role: 'pm',
+    titleKey: 'rfiResponseDueTitle',
+  },
+  submittal_review_due: {
+    type: 'submittal_review_due',
+    icon: 'file-text',
+    defaultPriority: 'high',
+    role: 'pm',
+    titleKey: 'submittalReviewDueTitle',
+  },
+  co_approval_due: {
+    type: 'co_approval_due',
+    icon: 'pen-tool',
+    defaultPriority: 'high',
+    role: 'pm',
+    titleKey: 'coApprovalDueTitle',
+  },
+  gate_verification_due: {
+    type: 'gate_verification_due',
+    icon: 'shield-alert',
+    defaultPriority: 'high',
+    role: 'pm',
+    titleKey: 'gateVerificationDueTitle',
+  },
+  block_resolution_due: {
+    type: 'block_resolution_due',
+    icon: 'alert-octagon',
+    defaultPriority: 'critical',
+    role: 'pm',
+    titleKey: 'blockResolutionDueTitle',
+  },
+  ptp_distribute_due: {
+    type: 'ptp_distribute_due',
+    icon: 'shield-check',
+    defaultPriority: 'high',
+    role: 'pm',
+    titleKey: 'ptpDistributeDueTitle',
+  },
+  punch_item_due: {
+    type: 'punch_item_due',
+    icon: 'clipboard-x',
+    defaultPriority: 'normal',
+    role: 'pm',
+    titleKey: 'punchItemDueTitle',
+  },
+  bid_response_due: {
+    type: 'bid_response_due',
+    icon: 'message-square',
+    defaultPriority: 'high',
+    role: 'pm',
+    titleKey: 'bidResponseDueTitle',
+  },
+
+  // ━━━ Foreman (5) ━━━
   ptp_sign_today: {
     type: 'ptp_sign_today',
     icon: 'shield-check',
@@ -73,6 +141,13 @@ export const TODO_TYPES: Record<string, TodoTypeDefinition> = {
     role: 'foreman',
     titleKey: 'surfaceProgressStaleTitle',
   },
+  block_unresolved_self: {
+    type: 'block_unresolved_self',
+    icon: 'alert-triangle',
+    defaultPriority: 'high',
+    role: 'foreman',
+    titleKey: 'blockUnresolvedSelfTitle',
+  },
   daily_report_submit: {
     type: 'daily_report_submit',
     icon: 'file-text',
@@ -81,14 +156,7 @@ export const TODO_TYPES: Record<string, TodoTypeDefinition> = {
     titleKey: 'dailyReportSubmitTitle',
   },
 
-  // —— Supervisor ——
-  block_escalation_4h: {
-    type: 'block_escalation_4h',
-    icon: 'alert-octagon',
-    defaultPriority: 'critical',
-    role: 'supervisor',
-    titleKey: 'blockEscalation4hTitle',
-  },
+  // ━━━ Supervisor (4) ━━━
   sst_expiring_crew: {
     type: 'sst_expiring_crew',
     icon: 'id-card',
@@ -96,12 +164,12 @@ export const TODO_TYPES: Record<string, TodoTypeDefinition> = {
     role: 'supervisor',
     titleKey: 'sstExpiringCrewTitle',
   },
-  foreman_missed_daily_report: {
-    type: 'foreman_missed_daily_report',
-    icon: 'clipboard-x',
-    defaultPriority: 'high',
+  block_escalation_4h: {
+    type: 'block_escalation_4h',
+    icon: 'alert-octagon',
+    defaultPriority: 'critical',
     role: 'supervisor',
-    titleKey: 'foremanMissedDailyReportTitle',
+    titleKey: 'blockEscalation4hTitle',
   },
   worker_intake_pending: {
     type: 'worker_intake_pending',
@@ -110,8 +178,17 @@ export const TODO_TYPES: Record<string, TodoTypeDefinition> = {
     role: 'supervisor',
     titleKey: 'workerIntakePendingTitle',
   },
+  // Renamed from foreman_missed_daily_report (pre-Sprint-70 mock name)
+  // to match Web's verbatim spec.
+  foreman_missed_report: {
+    type: 'foreman_missed_report',
+    icon: 'clipboard-x',
+    defaultPriority: 'high',
+    role: 'supervisor',
+    titleKey: 'foremanMissedReportTitle',
+  },
 
-  // —— Manual (any role) ——
+  // ━━━ Manual (any role) ━━━
   manual: {
     type: 'manual',
     icon: 'sticky-note',

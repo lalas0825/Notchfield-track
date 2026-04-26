@@ -163,7 +163,7 @@ export const MOCK_SUPERVISOR_TODOS: Todo[] = [
     id: 'todo-supervisor-3',
     organization_id: 'org-jantile',
     owner_profile_id: 'me',
-    type: 'foreman_missed_daily_report',
+    type: 'foreman_missed_report',
     entity_type: 'profile',
     entity_id: 'foreman-john',
     project_id: 'demo-project',
