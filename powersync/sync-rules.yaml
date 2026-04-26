@@ -22,9 +22,15 @@ bucket_definitions:
       # set (excludes done/dismissed) so the local SQLite payload stays
       # small. Status flips from snoozed → pending happen server-side
       # via Web's snooze_until trigger.
+      #
+      # NOTE: PowerSync's sync-rule validator does NOT support `IN (...)`
+      # lists ("list not supported here" error). Use chained `!=` instead
+      # — same effective filter, validator-clean. Mirrors the existing
+      # `(area_type = 'individual' OR area_type IS NULL)` pattern below.
       - SELECT * FROM todos
         WHERE owner_profile_id = bucket.user_id
-          AND status IN ('pending', 'in_progress', 'snoozed')
+          AND status != 'done'
+          AND status != 'dismissed'
 
   # Org-scoped data
   by_org:
