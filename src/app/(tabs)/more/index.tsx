@@ -69,6 +69,17 @@ export default function MoreScreen() {
       color: '#EF4444',
       supervisorOnly: true,
     },
+    // Sprint 71 Phase 2 — Compliance: supervisor verifies foreman-resolved
+    // deficiencies. Cascade-completes verification_due todos org-wide on
+    // first verify (per Web Phase 2 wiring).
+    {
+      icon: 'shield-checkmark',
+      label: 'Compliance',
+      subtitle: 'Verify resolved deficiencies',
+      route: '/(tabs)/more/compliance',
+      color: '#3B82F6',
+      supervisorOnly: true,
+    },
     // Sprint 53A.1 — Project Notes moved to its own bottom tab (between
     // Delivery and More) per pilot feedback 2026-04-25. Removed from More
     // menu to avoid triplicated discoverability (header icon + bottom tab

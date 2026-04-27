@@ -43,6 +43,7 @@ import {
   tempDeficiencyId,
 } from '../services/deficiencyPhotos';
 import { DeficiencyLibraryPicker } from './DeficiencyLibraryPicker';
+import { useAreaSurfaces, surfaceLabel } from '../hooks/useAreaSurfaces';
 import {
   SEVERITY_COLOR,
   SEVERITY_LABEL,
@@ -97,8 +98,15 @@ export function ReportDeficiencyModal({
   const [severity, setSeverity] = useState<DeficiencySeverity>('minor');
   const [responsibility, setResponsibility] =
     useState<DeficiencyResponsibility>('unknown');
+  const [surfaceId, setSurfaceId] = useState<string | null>(null);
   const [photos, setPhotos] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
+
+  // Sprint 71 Phase 2 — optional surface picker. Reads production_area_objects
+  // for this area; user can leave it null (area-level deficiency, valid).
+  // Hidden when there are zero surfaces to pick (e.g. rooms without
+  // takeoff polygons).
+  const { surfaces } = useAreaSurfaces(areaId);
 
   const reset = useCallback(() => {
     setPickerOpen(false);
@@ -107,6 +115,7 @@ export function ReportDeficiencyModal({
     setDescription('');
     setSeverity('minor');
     setResponsibility('unknown');
+    setSurfaceId(null);
     setPhotos([]);
     setSubmitting(false);
   }, []);
@@ -175,6 +184,7 @@ export function ReportDeficiencyModal({
       await createDeficiencyViaWeb({
         projectId,
         areaId,
+        surfaceId: surfaceId ?? undefined,
         title: trimmed,
         description: description.trim() || undefined,
         severity,
@@ -199,6 +209,7 @@ export function ReportDeficiencyModal({
     description,
     severity,
     responsibility,
+    surfaceId,
     photos,
     projectId,
     areaId,
@@ -339,6 +350,75 @@ export function ReportDeficiencyModal({
                   ]}
                   editable={!submitting}
                 />
+
+                {/* Sprint 71 Phase 2 — Surface picker. Hidden when there
+                    are no production_area_objects rows for this area. The
+                    chip "Area-level" deselects to null (valid — Web's
+                    surface_id column is nullable, deficiency just attaches
+                    to the area instead of a specific surface). */}
+                {surfaces.length > 0 ? (
+                  <>
+                    <Text style={LabelStyle}>Surface</Text>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={{ gap: 8, paddingRight: 16 }}
+                    >
+                      <Pressable
+                        onPress={() => setSurfaceId(null)}
+                        disabled={submitting}
+                        style={{
+                          paddingVertical: 8,
+                          paddingHorizontal: 12,
+                          borderRadius: 999,
+                          backgroundColor:
+                            surfaceId === null ? '#F97316' : '#0F172A',
+                          borderWidth: 1,
+                          borderColor:
+                            surfaceId === null ? '#F97316' : '#334155',
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: surfaceId === null ? '#FFFFFF' : '#94A3B8',
+                            fontSize: 13,
+                            fontWeight: '600',
+                          }}
+                        >
+                          Area-level
+                        </Text>
+                      </Pressable>
+                      {surfaces.map((s) => {
+                        const active = s.id === surfaceId;
+                        return (
+                          <Pressable
+                            key={s.id}
+                            onPress={() => setSurfaceId(s.id)}
+                            disabled={submitting}
+                            style={{
+                              paddingVertical: 8,
+                              paddingHorizontal: 12,
+                              borderRadius: 999,
+                              backgroundColor: active ? '#F97316' : '#0F172A',
+                              borderWidth: 1,
+                              borderColor: active ? '#F97316' : '#334155',
+                            }}
+                          >
+                            <Text
+                              style={{
+                                color: active ? '#FFFFFF' : '#94A3B8',
+                                fontSize: 13,
+                                fontWeight: '600',
+                              }}
+                            >
+                              {surfaceLabel(s)}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </ScrollView>
+                  </>
+                ) : null}
 
                 {/* Severity */}
                 <Text style={LabelStyle}>Severity</Text>

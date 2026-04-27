@@ -58,6 +58,10 @@ const LUCIDE_TO_VECTOR_ICON: Record<string, IconSpec> = {
 
   // Legal
   gavel: MCI('gavel'),
+
+  // Sprint 71 Phase 2 — Deficiency / punch list todos
+  wrench: ION('build'), // foreman action: fix the deficiency
+  'clipboard-check': MCI('clipboard-check'), // PM action: verify resolution
 };
 
 /**

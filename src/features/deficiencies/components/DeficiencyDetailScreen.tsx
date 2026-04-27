@@ -24,9 +24,13 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
   Pressable,
   ScrollView,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -35,7 +39,12 @@ import * as ImagePicker from 'expo-image-picker';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { localQuery } from '@/shared/lib/powersync/write';
 import { supabase } from '@/shared/lib/supabase/client';
-import { resolveDeficiencyViaWeb } from '../services/deficiencyApiClient';
+import { normalizeTrackRole } from '@/shared/lib/permissions/trackPermissions';
+import {
+  resolveDeficiencyViaWeb,
+  verifyDeficiencyViaWeb,
+  rejectDeficiencyViaWeb,
+} from '../services/deficiencyApiClient';
 import { uploadDeficiencyPhotos } from '../services/deficiencyPhotos';
 import {
   SEVERITY_COLOR,
@@ -121,6 +130,10 @@ export default function DeficiencyDetailScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [resolutionPhotos, setResolutionPhotos] = useState<string[]>([]);
   const [showResolveStep, setShowResolveStep] = useState(false);
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+
+  const isSupervisor = normalizeTrackRole(profile?.role) === 'supervisor';
 
   const reload = useCallback(async () => {
     if (!id) return;
@@ -172,6 +185,67 @@ export default function DeficiencyDetailScreen() {
     },
     [resolutionPhotos.length],
   );
+
+  // Sprint 71 Phase 2 — Supervisor verify flow.
+  // Web confirms the gotcha: verification fans to ALL PMs of the org;
+  // first to verify cascade-completes everyone else's verification_due
+  // todos. Track just calls the endpoint and trusts Web's transaction.
+  // No optimistic local update — realtime subscription on the deficiencies
+  // table fires within ~1s and refreshes the screen via reload().
+  const handleVerify = useCallback(() => {
+    if (!deficiency) return;
+    Alert.alert(
+      'Verify Resolution',
+      'Confirm the work has been done correctly. This closes the deficiency.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Verify',
+          style: 'default',
+          onPress: async () => {
+            setSubmitting(true);
+            try {
+              await verifyDeficiencyViaWeb(deficiency.id);
+              Alert.alert('Verified', 'Deficiency closed.');
+              router.back();
+            } catch (err) {
+              const msg =
+                err instanceof Error ? err.message : 'Could not verify';
+              Alert.alert('Failed', msg);
+              setSubmitting(false);
+            }
+          },
+        },
+      ],
+    );
+  }, [deficiency, router]);
+
+  // Reject with reason. Per the spec gotcha, Web's reject endpoint:
+  //   - flips status back to 'in_progress' (NOT 'open')
+  //   - fills rejected_reason
+  //   - creates a NEW resolution_due todo (different todo id, same
+  //     entity_id) with title prefix "Fix again: <original>". Track sees
+  //     the new todo via PowerSync sync — no client-side handling needed.
+  const handleReject = useCallback(async () => {
+    if (!deficiency) return;
+    const reason = rejectReason.trim();
+    if (!reason) {
+      Alert.alert('Reason required', 'Tell the foreman what needs to change.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await rejectDeficiencyViaWeb(deficiency.id, reason);
+      setRejectModalOpen(false);
+      setRejectReason('');
+      Alert.alert('Rejected', 'Foreman will be notified to redo the work.');
+      router.back();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not reject';
+      Alert.alert('Failed', msg);
+      setSubmitting(false);
+    }
+  }, [deficiency, rejectReason, router]);
 
   const handleResolve = useCallback(async () => {
     if (!deficiency || !profile) return;
@@ -532,6 +606,61 @@ export default function DeficiencyDetailScreen() {
           </View>
         ) : null}
 
+        {/* Sprint 71 Phase 2 — Supervisor verify/reject actions.
+            Only render when status='resolved' AND user is a supervisor.
+            Reject opens a modal with reason input (required by Web's
+            endpoint). The cascade behavior on verify (closes ALL PMs'
+            verification_due todos org-wide) is server-side; Track
+            doesn't simulate it client-side, just trusts the realtime
+            update to refresh other supervisors' Compliance screens. */}
+        {isSupervisor && deficiency.status === 'resolved' ? (
+          <View style={{ marginTop: 24, gap: 8 }}>
+            <Pressable
+              onPress={handleVerify}
+              disabled={submitting}
+              style={{
+                height: 52,
+                borderRadius: 12,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: submitting ? '#334155' : '#3B82F6',
+                flexDirection: 'row',
+                gap: 8,
+              }}
+            >
+              {submitting ? <ActivityIndicator color="#FFFFFF" /> : null}
+              <Ionicons name="checkmark-done" size={20} color="#FFFFFF" />
+              <Text
+                style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700' }}
+              >
+                Verify Resolution
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setRejectModalOpen(true)}
+              disabled={submitting}
+              style={{
+                height: 48,
+                borderRadius: 12,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: '#1E293B',
+                borderWidth: 1,
+                borderColor: '#7F1D1D',
+                flexDirection: 'row',
+                gap: 8,
+              }}
+            >
+              <Ionicons name="close-circle" size={18} color="#F87171" />
+              <Text
+                style={{ color: '#F87171', fontSize: 14, fontWeight: '700' }}
+              >
+                Reject — Needs Rework
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
+
         {/* Status banner for resolved/verified */}
         {isResolvedOrVerified ? (
           <View
@@ -560,6 +689,137 @@ export default function DeficiencyDetailScreen() {
           </View>
         ) : null}
       </ScrollView>
+
+      {/* Reject reason modal — required by /reject endpoint. */}
+      <Modal
+        visible={rejectModalOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {
+          if (!submitting) {
+            setRejectModalOpen(false);
+            setRejectReason('');
+          }
+        }}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1 }}
+        >
+          <Pressable
+            onPress={() => {
+              if (!submitting) {
+                setRejectModalOpen(false);
+                setRejectReason('');
+              }
+            }}
+            style={{
+              flex: 1,
+              justifyContent: 'flex-end',
+              backgroundColor: 'rgba(0,0,0,0.6)',
+            }}
+          >
+            <Pressable
+              onPress={() => {}}
+              style={{
+                backgroundColor: '#1E293B',
+                borderTopLeftRadius: 24,
+                borderTopRightRadius: 24,
+                borderTopWidth: 1,
+                borderColor: '#334155',
+                padding: 20,
+                paddingBottom: 32,
+              }}
+            >
+              <View style={{ alignItems: 'center', paddingBottom: 12 }}>
+                <View
+                  style={{
+                    width: 40,
+                    height: 4,
+                    borderRadius: 2,
+                    backgroundColor: '#475569',
+                  }}
+                />
+              </View>
+              <Text
+                style={{ color: '#F8FAFC', fontSize: 20, fontWeight: '700' }}
+              >
+                Reject Resolution
+              </Text>
+              <Text
+                style={{ color: '#94A3B8', fontSize: 13, marginTop: 4 }}
+              >
+                Tell the foreman what needs to change. They&apos;ll get a new
+                todo with the title prefix &quot;Fix again:&quot; and the
+                reason you provide.
+              </Text>
+              <TextInput
+                value={rejectReason}
+                onChangeText={setRejectReason}
+                placeholder="e.g. Grout color doesn't match adjacent areas. Redo with batch matching the spec sample."
+                placeholderTextColor="#64748B"
+                multiline
+                style={{
+                  marginTop: 16,
+                  backgroundColor: '#0F172A',
+                  borderRadius: 10,
+                  paddingHorizontal: 12,
+                  paddingTop: 12,
+                  paddingBottom: 12,
+                  color: '#F8FAFC',
+                  fontSize: 15,
+                  borderWidth: 1,
+                  borderColor: '#334155',
+                  height: 120,
+                  textAlignVertical: 'top',
+                }}
+                editable={!submitting}
+                autoFocus
+              />
+              <Pressable
+                onPress={handleReject}
+                disabled={submitting || !rejectReason.trim()}
+                style={{
+                  marginTop: 16,
+                  height: 52,
+                  borderRadius: 12,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor:
+                    submitting || !rejectReason.trim() ? '#334155' : '#EF4444',
+                  flexDirection: 'row',
+                  gap: 8,
+                }}
+              >
+                {submitting ? <ActivityIndicator color="#FFFFFF" /> : null}
+                <Text
+                  style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700' }}
+                >
+                  {submitting ? 'Rejecting…' : 'Submit Rejection'}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  if (!submitting) {
+                    setRejectModalOpen(false);
+                    setRejectReason('');
+                  }
+                }}
+                style={{
+                  marginTop: 8,
+                  height: 44,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Text style={{ color: '#94A3B8', fontSize: 14 }}>
+                  Cancel
+                </Text>
+              </Pressable>
+            </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
+      </Modal>
     </>
   );
 }

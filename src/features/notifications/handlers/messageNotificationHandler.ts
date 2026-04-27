@@ -27,6 +27,11 @@ type NotificationData = {
   message_id?: string;
   area_id?: string | null;
   project_id?: string;
+  /** Sprint 69 / 71 — generic entity link for routing notification taps
+   * to the right screen. Web's notify() pipeline sets these alongside
+   * `kind` so Track can deep-link without bespoke fields per type. */
+  entity_type?: string;
+  entity_id?: string;
 };
 
 export function handleNotificationResponse(response: NotificationResponse) {
@@ -58,6 +63,39 @@ export function handleNotificationResponse(response: NotificationResponse) {
         }
       }, 50);
     }
+    return;
+  }
+
+  // Sprint 71 Phase 2 — Deficiency notifications (deficiency_critical
+  // sent to PMs when severity=critical; deficiency_resolved sent to PMs
+  // when foreman resolves). Both deep-link to the deficiency detail
+  // screen which surfaces Verify/Reject for supervisors automatically.
+  if (data.kind === 'deficiency_critical' || data.kind === 'deficiency_resolved') {
+    const id = data.entity_id;
+    if (id) {
+      setTimeout(() => {
+        try {
+          router.push(`/(tabs)/board/deficiency/${id}` as any);
+        } catch (e) {
+          logger.warn('[Push] deficiency deep-link navigate failed', e);
+        }
+      }, 50);
+    }
+    return;
+  }
+
+  // Sprint 69 generic fallback — if the push has entity_type='deficiency'
+  // but the kind doesn't match the explicit cases above (e.g. Web adds a
+  // new deficiency-related notification type later), still route to the
+  // detail screen rather than dropping the tap on the floor.
+  if (data.entity_type === 'deficiency' && data.entity_id) {
+    setTimeout(() => {
+      try {
+        router.push(`/(tabs)/board/deficiency/${data.entity_id}` as any);
+      } catch (e) {
+        logger.warn('[Push] deficiency entity deep-link failed', e);
+      }
+    }, 50);
     return;
   }
 

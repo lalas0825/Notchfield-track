@@ -153,6 +153,18 @@ export default function TodayScreen() {
 
   const onOpen = useCallback(
     (todo: Todo) => {
+      // Sprint 71 Phase 2 — deficiency-driven todos (resolution_due,
+      // verification_due) carry entity_type='deficiency' + entity_id =
+      // the deficiency UUID. Route directly to the detail screen, which
+      // surfaces the resolve flow (foreman) or verify/reject (PM) based
+      // on role + status. This takes precedence over link_url parsing
+      // because Web's link_url for these todos is /projects/{id}/pm/...
+      // which we can't deep-link to without a full router.
+      if (todo.entity_type === 'deficiency' && todo.entity_id) {
+        router.push(`/(tabs)/board/deficiency/${todo.entity_id}` as any);
+        return;
+      }
+
       // Phase 1 — link_url is a Web URL ('/projects/x/pm/...'). Track-side
       // conversion to a local route is a Phase 2 task; for now, the row's
       // mere presence is enough action-prompting. Best-effort: if it's a

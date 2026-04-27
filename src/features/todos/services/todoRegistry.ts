@@ -196,6 +196,27 @@ export const TODO_TYPES: Record<string, TodoTypeDefinition> = {
     role: 'any',
     titleKey: 'manualTodoTitle',
   },
+
+  // ━━━ Sprint 71 Phase 2 — Deficiency-driven todos ━━━
+  // Web's create endpoint generates these when a deficiency is reported
+  // with assignedTo set; verify endpoint cascade-completes them; reject
+  // recreates resolution_due fresh with title prefix "Fix again: ...".
+  // Severity bumps priority server-side: critical→critical, major→high,
+  // minor/cosmetic→normal.
+  deficiency_resolution_due: {
+    type: 'deficiency_resolution_due',
+    icon: 'wrench',
+    defaultPriority: 'high',
+    role: 'foreman',
+    titleKey: 'deficiencyResolutionDueTitle',
+  },
+  deficiency_verification_due: {
+    type: 'deficiency_verification_due',
+    icon: 'clipboard-check',
+    defaultPriority: 'normal',
+    role: 'pm',
+    titleKey: 'deficiencyVerificationDueTitle',
+  },
 };
 
 /** Resolve a type to its definition, falling back to DEFAULT for unknowns. */
