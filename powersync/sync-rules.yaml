@@ -61,7 +61,12 @@ bucket_definitions:
       - SELECT * FROM field_photos WHERE organization_id = bucket.organization_id
       - SELECT * FROM daily_reports WHERE organization_id = bucket.organization_id
       - SELECT * FROM field_messages WHERE organization_id = bucket.organization_id
-      - SELECT * FROM punch_items WHERE organization_id = bucket.organization_id
+      # Sprint 71 (2026-04-27) — Web team dropped public.punch_items in
+      # favor of the unified Deficiencies system. Sync rule removed; the
+      # local SQLite TableV2 declaration for punch_items stays in schema.ts
+      # so any leftover query in deprecated code paths (Plans pin overlay
+      # is now flag-gated to false but the hook still mounts) returns []
+      # instead of throwing "no such table".
       - SELECT * FROM takeoff_objects WHERE organization_id = bucket.organization_id
       - SELECT * FROM production_block_logs WHERE organization_id = bucket.organization_id
       - SELECT * FROM worker_certifications WHERE organization_id = bucket.organization_id
