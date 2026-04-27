@@ -61,6 +61,12 @@
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "appleId": "lalas25@live.com",
+        "ascAppId": "6763961254",
+        "appleTeamId": "776SJMMJ7M"
+      }
+    }
   }
 }
