@@ -26,11 +26,24 @@ import { useHyperlinks, type DrawingHyperlink } from '@/features/plans/hooks/use
 import { usePins } from '@/features/plans/hooks/usePins';
 import { useSheetSiblings, type SheetSibling } from '@/features/plans/hooks/useSheetSiblings';
 import type { DrawingPin } from '@/features/plans/services/pin-service';
-// Sprint 53B — punch list plan pinning
+// Sprint 53B — punch list plan pinning. Sprint 71 (2026-04-27) replaced
+// internal punch_items with the unified Deficiencies system; the punch
+// surfaces in Plans are gated behind SHOW_INTERNAL_PUNCH_PINS=false to
+// hide the legacy UI without ripping out the code (Web hasn't dropped
+// the punch_items table yet, just deprecated the UI). Flip the flag back
+// to true if Web reverses course.
 import { PunchPinOverlay } from '@/features/punch/components/PunchPinOverlay';
 import { AddPunchSheet } from '@/features/punch/components/AddPunchSheet';
 import { useDrawingPunchItems } from '@/features/punch/hooks/useDrawingPunchItems';
 import { haptic } from '@/shared/lib/haptics';
+
+/**
+ * Sprint 71 — Internal punch_items deprecated. Plans-tab UI surfaces
+ * (purple FAB to add punch, red pin overlay rendering legacy items,
+ * count badge, zoom hint, AddPunchSheet) all gated behind this flag.
+ * Future-proofs against Web reverting; flip true to re-enable wholesale.
+ */
+const SHOW_INTERNAL_PUNCH_PINS = false;
 
 type ViewerTarget = {
   id: string;
@@ -372,16 +385,18 @@ export default function PlanViewerScreen() {
           visible={overlaysVisible && !dropMode}
           onPinPress={setSelectedPin}
         />
-        {/* Sprint 53B — Punch items overlay */}
-        <PunchPinOverlay
-          items={punchItems}
-          pageWidth={pageBounds.pageWidth}
-          pageHeight={pageBounds.pageHeight}
-          viewportWidth={viewport.width}
-          viewportHeight={viewport.height}
-          visible={overlaysVisible && !dropMode}
-          onItemPress={(item) => router.push(`/(tabs)/docs/punch/${item.id}` as any)}
-        />
+        {/* Sprint 53B — Punch items overlay (Sprint 71: gated off) */}
+        {SHOW_INTERNAL_PUNCH_PINS && (
+          <PunchPinOverlay
+            items={punchItems}
+            pageWidth={pageBounds.pageWidth}
+            pageHeight={pageBounds.pageHeight}
+            viewportWidth={viewport.width}
+            viewportHeight={viewport.height}
+            visible={overlaysVisible && !dropMode}
+            onItemPress={(item) => router.push(`/(tabs)/docs/punch/${item.id}` as any)}
+          />
+        )}
 
         {/* Drop mode tap catcher — pin variant (orange) */}
         {dropPinMode && (
@@ -526,13 +541,15 @@ export default function PlanViewerScreen() {
         )}
 
         {/* Zoom hint when overlays hidden */}
-        {pdfUri && !overlaysVisible && (links.length > 0 || pins.length > 0 || punchItems.length > 0) && (
+        {pdfUri && !overlaysVisible && (links.length > 0 || pins.length > 0 || (SHOW_INTERNAL_PUNCH_PINS && punchItems.length > 0)) && (
           <View
             className="absolute left-1/2 -translate-x-1/2 rounded-full bg-slate-800/90 px-4 py-2"
             style={{ bottom: 80 }}
           >
             <Text className="text-xs font-semibold text-slate-300">
-              Zoom to fit to see links, pins & punch items
+              {SHOW_INTERNAL_PUNCH_PINS
+                ? 'Zoom to fit to see links, pins & punch items'
+                : 'Zoom to fit to see links and pins'}
             </Text>
           </View>
         )}
@@ -552,7 +569,7 @@ export default function PlanViewerScreen() {
                 <Text className="ml-1 text-xs font-bold text-amber-400">{pins.length}</Text>
               </View>
             )}
-            {punchItems.length > 0 && (
+            {SHOW_INTERNAL_PUNCH_PINS && punchItems.length > 0 && (
               <View className="ml-3 flex-row items-center">
                 <Ionicons name="flag" size={12} color="#A855F7" />
                 <Text className="ml-1 text-xs font-bold" style={{ color: '#C4B5FD' }}>
@@ -575,10 +592,11 @@ export default function PlanViewerScreen() {
         )}
 
         {/* FAB stack — Sprint 53B adds a second FAB for punch items above the
-            existing pin FAB. Tap: create at center · long-press: arm drop mode. */}
+            existing pin FAB. Sprint 71 gates the punch FAB; pin FAB stays. */}
         {canAddPins && pdfUri && !downloading && (
           <>
-            {/* Punch FAB — purple, stacked above pin FAB */}
+            {/* Punch FAB — purple, stacked above pin FAB. Sprint 71: hidden. */}
+            {SHOW_INTERNAL_PUNCH_PINS && (
             <Pressable
               onPress={addPunchAtCenter}
               onLongPress={armDropPunchMode}
@@ -604,6 +622,7 @@ export default function PlanViewerScreen() {
             >
               <Ionicons name="flag" size={26} color="#FFFFFF" />
             </Pressable>
+            )}
 
             {/* Pin FAB — orange (Sprint 47B) */}
             <Pressable
@@ -641,8 +660,8 @@ export default function PlanViewerScreen() {
           />
         )}
 
-        {/* Sprint 53B — Add punch item */}
-        {profile && activeProject && user && pendingPunchCoords && (
+        {/* Sprint 53B — Add punch item (Sprint 71: hidden behind flag) */}
+        {SHOW_INTERNAL_PUNCH_PINS && profile && activeProject && user && pendingPunchCoords && (
           <AddPunchSheet
             visible={showAddPunch}
             onClose={() => { setShowAddPunch(false); setPendingPunchCoords(null); }}

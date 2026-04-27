@@ -197,9 +197,6 @@ export function AreaDetail({
       {/* Photo gallery (rendered via renderPhotoGallery prop) */}
       {renderPhotoGallery}
 
-      {/* Sprint 71 — Deficiencies section (rendered via renderDeficiencies prop) */}
-      {renderDeficiencies}
-
       {/* Action buttons */}
       <View className="mb-4 gap-2">
         {/* Photo button */}
@@ -261,6 +258,14 @@ export function AreaDetail({
           ))}
         </View>
       )}
+
+      {/* Sprint 71 (re-ordered 2026-04-27 per pilot feedback) — Deficiencies
+          section sits between the Block reason picker and Notes. Two reasons:
+          1) Block reasons + Deficiencies are both "things wrong with this
+             area" — natural to group.
+          2) Primary actions (Take Photo / Mark Complete / Report Blocked)
+             stay above the fold; chat + deficiencies push down. */}
+      {renderDeficiencies}
 
       {/* Sprint 53A — Notes section. Mounted as the LAST piece of content
           per user request 2026-04-25: chat can grow long, primary actions
