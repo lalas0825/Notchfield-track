@@ -9,7 +9,7 @@ import { AreaDetail } from '@/features/production/components/AreaDetail';
 import { PhaseChecklist } from '@/features/production/components/PhaseChecklist';
 import { SurfaceChecklist } from '@/features/production/components/SurfaceChecklist';
 import { PhotoGallery } from '@/features/production/components/PhotoGallery';
-import { MessageThread } from '@/features/messages/components/MessageThread';
+import { AreaChatBubble } from '@/features/messages/components/AreaChatBubble';
 import { AreaDeficienciesSection } from '@/features/deficiencies/components/AreaDeficienciesSection';
 import { enqueuePhoto } from '@/features/photos/services/photo-queue';
 
@@ -75,7 +75,7 @@ export default function AreaDetailScreen() {
   };
 
   return (
-    <>
+    <View style={{ flex: 1 }}>
       <Stack.Screen
         options={{
           title: area.name,
@@ -113,10 +113,23 @@ export default function AreaDetailScreen() {
             />
           ) : null
         }
-        renderMessages={
-          <MessageThread projectId={activeProject?.id ?? null} areaId={area.id} />
-        }
+        // Sprint 71 polish (2026-04-27) — inline Notes section removed in
+        // favor of the floating <AreaChatBubble/> below. Page got too long
+        // once Sprint 71 added the deficiencies section between the action
+        // buttons and Notes; primary actions were pushed off-screen.
+        renderMessages={null}
       />
-    </>
+      {/* Floating chat bubble — always visible bottom-right, badge with
+          unread count, tap → modal with full MessageThread. Lives at the
+          screen level (not inside AreaDetail's ScrollView) so it stays
+          fixed during scroll and avoids nested KeyboardAvoidingView issues
+          with the composer. */}
+      <AreaChatBubble
+        userId={user?.id ?? null}
+        projectId={activeProject?.id ?? null}
+        areaId={area.id}
+        areaLabel={area.name}
+      />
+    </View>
   );
 }
