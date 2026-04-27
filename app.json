@@ -20,7 +20,11 @@
         "NSLocationWhenInUseUsageDescription": "NotchField Track uses your location for GPS check-in/out and to stamp photos with coordinates.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "NotchField Track uses background location for geofence auto check-in at job sites.",
         "NSCameraUsageDescription": "NotchField Track uses the camera for progress photos, QC documentation, and safety records.",
-        "NSPhotoLibraryUsageDescription": "NotchField Track accesses your photo library to attach existing photos to reports."
+        "NSPhotoLibraryUsageDescription": "NotchField Track accesses your photo library to attach existing photos to reports.",
+        "UIBackgroundModes": [
+          "location",
+          "remote-notification"
+        ]
       }
     },
     "android": {
