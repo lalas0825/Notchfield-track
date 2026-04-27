@@ -137,9 +137,21 @@ export function AreaChatBubble({
         transparent
         animationType="slide"
         onRequestClose={handleClose}
+        // statusBarTranslucent lets the Modal flow under the status bar on
+        // Android so KeyboardAvoidingView's height calculation matches the
+        // actual visible area when the keyboard opens. Without this, KAV
+        // measures wrong and the composer still ends up under the keyboard.
+        statusBarTranslucent
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          // 2026-04-27 keyboard fix: behavior was `undefined` for Android,
+          // which made KAV a no-op. Modal creates its own window on Android,
+          // so the activity-level `softwareKeyboardLayoutMode: resize` from
+          // app.json doesn't apply — Modal needs its own keyboard handling.
+          // Using 'height' for Android (shrinks KAV's children to fit above
+          // keyboard) and 'padding' for iOS (adds bottom padding equal to
+          // keyboard height — works with the flex:1 backdrop + flex sheet).
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={{ flex: 1 }}
         >
           {/* Backdrop — tap closes */}
@@ -151,7 +163,11 @@ export function AreaChatBubble({
               justifyContent: 'flex-end',
             }}
           >
-            {/* Sheet — taps inside don't close (pass-through Pressable) */}
+            {/* Sheet — taps inside don't close. Height stays at 85% of
+                KAV's content area; on Android, KAV with behavior='height'
+                resizes when keyboard opens, so 85% of the new (smaller)
+                content area automatically positions the composer above
+                the keyboard. */}
             <Pressable
               onPress={() => {}}
               style={{
