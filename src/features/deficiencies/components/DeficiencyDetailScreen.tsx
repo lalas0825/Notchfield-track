@@ -46,6 +46,7 @@ import {
   rejectDeficiencyViaWeb,
 } from '../services/deficiencyApiClient';
 import { uploadDeficiencyPhotos } from '../services/deficiencyPhotos';
+import { ExportToGcModal } from './ExportToGcModal';
 import {
   SEVERITY_COLOR,
   SEVERITY_LABEL,
@@ -132,6 +133,7 @@ export default function DeficiencyDetailScreen() {
   const [showResolveStep, setShowResolveStep] = useState(false);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
+  const [exportModalOpen, setExportModalOpen] = useState(false);
 
   const isSupervisor = normalizeTrackRole(profile?.role) === 'supervisor';
 
@@ -661,6 +663,37 @@ export default function DeficiencyDetailScreen() {
           </View>
         ) : null}
 
+        {/* Sprint 71 Phase 3 — Send to GC (per-deficiency export).
+            Available to all roles per Web team's design: supervisors use it
+            in Compliance bulk-mode + here for one-offs; foremen use it for
+            "Generate PDF only" → WhatsApp share / personal records, or
+            send-by-email for direct GC follow-up on a specific item. The
+            backend doesn't differentiate single vs bulk — same endpoint,
+            different deficiencyIds.length. */}
+        <View style={{ marginTop: 16 }}>
+          <Pressable
+            onPress={() => setExportModalOpen(true)}
+            style={{
+              height: 48,
+              borderRadius: 12,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: '#1E293B',
+              borderWidth: 1,
+              borderColor: '#334155',
+              flexDirection: 'row',
+              gap: 8,
+            }}
+          >
+            <Ionicons name="paper-plane" size={18} color="#94A3B8" />
+            <Text
+              style={{ color: '#F8FAFC', fontSize: 14, fontWeight: '600' }}
+            >
+              Send to GC
+            </Text>
+          </Pressable>
+        </View>
+
         {/* Status banner for resolved/verified */}
         {isResolvedOrVerified ? (
           <View
@@ -820,6 +853,15 @@ export default function DeficiencyDetailScreen() {
           </Pressable>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Sprint 71 Phase 3 — Send to GC modal (per-deficiency).
+          deficiencyIds is just [thisId]; backend handles single-item
+          bundle the same as a multi-item bundle. */}
+      <ExportToGcModal
+        visible={exportModalOpen}
+        deficiencyIds={deficiency ? [deficiency.id] : []}
+        onClose={() => setExportModalOpen(false)}
+      />
     </>
   );
 }

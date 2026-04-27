@@ -124,6 +124,73 @@ export async function rejectDeficiencyViaWeb(
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// Bulk export to GC (Web Sprint 71 Phase 3 — `/api/deficiencies/bulk-export`)
+//
+// Single endpoint handles both modes: bundle PDF only, or bundle PDF +
+// email to GC. Per-deficiency "Send to GC" calls the same endpoint with
+// deficiencyIds: [oneId] — Web doesn't differentiate.
+//
+// Server-side validation: deficiencies must all be from the same project
+// (else 400), all visible to the user's org via RLS (else 404), 1-200 ids.
+// On sendTo: Web's "Hybrid Sender" sends from the PM's identity (Reply-To
+// is their work_email), so GC replies go directly to the PM, not Track.
+//
+// Returns ALWAYS JSON (no binary). pdfUrl is a public link in
+// `pm-documents` bucket — Track can preview / share / save without
+// re-fetching from the API. SHA-256 is court-admissible integrity proof
+// for legal traceability (matches the NOD pattern from Sprint 53C).
+// ─────────────────────────────────────────────────────────────────────────
+
+export type ExportRecipient = {
+  email: string;
+  name?: string | null;
+  company?: string | null;
+};
+
+export type BulkExportPayload = {
+  deficiencyIds: string[];
+  /** Defaults to "Deficiency Report (N items)" server-side if omitted. */
+  title?: string;
+  /**
+   * If present, Web sends the PDF via email (Hybrid Sender from PM identity).
+   * If null/undefined, only generates PDF — Track gets the URL back to
+   * preview/share via expo-sharing without an email round-trip.
+   */
+  sendTo?: ExportRecipient | null;
+};
+
+export type BulkExportResult = {
+  ok: true;
+  /** Public Supabase Storage URL in pm-documents bucket — preview/share. */
+  pdfUrl: string;
+  /** 64-char SHA-256 of the PDF bytes. Stamp on the cover for integrity. */
+  sha256: string;
+  count: number;
+  projectId: string;
+  /** Present only if sendTo was in the request and email succeeded. */
+  sentTo: ExportRecipient | null;
+};
+
+/**
+ * Bundle one or more deficiencies into a single PDF, optionally email it
+ * to a GC contact. Server validates all-from-same-project + visibility.
+ */
+export async function bulkExportDeficiencies(
+  payload: BulkExportPayload,
+): Promise<BulkExportResult> {
+  if (payload.deficiencyIds.length === 0) {
+    throw new Error('bulkExportDeficiencies: at least one deficiency id required');
+  }
+  if (payload.deficiencyIds.length > 200) {
+    throw new Error('bulkExportDeficiencies: max 200 ids per bundle');
+  }
+  return postJson<BulkExportResult>(
+    `${WEB_API_URL}/api/deficiencies/bulk-export`,
+    payload,
+  );
+}
+
 // ─── Fire-and-forget wrappers ─────────────────────────────────────────────
 // Use these from screens where the user shouldn't block on the API call.
 // Same pattern as notifyAndForget / autoCompleteAndForget.

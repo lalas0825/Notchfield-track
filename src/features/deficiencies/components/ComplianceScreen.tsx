@@ -28,7 +28,6 @@
 
 import { useCallback, useState } from 'react';
 import {
-  Alert,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -41,6 +40,7 @@ import { useAuthStore } from '@/features/auth/store/auth-store';
 import { normalizeTrackRole } from '@/shared/lib/permissions/trackPermissions';
 import { useOrgDeficiencies } from '../hooks/useOrgDeficiencies';
 import { DeficiencyListItem } from './DeficiencyListItem';
+import { ExportToGcModal } from './ExportToGcModal';
 import type { Deficiency, DeficiencyStatus } from '../types';
 
 type TabKey = 'open' | 'verify' | 'verified';
@@ -75,6 +75,7 @@ export default function ComplianceScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [exportModalOpen, setExportModalOpen] = useState(false);
 
   const config = TAB_CONFIG[activeTab];
   const { deficiencies, loading, reload } = useOrgDeficiencies({
@@ -116,14 +117,16 @@ export default function ComplianceScreen() {
 
   const handleExport = useCallback(() => {
     if (selectedIds.size === 0) return;
-    // Sprint 71 Phase 2 — Web shipped the export endpoint but contract
-    // not yet handed off to Track. Placeholder until coordination doc.
-    Alert.alert(
-      'Export to GC — coming soon',
-      `${selectedIds.size} deficienc${selectedIds.size === 1 ? 'y' : 'ies'} selected.\n\nWeb team is finalizing the export endpoint (per-deficiency vs batch contract pending). When confirmed, this button will generate the PDF and email the GC the same way Legal Documents (NOD) and Safety Documents work.`,
-      [{ text: 'OK', style: 'default' }],
-    );
+    setExportModalOpen(true);
   }, [selectedIds.size]);
+
+  const handleExported = useCallback(() => {
+    // Clear selection after a successful export. Modal stays open on its
+    // success state so the user can copy/share/open the PDF; closing the
+    // modal returns to a clean Compliance list.
+    setSelectedIds(new Set());
+    setSelectionMode(false);
+  }, []);
 
   const isEmpty = !loading && deficiencies.length === 0;
 
@@ -302,6 +305,14 @@ export default function ComplianceScreen() {
               </Pressable>
             </View>
           ) : null}
+
+          {/* Sprint 71 Phase 3 — Export to GC modal */}
+          <ExportToGcModal
+            visible={exportModalOpen}
+            deficiencyIds={[...selectedIds]}
+            onClose={() => setExportModalOpen(false)}
+            onExported={handleExported}
+          />
         </View>
       )}
     </>
