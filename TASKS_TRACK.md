@@ -1111,7 +1111,55 @@ Track's legacy SafetyForm used `'toolbox_talk'` and the PTP distributeService ca
 - [x] TT2.31 Hours logging — Sprint 42B: numeric input (0.5 increments), auto-save debounced, does NOT push to Procore (internal only)
 - [x] TT2.32 Punch summary KPIs — Sprint 42B: KPI bar on list screen (Open / Working / Review / Closed)
 
-**Note:** Internal punch_items table from T2-S3 is SEPARATE from GC punch items. GC items flow Procore → Track → Procore. Internal items are supervisor-to-foreman QC notes.
+**Note:** GC Punchlist (Procore-synced `gc_punch_items`) is a SEPARATE system from internal Deficiencies. GC items flow Procore → Track → Procore. Deficiencies are internal supervisor-to-foreman QC + Track→GC export.
+
+### Deficiencies (Internal QC + Punch List — Sprint 71) ✅
+> Replaces the legacy internal `punch_items` table (dropped by Web 2026-04-27).
+> Unified system covers internal_qc, gc_inspection, punch_list, and warranty_callback stages.
+> 4 statuses: open → in_progress → resolved → verified (closed = filtered out of sync).
+> 4 severities: cosmetic / minor / major / critical.
+
+**Phase 1 — foundation (commit `00c2b36`):**
+- [x] TT2.33 `deficiencies` + `deficiency_library` PowerSync schema (30 + 11 cols)
+- [x] TT2.34 Sync rules — `by_org` (status != 'closed') + `deficiency_library_global` bucket for `organization_id IS NULL` templates
+- [x] TT2.35 Web API client — create / resolve / verify / reject (`deficiencyApiClient.ts`)
+- [x] TT2.36 Photo upload helper — `field-photos/{org_id}/deficiencies/{tempOrId}/...` path (RLS first-folder rule)
+- [x] TT2.37 `useDeficiencyLibrary` hook — merges org-scoped + global, dedup, grouped by trade
+- [x] TT2.38 `useAreaDeficiencies` hook — area-scoped, severity-sorted, realtime
+- [x] TT2.39 `DeficiencyLibraryPicker` — bottom-sheet picker with search + skip-to-manual escape
+- [x] TT2.40 `ReportDeficiencyModal` — single-screen form (template + title + severity + responsibility + photos up to 4)
+- [x] TT2.41 `DeficiencyListItem` — row with severity bar, status pill, meta line, first-photo thumb
+- [x] TT2.42 `DeficiencyDetailScreen` + `Mark as Resolved` flow — required ≥1 after-photo (client + server enforced)
+- [x] TT2.43 `AreaDeficienciesSection` — embedded in AreaDetail via new `renderDeficiencies` slot
+- [x] TT2.44 Route `/(tabs)/board/deficiency/[id]` + `_layout.tsx`
+
+**Phase 2 — Web wiring + supervisor UX (commit `5171bb7`):**
+- [x] TT2.45 Surface picker in ReportDeficiencyModal — reads `production_area_objects` per area; valid to leave null
+- [x] TT2.46 Verify + Reject UI on DeficiencyDetailScreen — supervisor-only via `normalizeTrackRole` gate; Reject opens reason modal
+- [x] TT2.47 Sprint 69 eventRegistry: `deficiency_critical` (in_app+email+push) + `deficiency_resolved` (in_app+push)
+- [x] TT2.48 Sprint 70 todoRegistry: `deficiency_resolution_due` (foreman) + `deficiency_verification_due` (PM)
+- [x] TT2.49 iconMapper: `wrench` (foreman fix action) + `clipboard-check` (PM verify action)
+- [x] TT2.50 NotificationsScreen tap routing — `entity_type='deficiency'` deep-links to detail (also handles safety_document + production_area)
+
+**Compliance v2 (commit `5171bb7`):**
+- [x] TT2.51 3 sub-tabs: Open / To Verify / Verified — generic `useOrgDeficiencies({ statuses, sort, limit })` replaces `usePendingVerifications`
+- [x] TT2.52 Selection mode with checkboxes + "Export N to GC" CTA (footer, fixed bottom)
+- [ ] TT2.53 Wire Export to GC endpoint — ⚠️ pending contract handoff from Web (per-deficiency vs batch, return URL vs send-direct). Currently shows Alert placeholder.
+
+**Internal punch_items deprecation (commits `9e4dce2`, `712d3da`, `132543c`):**
+- [x] TT2.54 Removed More menu entry (Sprint 53A.1 location)
+- [x] TT2.55 Removed `punch_items` from PowerSync sync rules — Web dropped the table
+- [x] TT2.56 Plans viewer 5 surfaces gated behind `SHOW_INTERNAL_PUNCH_PINS = false` (purple FAB, red pin overlay, count badge, zoom hint, AddPunchSheet)
+- [x] TT2.57 AreaDetail render order: Photo Gallery → Action buttons → Block reasons → **Deficiencies** → Notes (was Deficiencies before action buttons; pilot wanted primary actions above the fold)
+- [ ] TT2.58 Full code cleanup — delete `src/features/punch/`, `/docs/punch/*` routes, TableV2 declaration in schema.ts. ⬜ Future sprint when Web confirms permanent table drop.
+
+### AreaChatBubble — floating Notes (Sprint 71 polish, commits `cf82f3c`, `4da92b5`) ✅
+> Inline Notes section was eating ~300px after Sprint 71 added Deficiencies; replaced with floating bubble.
+- [x] TT2.59 `useAreaMessageActivity` hook — per-area unread count via AsyncStorage `lastVisitedAt` + DeviceEventEmitter + Supabase realtime
+- [x] TT2.60 `markAreaVisited(userId, projectId, areaId)` helper — persists timestamp + emits AREA_VISITED event
+- [x] TT2.61 `AreaChatBubble` component — 56dp floating bubble bottom-right, badge with unread count, modal with MessageThread
+- [x] TT2.62 Modal keyboard handling — `behavior='height'` + `statusBarTranslucent` for Android (Modal's separate window doesn't honor `softwareKeyboardLayoutMode`)
+- [x] TT2.63 Mounted at screen level in `/(tabs)/board/[areaId].tsx`; AreaDetail's `renderMessages` slot kept for backward compat but passed null
 
 ### AI Agent + Voice Commands (Future — Post-Pilot)
 - [ ] TT2.20 AI Agent chat UI — ⬜ T2-S4
