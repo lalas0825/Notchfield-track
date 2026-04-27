@@ -49,16 +49,16 @@ export default function MoreScreen() {
       color: '#3B82F6',
       feature: 'assign_crews',
     },
-    // Sprint 53A.1 — Internal Punch List moved out of Safety screen
-    // sub-tabs into its own More entry per pilot feedback 2026-04-25.
-    // Distinct from the Procore-synced "GC Punchlist" entry above.
-    {
-      icon: 'flag',
-      label: 'Punch List',
-      subtitle: 'Internal QC items — supervisor → foreman',
-      route: '/(tabs)/docs/punch',
-      color: '#A855F7',
-    },
+    // Sprint 71 — Internal Punch List entry removed. Web team replaced
+    // the internal punch_items system with the unified Deficiencies
+    // system on 2026-04-27. Track follows: deficiencies are reported
+    // via the FAB on each Area screen (Board → tap area → "Report
+    // Deficiency") and verified by supervisors via More → Compliance.
+    // The /(tabs)/docs/punch/* routes still exist (orphaned) so that
+    // any deep-links from old emails / push notifications don't 404;
+    // a follow-up sprint will delete those once Web drops the
+    // punch_items table. The Procore-synced "GC Punchlist" entry above
+    // is a separate system and stays.
     // Sprint 53A.1 — Legal Documents moved out of Safety screen sub-tabs.
     // Supervisor-only (NOD/REA workflow) — uses normalizeTrackRole gating.
     {
