@@ -815,6 +815,69 @@ const notifications = new TableV2({
   created_at: column.text,
 });
 
+// Sprint 71 — Deficiencies (Punch List / QC items). Org-scoped, sync rule
+// excludes 'closed' so the active set stays small. Web team owns the
+// table + RLS + INSERT pipeline; Track NEVER inserts directly — always
+// POSTs to /api/deficiencies/create. The DB CHECK constraints reject
+// unknown enum values.
+//
+// Photos are jsonb arrays of public Supabase Storage URLs (field-photos
+// bucket, path `{org_id}/deficiencies/{deficiency_id}/{ts}.jpg`).
+// resolution_photos is the after-evidence the foreman uploads on resolve.
+const deficiencies = new TableV2({
+  organization_id: column.text,
+  project_id: column.text,
+  area_id: column.text,
+  surface_id: column.text,            // production_area_objects.id, nullable
+  title: column.text,
+  description: column.text,
+  severity: column.text,              // 'cosmetic' | 'minor' | 'major' | 'critical'
+  stage: column.text,                 // 'internal_qc' | 'gc_inspection' | 'punch_list' | 'warranty_callback'
+  responsibility: column.text,        // 'own' | 'other_trade' | 'gc' | 'unknown'
+  trade: column.text,
+  category: column.text,
+  library_id: column.text,            // FK to deficiency_library (when picked)
+  status: column.text,                // 'open' | 'in_progress' | 'resolved' | 'verified' | 'closed' (sync excludes 'closed')
+  photos: column.text,                // jsonb array of URLs (stored as text in PowerSync)
+  resolution_photos: column.text,     // jsonb array of URLs (after-photos)
+  assigned_to: column.text,
+  created_by: column.text,
+  resolved_at: column.text,
+  resolved_by: column.text,
+  verified_at: column.text,
+  verified_by: column.text,
+  rejected_reason: column.text,
+  closed_at: column.text,
+  estimated_cost_cents: column.integer,
+  billed_amount_cents: column.integer,
+  // Plan-pinning columns — DB has them but Phase 1 UI doesn't set them
+  // (drawing viewer integration is Phase 2 per spec §6).
+  plan_x: column.real,
+  plan_y: column.real,
+  drawing_id: column.text,
+  created_at: column.text,
+  updated_at: column.text,
+});
+
+// Sprint 71 — Deficiency template library. ~40 templates × 5 trades.
+// Two sources synced via different buckets:
+//   - org-scoped entries → by_org (organization_id = bucket.organization_id)
+//   - global entries     → deficiency_library_global (organization_id IS NULL)
+// Both use the same TableV2 declaration; PowerSync handles the union.
+const deficiency_library = new TableV2({
+  organization_id: column.text,       // null for global templates
+  trade: column.text,
+  category: column.text,
+  default_title: column.text,
+  default_severity: column.text,      // matches DeficiencySeverity union
+  description: column.text,
+  acceptance_criteria: column.text,
+  typical_resolution: column.text,
+  active: column.integer,             // 1 = active, 0 = retired
+  created_at: column.text,
+  updated_at: column.text,
+});
+
 // Sprint 70 — Todos Hub. Per-user action queue synced via by_user bucket.
 // Web team owns the table + RLS + auto-completion engine + cron creation;
 // Track only READS active rows (status pending/in_progress/snoozed) and
@@ -1041,6 +1104,9 @@ export const AppSchema = new Schema({
   notifications,
   // Sprint 70 — Todos Hub
   todos,
+  // Sprint 71 — Deficiencies + library
+  deficiencies,
+  deficiency_library,
 });
 
 export type Database = (typeof AppSchema)['types'];
@@ -1067,6 +1133,8 @@ export type FeedbackReportRecord = Database['feedback_reports'];
 export type DeviceTokenRecord = Database['device_tokens'];
 export type NotificationRecord = Database['notifications'];
 export type TodoRecord = Database['todos'];
+export type DeficiencyRecord = Database['deficiencies'];
+export type DeficiencyLibraryRecord = Database['deficiency_library'];
 export type LegalDocumentRecord = Database['legal_documents'];
 export type DelayCostLogRecord = Database['delay_cost_logs'];
 export type DrawingHyperlinkRecord = Database['drawing_hyperlinks'];

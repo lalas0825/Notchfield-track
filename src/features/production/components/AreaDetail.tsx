@@ -27,6 +27,8 @@ type Props = {
   renderPhotoGallery?: React.ReactNode;
   /** Sprint 53A — Communication thread for this area (notes between foreman/supervisor) */
   renderMessages?: React.ReactNode;
+  /** Sprint 71 — Deficiencies (Punch List / QC) for this area */
+  renderDeficiencies?: React.ReactNode;
 };
 
 export function AreaDetail({
@@ -41,6 +43,7 @@ export function AreaDetail({
   renderAfterPhases,
   renderPhotoGallery,
   renderMessages,
+  renderDeficiencies,
 }: Props) {
   const [showBlockReasons, setShowBlockReasons] = useState(false);
 
@@ -193,6 +196,9 @@ export function AreaDetail({
 
       {/* Photo gallery (rendered via renderPhotoGallery prop) */}
       {renderPhotoGallery}
+
+      {/* Sprint 71 — Deficiencies section (rendered via renderDeficiencies prop) */}
+      {renderDeficiencies}
 
       {/* Action buttons */}
       <View className="mb-4 gap-2">

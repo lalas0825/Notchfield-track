@@ -10,6 +10,7 @@ import { PhaseChecklist } from '@/features/production/components/PhaseChecklist'
 import { SurfaceChecklist } from '@/features/production/components/SurfaceChecklist';
 import { PhotoGallery } from '@/features/production/components/PhotoGallery';
 import { MessageThread } from '@/features/messages/components/MessageThread';
+import { AreaDeficienciesSection } from '@/features/deficiencies/components/AreaDeficienciesSection';
 import { enqueuePhoto } from '@/features/photos/services/photo-queue';
 
 export default function AreaDetailScreen() {
@@ -102,6 +103,15 @@ export default function AreaDetailScreen() {
         }
         renderPhotoGallery={
           <PhotoGallery areaId={area.id} />
+        }
+        renderDeficiencies={
+          profile && activeProject ? (
+            <AreaDeficienciesSection
+              areaId={area.id}
+              projectId={activeProject.id}
+              organizationId={profile.organization_id}
+            />
+          ) : null
         }
         renderMessages={
           <MessageThread projectId={activeProject?.id ?? null} areaId={area.id} />

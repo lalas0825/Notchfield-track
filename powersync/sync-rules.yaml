@@ -88,6 +88,15 @@ bucket_definitions:
       # Sprint 53C — Legal engine (supervisor-only reads enforced in-app)
       - SELECT * FROM legal_documents WHERE organization_id = bucket.organization_id
       - SELECT * FROM delay_cost_logs WHERE organization_id = bucket.organization_id
+      # Sprint 71 — Deficiencies (Punch List / QC). Web team owns the
+      # `deficiencies` table + RLS + create/resolve/verify/reject pipeline.
+      # Track READS only the active set (excludes 'closed') so the local
+      # SQLite payload stays small. Same status-filter pattern as todos.
+      # `deficiency_library` org-scoped entries; the global library
+      # (organization_id IS NULL) ships via the deficiency_library_global
+      # bucket below — same constant-marker trick as toolbox_global.
+      - SELECT * FROM deficiencies WHERE organization_id = bucket.organization_id AND status != 'closed'
+      - SELECT * FROM deficiency_library WHERE organization_id = bucket.organization_id AND active = true
 
   # Global toolbox topics (organization_id IS NULL) — shared across all orgs.
   # PowerSync's validator rules on this bucket:
@@ -101,6 +110,19 @@ bucket_definitions:
       - SELECT 1 AS marker FROM profiles WHERE id = token_parameters.user_id
     data:
       - SELECT * FROM toolbox_library
+        WHERE organization_id IS NULL
+          AND active = true
+          AND bucket.marker = 1
+
+  # Sprint 71 — Global deficiency library (organization_id IS NULL),
+  # ~40 templates × 5 trades shared across all orgs. Same constant-marker
+  # trick as toolbox_global — required by PowerSync's bucket-param
+  # validator for queries with no other WHERE on bucket params.
+  deficiency_library_global:
+    parameters:
+      - SELECT 1 AS marker FROM profiles WHERE id = token_parameters.user_id
+    data:
+      - SELECT * FROM deficiency_library
         WHERE organization_id IS NULL
           AND active = true
           AND bucket.marker = 1
