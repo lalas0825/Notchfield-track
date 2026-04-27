@@ -75,11 +75,28 @@ export default function NotificationsScreen() {
         // logs failures and doesn't throw.
         markNotificationRead(n.id);
       }
-      // Phase 1 — no Web URL → Track route conversion yet. The bell + list
-      // are the user's entry into the system; specific entity navigation
-      // happens via the regular tabs (Production Board, Safety, etc).
+
+      // Sprint 71 Phase 2 — entity-based deep-link routing. The
+      // notifications row carries entity_type + entity_id; Track routes
+      // to the right detail screen. Mirrors the push tap handler in
+      // messageNotificationHandler.ts so in-app + push behave the same.
+      if (n.entity_type === 'deficiency' && n.entity_id) {
+        router.push(`/(tabs)/board/deficiency/${n.entity_id}` as any);
+        return;
+      }
+      if (n.entity_type === 'safety_document' && n.entity_id) {
+        router.push(`/(tabs)/docs/safety/${n.entity_id}` as any);
+        return;
+      }
+      if (n.entity_type === 'production_area' && n.entity_id) {
+        router.push(`/(tabs)/board/${n.entity_id}` as any);
+        return;
+      }
+      // Other entity_types (worker, phase_progress, legal_document, etc.)
+      // — no specific route yet; user lands on the bell list, which is
+      // already where the tap originated. Better than landing on a 404.
     },
-    [markLocalRead],
+    [markLocalRead, router],
   );
 
   // Hide read notifications from the list — once tapped (or marked read on

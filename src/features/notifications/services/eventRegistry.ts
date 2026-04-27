@@ -23,7 +23,11 @@ export type NotificationEventType =
   | 'field_message_in_my_area'
   | 'sst_expiring_30d'
   | 'sst_expired'
-  | 'nod_sent';
+  | 'nod_sent'
+  // Sprint 71 Phase 2 — deficiency notifications. Web's notify() pipeline
+  // inserts a notifications row + sends push when severity dictates.
+  | 'deficiency_critical'   // PMs notified when a critical deficiency is reported
+  | 'deficiency_resolved';  // PMs notified when foreman marks resolved
 
 export type EventDefinition = {
   type: NotificationEventType;
@@ -138,5 +142,24 @@ export const EVENTS: Record<NotificationEventType, EventDefinition> = {
     defaultChannels: { in_app: true, email: true, push: false },
     titleKey: 'nodSentTitle',
     bodyKey: 'nodSentBody',
+  },
+  // Sprint 71 Phase 2 — deficiency notifications. Web fires
+  // deficiency_critical when severity=critical (in_app + email + push) and
+  // deficiency_resolved when foreman marks resolved (in_app + push).
+  deficiency_critical: {
+    type: 'deficiency_critical',
+    icon: 'alert-octagon',
+    severity: 'critical',
+    defaultChannels: { in_app: true, email: true, push: true },
+    titleKey: 'deficiencyCriticalTitle',
+    bodyKey: 'deficiencyCriticalBody',
+  },
+  deficiency_resolved: {
+    type: 'deficiency_resolved',
+    icon: 'clipboard-check',
+    severity: 'info',
+    defaultChannels: { in_app: true, email: false, push: true },
+    titleKey: 'deficiencyResolvedTitle',
+    bodyKey: 'deficiencyResolvedBody',
   },
 };

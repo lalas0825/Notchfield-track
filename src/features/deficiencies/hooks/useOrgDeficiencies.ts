@@ -1,21 +1,22 @@
 /**
- * Sprint 71 Phase 2 — usePendingVerifications.
+ * Sprint 71 Phase 2 — useOrgDeficiencies (refactored from usePendingVerifications).
  *
- * Org-scoped query for the supervisor Compliance screen: returns all
- * deficiencies in status='resolved' awaiting verification. Sorted by
- * resolved_at desc (most recently resolved first — those are the ones
- * with the freshest evidence in the foreman's mind).
+ * Generic org-scoped query for the Compliance screen sub-tabs:
+ *   - Open    → statuses: ['open', 'in_progress']
+ *   - To Verify → statuses: ['resolved']
+ *   - Verified  → statuses: ['verified']
  *
- * Per the spec gotcha: verification fans to ALL PMs in the org. Web's
- * verify endpoint cascade-completes everyone's verification_due todos
- * on first click. Track relies on the realtime subscription to refresh
- * other supervisors' Compliance lists when one of them clicks Verify.
+ * Sort order varies by intent:
+ *   - Open / To Verify: severity asc → created/resolved desc (urgent first)
+ *   - Verified:         verified_at desc (most recent first; history view)
  *
- * Local-first via PowerSync; falls back to Supabase if local SQLite
- * has zero rows (defensive — initial sync window).
+ * Realtime subscribed at the org level; one supervisor's verify cascades
+ * to all others' Compliance screens within ~1s.
+ *
+ * Sync rule excludes 'closed' so this hook never sees fully-closed rows.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '@/shared/lib/supabase/client';
 import { localQuery } from '@/shared/lib/powersync/write';
@@ -61,7 +62,7 @@ function rowToDeficiency(row: RawRow): Deficiency {
     trade: (row.trade as string | null) ?? null,
     category: (row.category as string | null) ?? null,
     library_id: (row.library_id as string | null) ?? null,
-    status: (row.status as DeficiencyStatus) ?? 'resolved',
+    status: (row.status as DeficiencyStatus) ?? 'open',
     photos: parseJsonArray(row.photos),
     resolution_photos: parseJsonArray(row.resolution_photos),
     assigned_to: (row.assigned_to as string | null) ?? null,
@@ -88,18 +89,26 @@ function rowToDeficiency(row: RawRow): Deficiency {
   };
 }
 
-function compareForCompliance(a: Deficiency, b: Deficiency): number {
-  // Critical / major first — supervisor should triage urgent ones first
-  const sa = SEVERITY_ORDER[a.severity] ?? 99;
-  const sb = SEVERITY_ORDER[b.severity] ?? 99;
-  if (sa !== sb) return sa - sb;
-  // Then most-recently-resolved
-  const ra = a.resolved_at ? new Date(a.resolved_at).getTime() : 0;
-  const rb = b.resolved_at ? new Date(b.resolved_at).getTime() : 0;
-  return rb - ra;
+/** PowerSync's IN(...) limitation forces us to chain `=` clauses with OR.
+ * We build the WHERE clause dynamically based on the requested statuses.
+ * Same pattern used in sync-rules.yaml when filtering by status. */
+function buildStatusClause(statuses: DeficiencyStatus[]): string {
+  if (statuses.length === 0) return '1 = 1';
+  return statuses.map(() => 'status = ?').join(' OR ');
 }
 
-export function usePendingVerifications() {
+export type UseOrgDeficienciesOptions = {
+  statuses: DeficiencyStatus[];
+  /** 'severity' (urgency-first) or 'recent' (newest-first by relevant timestamp). */
+  sort?: 'severity' | 'recent';
+  limit?: number;
+};
+
+export function useOrgDeficiencies({
+  statuses,
+  sort = 'severity',
+  limit = 200,
+}: UseOrgDeficienciesOptions) {
   const orgId = useAuthStore((s) => s.profile?.organization_id ?? null);
 
   const [deficiencies, setDeficiencies] = useState<Deficiency[]>([]);
@@ -113,6 +122,10 @@ export function usePendingVerifications() {
     };
   }, []);
 
+  // Memoize the statuses tuple as a string key so the effect doesn't
+  // re-fire on every render due to array identity changing.
+  const statusesKey = statuses.join(',');
+
   const reload = useCallback(async () => {
     if (!orgId) {
       if (mountedRef.current) {
@@ -121,20 +134,31 @@ export function usePendingVerifications() {
       }
       return;
     }
+    const statusesArr = statusesKey.split(',').filter(Boolean) as DeficiencyStatus[];
+    const statusClause = buildStatusClause(statusesArr);
+    const params: unknown[] = [orgId, ...statusesArr, limit];
+
+    // Pick ORDER BY based on the relevant timestamp for the tab:
+    // - severity-sort: created_at DESC tiebreaker (urgent recent first)
+    // - recent-sort:   resolved_at/verified_at/created_at DESC depending on
+    //                  what's available; we sort client-side after fetch
+    //                  for simplicity since SQLite COALESCE is verbose.
     const rows = await localQuery<RawRow>(
       `SELECT * FROM deficiencies
          WHERE organization_id = ?
-           AND status = 'resolved'
-         ORDER BY resolved_at DESC
-         LIMIT 200`,
-      [orgId],
+           AND (${statusClause})
+         ORDER BY created_at DESC
+         LIMIT ?`,
+      params,
     );
+
     if (mountedRef.current) {
-      const list = rows ? rows.map(rowToDeficiency) : [];
-      setDeficiencies([...list].sort(compareForCompliance));
+      const parsed = rows ? rows.map(rowToDeficiency) : [];
+      const sorted = sortDeficiencies(parsed, sort);
+      setDeficiencies(sorted);
       setLoading(false);
     }
-  }, [orgId]);
+  }, [orgId, statusesKey, sort, limit]);
 
   useEffect(() => {
     reload();
@@ -146,13 +170,13 @@ export function usePendingVerifications() {
     }, [reload]),
   );
 
-  // Realtime — refresh when any deficiency in the org changes status.
-  // Fires for verify/reject from any supervisor (cascade complete) so
-  // the list updates within ~1s without a refetch.
+  // Realtime — refresh whenever any deficiency in the org changes.
+  // Cascade verify (Web closes ALL PMs' verification_due todos) fires
+  // here too, so other supervisors' tabs update without manual refresh.
   useEffect(() => {
     if (!orgId) return;
     const channel = supabase
-      .channel(`deficiencies_org_${orgId}`)
+      .channel(`deficiencies_org_${orgId}_${statusesKey}`)
       .on(
         'postgres_changes',
         {
@@ -169,7 +193,35 @@ export function usePendingVerifications() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [orgId, reload]);
+  }, [orgId, statusesKey, reload]);
 
   return { deficiencies, loading, reload };
+}
+
+function sortDeficiencies(
+  list: Deficiency[],
+  mode: 'severity' | 'recent',
+): Deficiency[] {
+  const copy = [...list];
+  if (mode === 'severity') {
+    copy.sort((a, b) => {
+      const sa = SEVERITY_ORDER[a.severity] ?? 99;
+      const sb = SEVERITY_ORDER[b.severity] ?? 99;
+      if (sa !== sb) return sa - sb;
+      // Tie-break by most-recent timestamp relevant to current state
+      const ta = relevantTimestamp(a);
+      const tb = relevantTimestamp(b);
+      return tb - ta;
+    });
+  } else {
+    copy.sort((a, b) => relevantTimestamp(b) - relevantTimestamp(a));
+  }
+  return copy;
+}
+
+function relevantTimestamp(d: Deficiency): number {
+  // Verified rows: verified_at; resolved: resolved_at; else created_at.
+  const iso =
+    d.verified_at ?? d.resolved_at ?? d.created_at;
+  return iso ? new Date(iso).getTime() : 0;
 }
