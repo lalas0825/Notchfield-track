@@ -30,8 +30,23 @@ function fmtHours(h: number): string {
   return `${h.toFixed(1)}h`;
 }
 
+/**
+ * Time-only for today, date+time for other days. Same logic as
+ * WorkerTimelineModal so the AreaCrewTile labels stay consistent
+ * when an entry crossed midnight or the foreman is viewing post-shift.
+ */
 function fmtTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString(undefined, {
+  const d = new Date(iso);
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) {
+    return d.toLocaleTimeString(undefined, {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+  return d.toLocaleString(undefined, {
+    month: 'numeric',
+    day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
   });

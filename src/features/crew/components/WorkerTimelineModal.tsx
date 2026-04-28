@@ -29,9 +29,27 @@ type Props = {
   toISO?: string;
 };
 
+/**
+ * Time-only when same calendar day as "now"; date+time otherwise.
+ * Construction shifts cross midnight constantly — a foreman opening
+ * their timeline at 1am needs to see "4/28 11pm" for an entry that
+ * started "yesterday in local" or they think the data is wrong.
+ */
 function fmtTime(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) {
+    return d.toLocaleTimeString(undefined, {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+  return d.toLocaleString(undefined, {
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 function fmtHours(h: number): string {
