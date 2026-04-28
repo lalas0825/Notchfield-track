@@ -1,18 +1,27 @@
 /**
  * Sprint Crew P3 — useStaleEntries.
  *
- * Detects open `area_time_entries` rows from BEFORE today midnight (i.e.
- * the foreman forgot to End Day, or moved devices, or whatever). Surfaces
- * them on the Crew screen as a warning banner with a one-tap "Close all"
- * action so the historical hours don't keep accumulating overnight.
+ * Detects open `area_time_entries` rows that are clearly orphaned (worker
+ * forgot End Day, app died, device swapped). Surfaces them on the Crew
+ * screen as a warning banner with a one-tap "Close all" action so the
+ * historical hours don't keep accumulating.
  *
- * Close-all strategy: each stale entry is capped at 8pm LOCAL TIME of the
- * day it was started. That's a reasonable end-of-shift default for
- * construction (sunset + dinner). If the foreman wants something
- * different they can edit in Web — Track is conservative here.
+ * 2026-04-28 — switched the staleness criterion from "started before
+ * today midnight" to "open >18 hours" after pilot data showed the
+ * midnight cutoff destroying legitimate same-shift work. A foreman
+ * working 5pm-1am still considers it the same shift, but local midnight
+ * caught the entries and the well-meaning "Close all" capped them at
+ * 8pm of the start day. 18h covers a generous shift (8-12h) plus buffer
+ * for next-morning realization, and is timezone-agnostic.
  *
- * The proper fix is a server-side cron (Web team): documented in CLAUDE.md
- * under the Crew P3 entry. Track-side guard is the immediate UX fix.
+ * Close-all strategy: each stale entry is capped at 8pm LOCAL TIME of
+ * the day it was started. That's still the right end-of-shift default
+ * for construction (sunset + dinner). The new staleness threshold means
+ * we won't ever apply this cap to entries from a still-running shift.
+ *
+ * The proper fix is a server-side cron (Web team): documented in
+ * CREW_FUTURE_GPS_AUTOTRIGGER.md edge cases section. Track-side guard
+ * is the immediate UX rescue.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -80,8 +89,10 @@ export function useStaleEntries(projectId: string | null | undefined) {
       return;
     }
 
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    // Stale = open >18 hours. Avoids the midnight-cutoff bug where
+    // legitimate evening-shift work was flagged as "previous day" and
+    // capped to 8pm of the start day, destroying real hours.
+    const cutoff = new Date(Date.now() - 18 * 60 * 60 * 1000).toISOString();
 
     const raw = await localQuery<RawEntry>(
       `SELECT id, worker_id, area_id, started_at
@@ -91,7 +102,7 @@ export function useStaleEntries(projectId: string | null | undefined) {
           AND started_at < ?
         ORDER BY started_at ASC
         LIMIT 100`,
-      [projectId, todayStart.toISOString()],
+      [projectId, cutoff],
     );
     const rows = raw ?? [];
 

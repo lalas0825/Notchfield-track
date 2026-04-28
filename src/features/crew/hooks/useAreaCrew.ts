@@ -97,12 +97,25 @@ export function useAreaCrew(areaId: string | null | undefined) {
       return;
     }
 
+    // Bug fix 2026-04-28: the previous filter `started_at >= todayStart`
+    // dropped open entries that started yesterday in local time but are
+    // still running. Construction shifts often cross midnight (afternoon
+    // start, late-evening continuation) — a foreman opening AreaDetail
+    // at 1am should still see the workers who are CURRENTLY there even
+    // though their entries started 5 hours earlier "yesterday".
+    //
+    // New shape:
+    //   - Always include OPEN entries (ended_at IS NULL) regardless of date
+    //   - Include CLOSED entries that ENDED today (was the day's work)
     const todayStart = startOfTodayISO();
     const rawEntries = await localQuery<RawEntry>(
       `SELECT id, worker_id, worker_role, started_at, ended_at, hours
          FROM area_time_entries
         WHERE area_id = ?
-          AND started_at >= ?
+          AND (
+            ended_at IS NULL
+            OR ended_at >= ?
+          )
         ORDER BY started_at DESC
         LIMIT 200`,
       [areaId, todayStart],
