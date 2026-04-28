@@ -11,6 +11,7 @@ import { SurfaceChecklist } from '@/features/production/components/SurfaceCheckl
 import { PhotoGallery } from '@/features/production/components/PhotoGallery';
 import { AreaChatBubble } from '@/features/messages/components/AreaChatBubble';
 import { AreaDeficienciesSection } from '@/features/deficiencies/components/AreaDeficienciesSection';
+import { AreaSignoffsSection } from '@/features/signoffs/components/AreaSignoffsSection';
 import { enqueuePhoto } from '@/features/photos/services/photo-queue';
 
 export default function AreaDetailScreen() {
@@ -110,6 +111,15 @@ export default function AreaDetailScreen() {
               areaId={area.id}
               projectId={activeProject.id}
               organizationId={profile.organization_id}
+            />
+          ) : null
+        }
+        renderSignoffs={
+          profile && activeProject ? (
+            <AreaSignoffsSection
+              areaId={area.id}
+              areaLabel={area.name}
+              projectId={activeProject.id}
             />
           ) : null
         }

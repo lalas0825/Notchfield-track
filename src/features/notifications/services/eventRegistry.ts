@@ -27,7 +27,12 @@ export type NotificationEventType =
   // Sprint 71 Phase 2 — deficiency notifications. Web's notify() pipeline
   // inserts a notifications row + sends push when severity dictates.
   | 'deficiency_critical'   // PMs notified when a critical deficiency is reported
-  | 'deficiency_resolved';  // PMs notified when foreman marks resolved
+  | 'deficiency_resolved'   // PMs notified when foreman marks resolved
+  // Sprint 72 — sign-off notifications. signed + declined fire push by
+  // default; request_sent is in-app only (audit trail for org PMs).
+  | 'signoff_request_sent'  // sent to all PMs of org as audit trail when send fires
+  | 'signoff_signed'        // creator + project PMs (push:true)
+  | 'signoff_declined';     // creator + supervisors (push:true)
 
 export type EventDefinition = {
   type: NotificationEventType;
@@ -161,5 +166,32 @@ export const EVENTS: Record<NotificationEventType, EventDefinition> = {
     defaultChannels: { in_app: true, email: false, push: true },
     titleKey: 'deficiencyResolvedTitle',
     bodyKey: 'deficiencyResolvedBody',
+  },
+  // Sprint 72 — sign-off lifecycle notifications. Web's send/sign/decline
+  // endpoints fan out to creator + project PMs + supervisors. Push:true
+  // for signed and declined per spec §6.
+  signoff_request_sent: {
+    type: 'signoff_request_sent',
+    icon: 'mail',
+    severity: 'info',
+    defaultChannels: { in_app: true, email: false, push: false },
+    titleKey: 'signoffRequestSentTitle',
+    bodyKey: 'signoffRequestSentBody',
+  },
+  signoff_signed: {
+    type: 'signoff_signed',
+    icon: 'pen-tool',
+    severity: 'info',
+    defaultChannels: { in_app: true, email: true, push: true },
+    titleKey: 'signoffSignedTitle',
+    bodyKey: 'signoffSignedBody',
+  },
+  signoff_declined: {
+    type: 'signoff_declined',
+    icon: 'x-circle',
+    severity: 'warning',
+    defaultChannels: { in_app: true, email: true, push: true },
+    titleKey: 'signoffDeclinedTitle',
+    bodyKey: 'signoffDeclinedBody',
   },
 };

@@ -80,6 +80,17 @@ export default function MoreScreen() {
       color: '#3B82F6',
       supervisorOnly: true,
     },
+    // Sprint 72 — Sign-Offs: formal GC-signed acceptance docs across the
+    // org. PM/Supervisor primary surface — list view with status filter
+    // pills, tap row → detail with Send / In-Person / Preview PDF actions.
+    // Foremen also get a button on each Area screen via AreaSignoffsSection.
+    {
+      icon: 'document-text',
+      label: 'Sign-Offs',
+      subtitle: 'Formal acceptance documents',
+      route: '/(tabs)/more/signoffs',
+      color: '#3B82F6',
+    },
     // Sprint 53A.1 — Project Notes moved to its own bottom tab (between
     // Delivery and More) per pilot feedback 2026-04-25. Removed from More
     // menu to avoid triplicated discoverability (header icon + bottom tab

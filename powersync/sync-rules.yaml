@@ -102,6 +102,29 @@ bucket_definitions:
       # bucket below — same constant-marker trick as toolbox_global.
       - SELECT * FROM deficiencies WHERE organization_id = bucket.organization_id AND status != 'closed'
       - SELECT * FROM deficiency_library WHERE organization_id = bucket.organization_id AND active = true
+      # Sprint 72 — Sign-Offs (formal GC-signed acceptance docs).
+      # Web team owns signoff_documents + signoff_templates + signoff_areas
+      # plus the create/send/decline/sign-in-person pipeline. Track READS
+      # only the active set (excludes declined/expired/cancelled) so the
+      # local SQLite payload stays small. Same status-filter pattern as
+      # deficiencies + todos. `signoff_templates` org-scoped entries; the
+      # global library (organization_id IS NULL, 14 NotchField-seeded
+      # templates) ships via the signoff_templates_global bucket below.
+      #
+      # `signoff_areas` (M:N junction) is NOT synced via PowerSync. The
+      # table has a composite PK (signoff_id, area_id) and no synthetic
+      # `id uuid` column — PowerSync TableV2 requires a single `id` UUID
+      # PK so it cannot be modeled. Fetched on-demand via direct Supabase
+      # query in the Compliance detail screen + multi-area picker.
+      # Follow-up: ask Web team to add `id UUID PK DEFAULT gen_random_uuid()`
+      # to signoff_areas in their next iteration so we can move it under
+      # PowerSync (matches the existing pattern of every other junction
+      # table — gc_punch_items, document_signatures, delivery_ticket_items).
+      - SELECT * FROM signoff_documents WHERE organization_id = bucket.organization_id
+        AND status != 'declined'
+        AND status != 'expired'
+        AND status != 'cancelled'
+      - SELECT * FROM signoff_templates WHERE organization_id = bucket.organization_id AND active = true
 
   # Global toolbox topics (organization_id IS NULL) — shared across all orgs.
   # PowerSync's validator rules on this bucket:
@@ -128,6 +151,19 @@ bucket_definitions:
       - SELECT 1 AS marker FROM profiles WHERE id = token_parameters.user_id
     data:
       - SELECT * FROM deficiency_library
+        WHERE organization_id IS NULL
+          AND active = true
+          AND bucket.marker = 1
+
+  # Sprint 72 — Global signoff template library (organization_id IS NULL).
+  # 14 NotchField-seeded templates (Waterproofing Approval, Vanity Top
+  # Acceptance, etc.) shared across all orgs. Same constant-marker trick
+  # as toolbox_global / deficiency_library_global.
+  signoff_templates_global:
+    parameters:
+      - SELECT 1 AS marker FROM profiles WHERE id = token_parameters.user_id
+    data:
+      - SELECT * FROM signoff_templates
         WHERE organization_id IS NULL
           AND active = true
           AND bucket.marker = 1

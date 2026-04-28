@@ -878,6 +878,75 @@ const deficiency_library = new TableV2({
   updated_at: column.text,
 });
 
+// Sprint 72 — Sign-Off documents. Container row for a formal GC-signed
+// acceptance doc. Web team owns the table + RLS + create/send/decline/
+// sign-in-person pipeline. Track NEVER inserts directly — always POSTs
+// to /api/signoffs/create. The DB CHECK constraints enforce the enum
+// shape (status, signer_role, status_after_sign).
+//
+// Body is pre-rendered at create time with snapshot substitutions; if
+// no recipient name was provided, `${gc}` and `${date}` collapse to
+// `_______________` underline (paper-template fill-in). At sign time
+// the server weaves the actual signer name into the first remaining
+// blank. Track UI displays `body` directly — no further substitution.
+//
+// `evidence_photos` and `required_evidence_snapshot` are jsonb arrays
+// of typed objects (SignoffEvidencePhoto / SignoffEvidenceRule). Stored
+// as text in PowerSync; parse with JSON.parse at read time.
+const signoff_documents = new TableV2({
+  organization_id: column.text,
+  project_id: column.text,
+  number: column.integer,                  // serial, server-assigned
+  template_id: column.text,                // FK to signoff_templates (nullable for ad-hoc)
+  title: column.text,
+  body: column.text,                       // pre-rendered at create
+  notes: column.text,                      // Polish R2 — optional extra context
+  signer_role: column.text,                // 'contractor' | 'gc' | 'either'
+  trade: column.text,
+  status: column.text,                     // 'draft' | 'pending_signature' | 'signed' (sync excludes declined/expired/cancelled)
+  evidence_photos: column.text,            // jsonb array (SignoffEvidencePhoto[])
+  required_evidence_snapshot: column.text, // jsonb array (SignoffEvidenceRule[])
+  status_after_sign: column.text,          // 'unlocks_next_trade' | 'closes_phase' | 'archives'
+  created_by: column.text,                 // nullable for auto-spawned docs
+  sent_at: column.text,
+  sent_to_email: column.text,
+  signed_at: column.text,
+  signed_by_name: column.text,
+  signed_by_company: column.text,
+  declined_at: column.text,
+  declined_reason: column.text,
+  pdf_url: column.text,                    // populated async after sign
+  sha256_hash: column.text,                // 64-char integrity proof
+  spawned_from_object_id: column.text,     // production_area_objects.id when auto-spawned
+  created_at: column.text,
+  updated_at: column.text,
+});
+
+// Sprint 72 — Sign-Off template library. 14 NotchField-seeded global
+// templates (organization_id IS NULL) + per-org templates if any.
+//   - org-scoped entries → by_org (organization_id = bucket.organization_id)
+//   - global entries     → signoff_templates_global (organization_id IS NULL)
+// Both use this same TableV2 declaration; PowerSync handles the union.
+//
+// `body_template` has placeholders ${areas} ${trade} ${gc} ${contractor}
+// ${date} ${project} that get substituted at create time. Track displays
+// the rendered `signoff_documents.body` directly — never re-renders.
+const signoff_templates = new TableV2({
+  organization_id: column.text,           // null for global templates
+  trade: column.text,                     // 'tile' | 'marble' | 'paint' | 'drywall' | 'general' | ...
+  name: column.text,
+  description: column.text,
+  body_template: column.text,
+  signer_role: column.text,               // 'contractor' | 'gc' | 'either'
+  required_evidence: column.text,         // jsonb array (SignoffEvidenceRule[])
+  auto_spawn_on_surface_type: column.text, // null = no auto-spawn
+  allows_multi_area: column.integer,      // 1 = allow multi, 0 = single area only
+  default_status_after_sign: column.text,
+  active: column.integer,                 // 1 = active, 0 = retired
+  created_at: column.text,
+  updated_at: column.text,
+});
+
 // Sprint 70 — Todos Hub. Per-user action queue synced via by_user bucket.
 // Web team owns the table + RLS + auto-completion engine + cron creation;
 // Track only READS active rows (status pending/in_progress/snoozed) and
@@ -1107,6 +1176,9 @@ export const AppSchema = new Schema({
   // Sprint 71 — Deficiencies + library
   deficiencies,
   deficiency_library,
+  // Sprint 72 — Sign-Offs (signoff_areas NOT synced — composite PK, no id col)
+  signoff_documents,
+  signoff_templates,
 });
 
 export type Database = (typeof AppSchema)['types'];
@@ -1135,6 +1207,8 @@ export type NotificationRecord = Database['notifications'];
 export type TodoRecord = Database['todos'];
 export type DeficiencyRecord = Database['deficiencies'];
 export type DeficiencyLibraryRecord = Database['deficiency_library'];
+export type SignoffDocumentRecord = Database['signoff_documents'];
+export type SignoffTemplateRecord = Database['signoff_templates'];
 export type LegalDocumentRecord = Database['legal_documents'];
 export type DelayCostLogRecord = Database['delay_cost_logs'];
 export type DrawingHyperlinkRecord = Database['drawing_hyperlinks'];

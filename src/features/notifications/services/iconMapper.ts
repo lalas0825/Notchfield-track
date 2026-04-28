@@ -62,6 +62,12 @@ const LUCIDE_TO_VECTOR_ICON: Record<string, IconSpec> = {
   // Sprint 71 Phase 2 — Deficiency / punch list todos
   wrench: ION('build'), // foreman action: fix the deficiency
   'clipboard-check': MCI('clipboard-check'), // PM action: verify resolution
+
+  // Sprint 72 — Sign-Off lifecycle
+  mail: ION('mail'),                        // signoff_request_sent + email triggers
+  clock: ION('time'),                        // signoff_followup_due + stale prompts
+  // Note: 'pen-tool' (signoff_signed + signoff_signature_due) already
+  // mapped above for PTP signing — same icon.
 };
 
 /**

@@ -165,6 +165,24 @@ export default function TodayScreen() {
         return;
       }
 
+      // Sprint 72 — sign-off-driven todos (signoff_signature_due,
+      // signoff_followup_due) carry entity_type='signoff' + entity_id =
+      // the signoff UUID. The signature_due todo is for the foreman; tap
+      // routes them straight to the in-person sign screen so they can
+      // hand the iPad to the GC. The followup_due todo is for the PM;
+      // it routes to the detail screen where they can re-send or open
+      // the public sign URL.
+      if (todo.entity_type === 'signoff' && todo.entity_id) {
+        if (todo.type === 'signoff_signature_due') {
+          router.push(
+            `/(tabs)/board/signoff/sign-in-person/${todo.entity_id}` as any,
+          );
+        } else {
+          router.push(`/(tabs)/board/signoff/${todo.entity_id}` as any);
+        }
+        return;
+      }
+
       // Phase 1 — link_url is a Web URL ('/projects/x/pm/...'). Track-side
       // conversion to a local route is a Phase 2 task; for now, the row's
       // mere presence is enough action-prompting. Best-effort: if it's a

@@ -29,6 +29,8 @@ type Props = {
   renderMessages?: React.ReactNode;
   /** Sprint 71 — Deficiencies (Punch List / QC) for this area */
   renderDeficiencies?: React.ReactNode;
+  /** Sprint 72 — Sign-Offs (formal GC-signed acceptance) for this area */
+  renderSignoffs?: React.ReactNode;
 };
 
 export function AreaDetail({
@@ -44,6 +46,7 @@ export function AreaDetail({
   renderPhotoGallery,
   renderMessages,
   renderDeficiencies,
+  renderSignoffs,
 }: Props) {
   const [showBlockReasons, setShowBlockReasons] = useState(false);
 
@@ -266,6 +269,12 @@ export function AreaDetail({
           2) Primary actions (Take Photo / Mark Complete / Report Blocked)
              stay above the fold; chat + deficiencies push down. */}
       {renderDeficiencies}
+
+      {/* Sprint 72 — Sign-Offs section. Sits between Deficiencies and Notes
+          for the same UX reason: things "in flight" for this area (defects
+          to fix + acceptance docs to sign) cluster together, so the foreman
+          sees the whole work-to-close-out picture in one scroll. */}
+      {renderSignoffs}
 
       {/* Sprint 53A — Notes section. Mounted as the LAST piece of content
           per user request 2026-04-25: chat can grow long, primary actions

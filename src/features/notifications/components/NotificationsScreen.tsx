@@ -92,6 +92,12 @@ export default function NotificationsScreen() {
         router.push(`/(tabs)/board/${n.entity_id}` as any);
         return;
       }
+      // Sprint 72 — sign-off notifications. signed/declined/request_sent
+      // all carry entity_type='signoff' + entity_id = signoff UUID.
+      if (n.entity_type === 'signoff' && n.entity_id) {
+        router.push(`/(tabs)/board/signoff/${n.entity_id}` as any);
+        return;
+      }
       // Other entity_types (worker, phase_progress, legal_document, etc.)
       // — no specific route yet; user lands on the bell list, which is
       // already where the tap originated. Better than landing on a 404.

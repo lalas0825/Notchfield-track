@@ -217,6 +217,26 @@ export const TODO_TYPES: Record<string, TodoTypeDefinition> = {
     role: 'pm',
     titleKey: 'deficiencyVerificationDueTitle',
   },
+
+  // ━━━ Sprint 72 — Sign-Off-driven todos ━━━
+  // Web's send endpoint creates `signoff_signature_due` for the recipient
+  // (foreman if internal, otherwise GC via email + 48h follow-up cron).
+  // Auto-completes when status flips to signed/declined/cancelled. The
+  // creator (PM) gets `signoff_followup_due` 48h after send if no response.
+  signoff_signature_due: {
+    type: 'signoff_signature_due',
+    icon: 'pen-tool',
+    defaultPriority: 'high',
+    role: 'foreman',
+    titleKey: 'signoffSignatureDueTitle',
+  },
+  signoff_followup_due: {
+    type: 'signoff_followup_due',
+    icon: 'clock',
+    defaultPriority: 'normal',
+    role: 'pm',
+    titleKey: 'signoffFollowupDueTitle',
+  },
 };
 
 /** Resolve a type to its definition, falling back to DEFAULT for unknowns. */

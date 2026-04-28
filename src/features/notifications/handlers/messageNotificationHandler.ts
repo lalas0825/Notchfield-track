@@ -99,5 +99,41 @@ export function handleNotificationResponse(response: NotificationResponse) {
     return;
   }
 
+  // Sprint 72 — sign-off lifecycle pushes (signoff_signed, signoff_declined).
+  // Both default to push:true. Tap routes to the detail screen which
+  // surfaces appropriate actions per status (View PDF if signed, re-create
+  // if declined). The signature_due todo path is handled via the Today
+  // tab tap handler — push for that one only fires for non-internal
+  // recipients which Track wouldn't receive anyway.
+  if (
+    data.kind === 'signoff_signed' ||
+    data.kind === 'signoff_declined' ||
+    data.kind === 'signoff_request_sent'
+  ) {
+    const id = data.entity_id;
+    if (id) {
+      setTimeout(() => {
+        try {
+          router.push(`/(tabs)/board/signoff/${id}` as any);
+        } catch (e) {
+          logger.warn('[Push] signoff deep-link navigate failed', e);
+        }
+      }, 50);
+    }
+    return;
+  }
+
+  // Generic entity fallback (mirrors deficiency case above).
+  if (data.entity_type === 'signoff' && data.entity_id) {
+    setTimeout(() => {
+      try {
+        router.push(`/(tabs)/board/signoff/${data.entity_id}` as any);
+      } catch (e) {
+        logger.warn('[Push] signoff entity deep-link failed', e);
+      }
+    }, 50);
+    return;
+  }
+
   // Future: legal documents, punch items, delivery alerts, etc.
 }
