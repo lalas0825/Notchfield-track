@@ -42,7 +42,7 @@ export default function CrewScreen() {
   const handleCloseStale = () => {
     Alert.alert(
       'Close stale entries',
-      `${stale.count} ${stale.count === 1 ? 'entry' : 'entries'} from before today will be capped at 8pm of the day they started. This is a one-time cleanup — proper end-of-day cron is a Web team follow-up.`,
+      `${stale.count} ${stale.count === 1 ? 'entry has' : 'entries have'} been open over 18 hours. Each will be capped at 8pm of the day it started — usually means a forgotten End Day. This is a one-time cleanup; proper end-of-day cron is a Web team follow-up.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -188,13 +188,16 @@ export default function CrewScreen() {
           </Pressable>
         </View>
 
-        {/* Stale entries banner — visible from both tabs (cross-cutting concern) */}
+        {/* Stale entries banner — visible from both tabs (cross-cutting concern).
+            Copy 2026-04-29: was "not closed from a previous day" which conflated
+            calendar-date with the actual >18h-open detection. Now states the
+            literal threshold so the foreman knows what's flagged and why. */}
         {stale.count > 0 ? (
           <View className="border-b border-amber-500/40 bg-amber-500/10 px-4 py-3">
             <View className="flex-row items-center">
               <Ionicons name="alert-circle" size={18} color="#F59E0B" />
               <Text className="ml-2 flex-1 text-sm font-bold text-amber-500">
-                {stale.count} {stale.count === 1 ? 'entry' : 'entries'} not closed from {stale.dayCount === 1 ? 'a previous day' : `${stale.dayCount} previous days`}
+                {stale.count} {stale.count === 1 ? 'entry' : 'entries'} open over 18 hours
               </Text>
               <Pressable
                 onPress={handleCloseStale}
@@ -208,7 +211,7 @@ export default function CrewScreen() {
               </Pressable>
             </View>
             <Text className="ml-6 mt-1 text-[11px] text-amber-300">
-              Each will be capped at 8pm of the day it started.
+              Caps each at 8pm of the day it started — likely a forgotten End Day.
             </Text>
           </View>
         ) : null}
