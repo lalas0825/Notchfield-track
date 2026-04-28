@@ -59,50 +59,79 @@ export default function CrewScreen() {
     );
   };
 
+  /**
+   * Run the assignment loop with guaranteed loading-state cleanup. The
+   * old code didn't wrap the for-loop in try/finally, so any throw from
+   * `assignWorker` (PowerSync write race, network blip on the
+   * fetchAssignments refetch, etc.) left `assigning` stuck at true and
+   * the Assign button spun forever. Surface the error to the user
+   * instead of swallowing.
+   */
+  const runAssignLoop = async () => {
+    if (!selectedArea) return;
+    setAssigning(true);
+    const failures: string[] = [];
+    try {
+      for (const workerId of selectedWorkers) {
+        try {
+          const res = await assignWorker(workerId, selectedArea);
+          if (!res?.success) {
+            const name =
+              workers.find((w) => w.id === workerId)?.full_name ?? 'Worker';
+            failures.push(`${name}: ${res?.error ?? 'unknown error'}`);
+          }
+        } catch (e) {
+          const name =
+            workers.find((w) => w.id === workerId)?.full_name ?? 'Worker';
+          const msg = e instanceof Error ? e.message : 'unknown error';
+          failures.push(`${name}: ${msg}`);
+        }
+      }
+    } finally {
+      // ALWAYS reset loading + step state, even if some workers failed.
+      // Otherwise the button stays stuck on the loading spinner.
+      setAssigning(false);
+      setSelectedWorkers([]);
+      setSelectedArea(null);
+      setStep('workers');
+    }
+    if (failures.length > 0) {
+      Alert.alert(
+        'Some assignments failed',
+        failures.join('\n') +
+          '\n\nThe ones that succeeded are saved; you can retry the failed ones.',
+      );
+    }
+  };
+
   const handleAssign = async () => {
     if (!selectedArea || selectedWorkers.length === 0) return;
 
-    // Check for expired certs
+    // Check for expired certs first — confirm before running the loop.
     const expiredWorkers = selectedWorkers.filter((id) => hasExpiredCerts(id));
     if (expiredWorkers.length > 0) {
       const names = expiredWorkers
         .map((id) => workers.find((w) => w.id === id)?.full_name ?? 'Unknown')
         .join(', ');
 
-      return new Promise<void>((resolve) => {
-        Alert.alert(
-          'Expired Certifications',
-          `${names} ${expiredWorkers.length === 1 ? 'has' : 'have'} expired certifications. Assign anyway under your responsibility?`,
-          [
-            { text: 'Cancel', style: 'cancel', onPress: () => resolve() },
-            {
-              text: 'Assign Anyway',
-              style: 'destructive',
-              onPress: async () => {
-                setAssigning(true);
-                for (const workerId of selectedWorkers) {
-                  await assignWorker(workerId, selectedArea);
-                }
-                setAssigning(false);
-                setSelectedWorkers([]);
-                setSelectedArea(null);
-                setStep('workers');
-                resolve();
-              },
+      Alert.alert(
+        'Expired Certifications',
+        `${names} ${expiredWorkers.length === 1 ? 'has' : 'have'} expired certifications. Assign anyway under your responsibility?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Assign Anyway',
+            style: 'destructive',
+            onPress: () => {
+              runAssignLoop();
             },
-          ],
-        );
-      });
+          },
+        ],
+      );
+      return;
     }
 
-    setAssigning(true);
-    for (const workerId of selectedWorkers) {
-      await assignWorker(workerId, selectedArea);
-    }
-    setAssigning(false);
-    setSelectedWorkers([]);
-    setSelectedArea(null);
-    setStep('workers');
+    runAssignLoop();
   };
 
   const handleEndDay = () => {
