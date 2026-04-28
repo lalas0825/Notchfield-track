@@ -15,8 +15,11 @@ type Step = 'workers' | 'area';
 type Tab = 'today' | 'history';
 
 export default function CrewScreen() {
-  const { profile } = useAuthStore();
-  const { activeProject } = useProjectStore();
+  // Selectors (not full-store destructuring) so unrelated state changes
+  // in these stores don't re-render this screen and re-fire the useCrew
+  // reload loop. See useCrew.ts header for the full incident note.
+  const profile = useAuthStore((s) => s.profile);
+  const activeProject = useProjectStore((s) => s.activeProject);
   const {
     workers,
     areas,
