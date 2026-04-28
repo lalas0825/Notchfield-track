@@ -5,9 +5,15 @@
  * or pick an alternative, then creates the draft safety_documents row and
  * redirects to the wizard at /(tabs)/docs/safety/toolbox/[id].
  *
- * Already-delivered check: if this week already has a toolbox talk, the
- * screen shows a banner and either links to the existing draft (resume) or
- * the distributed view (read-only).
+ * Schedule reminder, not a hard block (changed 2026-04-28 per pilot
+ * feedback): if this week already has a toolbox talk delivered/drafted,
+ * we surface it as a banner at the top with a Resume/View link, then
+ * still show the suggested topic + Start button below so the foreman
+ * can deliver additional talks the same week (e.g. a chemical safety
+ * recap after an incident, or a topic re-run with the night crew).
+ * The weekly schedule still drives the Home card and the auto-suggested
+ * topic — the cooldown logic in the scheduler engine prevents the same
+ * topic from being suggested again, but anything else is fair game.
  */
 import { useMemo, useState } from 'react';
 import {
@@ -101,49 +107,11 @@ export default function NewToolboxScreen() {
     router.replace(`/(tabs)/docs/safety/toolbox/${res.id}`);
   };
 
-  // Already-delivered banner — pick the link target based on current state.
-  if (delivered) {
-    const isDraft = delivered.status === 'draft';
-    const distributed = (delivered.content as { distribution?: { distributed_at?: string } })
-      .distribution?.distributed_at;
-    return (
-      <>
-        <Stack.Screen options={{ title: 'Weekly Safety' }} />
-        <View className="flex-1 items-center justify-center bg-background px-6">
-          <View
-            className="mb-4 h-20 w-20 items-center justify-center rounded-full"
-            style={{ backgroundColor: distributed ? '#22C55E20' : '#F59E0B20' }}
-          >
-            <Ionicons
-              name={distributed ? 'checkmark-circle' : 'time'}
-              size={40}
-              color={distributed ? '#22C55E' : '#F59E0B'}
-            />
-          </View>
-          <Text className="text-center text-2xl font-bold text-white">
-            {distributed ? "This week's talk is done" : "Resume this week's talk"}
-          </Text>
-          <Text className="mt-3 text-center text-base leading-6 text-slate-400">
-            Week of {weekStart}. Only one toolbox talk can be submitted per week.
-          </Text>
-          <Pressable
-            onPress={() => {
-              if (isDraft) {
-                router.replace(`/(tabs)/docs/safety/toolbox/${delivered.id}`);
-              } else {
-                router.replace(`/(tabs)/docs/safety/${delivered.id}`);
-              }
-            }}
-            className="mt-6 h-14 w-full max-w-xs items-center justify-center rounded-xl bg-brand-orange active:opacity-80"
-          >
-            <Text className="text-base font-bold text-white">
-              {isDraft ? 'Resume' : 'View talk'}
-            </Text>
-          </Pressable>
-        </View>
-      </>
-    );
-  }
+  // Already-delivered banner is now inline, NOT a full-screen blocker —
+  // see the docblock at the top for the why. The rendering below mounts
+  // a chip near the page header when `delivered` is present, then keeps
+  // showing the suggested topic + Start button so the foreman can create
+  // additional talks if needed. The chip is tappable to View/Resume.
 
   // Empty library fallback
   if (library.length === 0) {
@@ -188,6 +156,21 @@ export default function NewToolboxScreen() {
           <Text className="ml-1 text-xs uppercase text-slate-500">Week of</Text>
           <Text className="ml-2 text-sm font-medium text-white">{weekStart}</Text>
         </View>
+
+        {/* Already-this-week banner — informational, not blocking. */}
+        {delivered ? (
+          <DeliveredBanner
+            delivered={delivered}
+            onOpen={() => {
+              const isDraft = delivered.status === 'draft';
+              if (isDraft) {
+                router.push(`/(tabs)/docs/safety/toolbox/${delivered.id}` as any);
+              } else {
+                router.push(`/(tabs)/docs/safety/${delivered.id}` as any);
+              }
+            }}
+          />
+        ) : null}
 
         {current ? (
           <View
@@ -279,5 +262,63 @@ export default function NewToolboxScreen() {
         </View>
       ) : null}
     </>
+  );
+}
+
+/**
+ * Compact banner shown inline at the top of /toolbox/new when a toolbox
+ * already exists this week. Tappable — opens the existing draft for
+ * Resume, or the distributed view for read-only history. Informational
+ * only; doesn't block creating an additional talk below.
+ */
+function DeliveredBanner({
+  delivered,
+  onOpen,
+}: {
+  delivered: { id: string; status: string; content: unknown };
+  onOpen: () => void;
+}) {
+  const distributed = (delivered.content as { distribution?: { distributed_at?: string } })
+    .distribution?.distributed_at;
+  const title =
+    (delivered.content as { topic_snapshot?: { title?: string } }).topic_snapshot?.title ??
+    'Toolbox talk';
+  const isDraft = delivered.status === 'draft';
+
+  const accent = distributed ? '#22C55E' : '#F59E0B';
+  const labelText = distributed
+    ? "This week's talk delivered"
+    : "Draft from earlier this week";
+  const cta = isDraft ? 'Resume' : 'View';
+
+  return (
+    <Pressable
+      onPress={onOpen}
+      className="mb-4 rounded-xl border p-3 active:opacity-80"
+      style={{ borderColor: `${accent}55`, backgroundColor: `${accent}15` }}
+    >
+      <View className="flex-row items-center">
+        <Ionicons
+          name={distributed ? 'checkmark-circle' : 'time'}
+          size={18}
+          color={accent}
+        />
+        <View className="ml-2 flex-1">
+          <Text className="text-xs font-bold uppercase" style={{ color: accent }}>
+            {labelText}
+          </Text>
+          <Text className="mt-0.5 text-sm text-slate-200" numberOfLines={1}>
+            {title}
+          </Text>
+        </View>
+        <Text className="ml-2 text-sm font-bold" style={{ color: accent }}>
+          {cta}
+        </Text>
+        <Ionicons name="chevron-forward" size={16} color={accent} style={{ marginLeft: 4 }} />
+      </View>
+      <Text className="mt-2 text-[11px] text-slate-400">
+        You can still deliver another talk below if needed.
+      </Text>
+    </Pressable>
   );
 }
