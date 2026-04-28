@@ -229,7 +229,7 @@ export function ExportToGcModal({
                   {error ? (
                     <View style={ErrorBox}>
                       <Ionicons name="alert-circle" size={18} color="#F87171" />
-                      <Text style={ErrorText}>{error}</Text>
+                      <Text style={ErrorText} numberOfLines={4}>{error}</Text>
                     </View>
                   ) : null}
 

@@ -40,8 +40,37 @@ async function postJson<T>(url: string, body?: unknown): Promise<T> {
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (!res.ok) {
-    const err = await res.text().catch(() => '');
-    throw new Error(`${url} ${res.status}: ${err}`);
+    // Sanitize the error response. JSON bodies surface a useful detail;
+    // HTML bodies (e.g. Next.js 404 pages) are dropped from the user
+    // message — they're 5KB+ of `<script>` tags that flood the modal.
+    const ct = res.headers.get('content-type') ?? '';
+    let detail = '';
+    try {
+      if (ct.includes('application/json')) {
+        const body = await res.json();
+        detail = (body && (body.error || body.message)) || '';
+      } else {
+        const text = await res.text().catch(() => '');
+        detail = text.length > 200 ? '' : text.trim();
+      }
+    } catch {
+      /* ignore body-parse failures */
+    }
+
+    let userMsg: string;
+    if (res.status === 404) userMsg = 'This action is not available yet — please contact support if this persists.';
+    else if (res.status === 401) userMsg = 'Session expired — please sign out and back in.';
+    else if (res.status === 403) userMsg = "You don't have permission to do this.";
+    else if (res.status >= 500) userMsg = 'Server error — please try again in a moment.';
+    else userMsg = detail || `Request failed (${res.status})`;
+
+    type HttpError = Error & { status?: number; detail?: string; url?: string };
+    const e: HttpError = new Error(userMsg);
+    e.status = res.status;
+    e.detail = detail;
+    e.url = url;
+    logger.warn('[deficiencyApiClient] HTTP error', { url, status: res.status, detail });
+    throw e;
   }
   return res.json() as Promise<T>;
 }
