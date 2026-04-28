@@ -54,7 +54,14 @@ export function buildPtpLabels(args: BuildArgs): PtpPdfLabels {
     // Section headers
     taskDescription: 'Task Description',
     hazardsIdentified: 'Hazards Identified',
-    oshaReference: 'OSHA Reference',
+    // Shortened from 'OSHA Reference' on 2026-04-28 — Web's renderer
+    // reuses this label key for the metadata column in toolbox PDFs,
+    // and the column width is calculated from the longest sibling
+    // ("Foreman"/"Shift"/"Source"/"Category" max 8 chars). "OSHA
+    // Reference" overflowed and overlapped the value on the right.
+    // "OSHA Ref" fits and reads naturally in both the metadata column
+    // and the body section header — no Web change needed.
+    oshaReference: 'OSHA Ref',
     controlsInPlace: 'Controls in Place',
     controlsEngineering: 'Engineering Controls',
     controlsAdministrative: 'Administrative Controls',
