@@ -210,11 +210,13 @@ export async function localUpdateWhere(
  * faster than a network round-trip.
  *
  * Cold-start safety: PowerSync's `init()` opens the local SQLite file
- * asynchronously. If a hook fires `localQuery` before init resolves,
- * `getAll` would hang waiting for the DB. We gate on `ps.ready` /
- * `waitForReady()` instead — the timeout is on the INIT (rare cold-start
- * stall, capped at 15s), not the query itself. Once ready=true, the
- * `if` short-circuits and successive queries run with zero overhead.
+ * asynchronously. We short-circuit on `ps.ready=true` (hot path is one
+ * boolean check, instant), and on cold start await `waitForReady()`
+ * race'd with the same 5s safety budget that wraps the whole call.
+ *
+ * Caller MUST treat `null` as "no data" and fall through gracefully —
+ * a 5s timeout returning null is preferable to the app hanging on a
+ * stuck init.
  */
 export async function localQuery<T = Record<string, unknown>>(
   sql: string,
@@ -223,18 +225,20 @@ export async function localQuery<T = Record<string, unknown>>(
   const ps = getPowerSync();
   if (!ps) return null;
   try {
-    if (!ps.ready) {
-      await Promise.race([
-        ps.waitForReady(),
-        new Promise<never>((_, reject) =>
-          setTimeout(
-            () => reject(new Error('localQuery: PowerSync init timeout (15s)')),
-            15000,
-          ),
-        ),
-      ]);
-    }
-    const result = await ps.getAll(sql, params);
+    // Single 5s budget covering BOTH waitForReady and getAll. If ready
+    // is already true, the await resolves instantly and the budget
+    // applies to the query alone. If init is still running, we share
+    // the budget — preferable to summing two timeouts.
+    const work = (async () => {
+      if (!ps.ready) await ps.waitForReady();
+      return ps.getAll(sql, params);
+    })();
+    const result = await Promise.race([
+      work,
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('localQuery timeout (5s)')), 5000),
+      ),
+    ]);
     return result as T[];
   } catch (err) {
     console.warn('[localQuery] error:', err);
