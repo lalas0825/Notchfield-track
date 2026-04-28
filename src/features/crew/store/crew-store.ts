@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '@/shared/lib/supabase/client';
-import { localInsert, localUpdate, localDelete, localUpdateWhere, localDeleteWhere, generateUUID } from '@/shared/lib/powersync/write';
+import { localInsert, localUpdate, localDelete, localUpdateWhere, localDeleteWhere, localQuery, generateUUID } from '@/shared/lib/powersync/write';
 import { haptic } from '@/shared/lib/haptics';
 import { logger } from '@/shared/lib/logger';
 import { autoCompleteAndForget } from '@/features/todos/services/todoApiClient';
@@ -81,75 +81,136 @@ export const useCrewStore = create<CrewState & CrewActions>((set, get) => ({
    * (profile_id NULL) are fully assignable. Worker.id in this store is the
    * `workers.id` UUID.
    */
+  /**
+   * Reads switched to PowerSync local-first on 2026-04-28 to fix slow
+   * Crew screen mount (5 sequential Supabase calls = several seconds on
+   * cold start). All four tables (workers, project_workers,
+   * production_areas, crew_assignments, area_time_entries) are in the
+   * by_org PowerSync bucket, so localQuery serves them instantly.
+   *
+   * Supabase fallback fires ONLY if local returns empty AND we have no
+   * synced data yet — handles the fresh-install window before PowerSync
+   * has caught up. After that, everything stays local.
+   */
   fetchWorkers: async (organizationId, projectId) => {
-    // 1) Active project_workers for this project
+    // SQLite JOIN locally — fastest path. project_workers is M:N filtered
+    // to active=1 by the sync rule, but we double-check defensively.
+    const local = await localQuery<{
+      id: string;
+      first_name: string | null;
+      last_name: string | null;
+      trade: string | null;
+      trade_level: string | null;
+      photo_url: string | null;
+    }>(
+      `SELECT w.id, w.first_name, w.last_name, w.trade, w.trade_level, w.photo_url
+         FROM project_workers pw
+         JOIN workers w ON w.id = pw.worker_id
+        WHERE pw.project_id = ?
+          AND pw.organization_id = ?
+          AND pw.active = 1
+          AND w.active = 1
+        ORDER BY w.first_name`,
+      [projectId, organizationId],
+    );
+
+    if (local && local.length > 0) {
+      set({
+        workers: local.map((w) => ({
+          id: w.id,
+          full_name:
+            `${w.first_name ?? ''} ${w.last_name ?? ''}`.trim() || 'Unknown',
+          role: w.trade_level ?? w.trade ?? 'worker',
+          avatar_url: w.photo_url ?? null,
+        })),
+      });
+      return;
+    }
+
+    // Fallback: Supabase (fresh install, PowerSync hasn't synced yet)
     const { data: pwRows } = await supabase
       .from('project_workers')
       .select('worker_id')
       .eq('project_id', projectId)
       .eq('organization_id', organizationId)
       .eq('active', true);
-
     const workerIds = (pwRows ?? []).map((r) => r.worker_id as string);
     if (workerIds.length === 0) {
       set({ workers: [] });
       return;
     }
-
-    // 2) Resolve workers HR rows (includes walk-ins now that FK points here)
     const { data } = await supabase
       .from('workers')
       .select('id, first_name, last_name, trade, trade_level, photo_url, active')
       .in('id', workerIds)
       .eq('active', true)
       .order('first_name');
-
-    const workers: Worker[] = (data ?? []).map((w) => ({
-      id: (w.id as string),
-      full_name: `${w.first_name ?? ''} ${w.last_name ?? ''}`.trim() || 'Unknown',
-      // Display trade_level (mechanic/helper/apprentice/foreman) — WorkerCard
-      // already reads the role field; no UI refactor needed.
-      role: (w.trade_level as string | null) ?? (w.trade as string | null) ?? 'worker',
-      avatar_url: (w.photo_url as string | null) ?? null,
-    }));
-
-    set({ workers });
+    set({
+      workers: (data ?? []).map((w) => ({
+        id: w.id as string,
+        full_name:
+          `${w.first_name ?? ''} ${w.last_name ?? ''}`.trim() || 'Unknown',
+        role:
+          (w.trade_level as string | null) ??
+          (w.trade as string | null) ??
+          'worker',
+        avatar_url: (w.photo_url as string | null) ?? null,
+      })),
+    });
   },
 
   fetchAreas: async (projectId) => {
+    const local = await localQuery<Area>(
+      `SELECT id, name, floor, zone, status
+         FROM production_areas
+        WHERE project_id = ?
+        ORDER BY floor, name`,
+      [projectId],
+    );
+    if (local && local.length > 0) {
+      set({ areas: local });
+      return;
+    }
     const { data } = await supabase
       .from('production_areas')
       .select('id, name, floor, zone, status')
       .eq('project_id', projectId)
       .order('floor')
       .order('name');
-
     set({ areas: (data ?? []) as Area[] });
   },
 
   fetchAssignments: async (projectId, organizationId) => {
-    const { data } = await supabase
-      .from('crew_assignments')
-      .select('id, worker_id, area_id, assigned_at')
-      .eq('project_id', projectId)
-      .eq('organization_id', organizationId);
-
-    set({ assignments: (data ?? []) as Assignment[] });
+    const local = await localQuery<Assignment>(
+      `SELECT id, worker_id, area_id, assigned_at
+         FROM crew_assignments
+        WHERE project_id = ?
+          AND organization_id = ?`,
+      [projectId, organizationId],
+    );
+    // Always set — empty list is valid (start-of-day, nobody assigned yet).
+    // Don't fall through to Supabase here; assignments mutate constantly
+    // and PowerSync writes round-trip in milliseconds.
+    set({ assignments: local ?? [] });
   },
 
   fetchTodayTimeEntries: async (projectId, organizationId) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const todayISO = today.toISOString();
 
-    const { data } = await supabase
-      .from('area_time_entries')
-      .select('id, worker_id, area_id, worker_role, started_at, ended_at, hours')
-      .eq('project_id', projectId)
-      .eq('organization_id', organizationId)
-      .gte('started_at', today.toISOString())
-      .order('started_at', { ascending: false });
-
-    set({ timeEntries: (data ?? []) as TimeEntry[] });
+    const local = await localQuery<TimeEntry>(
+      `SELECT id, worker_id, area_id, worker_role, started_at, ended_at, hours
+         FROM area_time_entries
+        WHERE project_id = ?
+          AND organization_id = ?
+          AND started_at >= ?
+        ORDER BY started_at DESC`,
+      [projectId, organizationId, todayISO],
+    );
+    // Same as assignments — local is authoritative for today's writes;
+    // PowerSync round-trips in ms.
+    set({ timeEntries: local ?? [] });
   },
 
   assignWorker: async ({ workerId, areaId, projectId, organizationId, assignedBy, workerRole }) => {
