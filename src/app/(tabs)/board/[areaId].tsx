@@ -12,6 +12,7 @@ import { PhotoGallery } from '@/features/production/components/PhotoGallery';
 import { AreaChatBubble } from '@/features/messages/components/AreaChatBubble';
 import { AreaDeficienciesSection } from '@/features/deficiencies/components/AreaDeficienciesSection';
 import { AreaSignoffsSection } from '@/features/signoffs/components/AreaSignoffsSection';
+import { AreaCrewTile } from '@/features/crew/components/AreaCrewTile';
 import { enqueuePhoto } from '@/features/photos/services/photo-queue';
 
 export default function AreaDetailScreen() {
@@ -123,6 +124,7 @@ export default function AreaDetailScreen() {
             />
           ) : null
         }
+        renderCrew={<AreaCrewTile areaId={area.id} />}
         // Sprint 71 polish (2026-04-27) — inline Notes section removed in
         // favor of the floating <AreaChatBubble/> below. Page got too long
         // once Sprint 71 added the deficiencies section between the action

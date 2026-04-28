@@ -31,6 +31,8 @@ type Props = {
   renderDeficiencies?: React.ReactNode;
   /** Sprint 72 — Sign-Offs (formal GC-signed acceptance) for this area */
   renderSignoffs?: React.ReactNode;
+  /** Sprint Crew P1 — Crew tile (currently here + worked today) for this area */
+  renderCrew?: React.ReactNode;
 };
 
 export function AreaDetail({
@@ -47,6 +49,7 @@ export function AreaDetail({
   renderMessages,
   renderDeficiencies,
   renderSignoffs,
+  renderCrew,
 }: Props) {
   const [showBlockReasons, setShowBlockReasons] = useState(false);
 
@@ -275,6 +278,12 @@ export function AreaDetail({
           to fix + acceptance docs to sign) cluster together, so the foreman
           sees the whole work-to-close-out picture in one scroll. */}
       {renderSignoffs}
+
+      {/* Sprint Crew P1 — Crew tile. Goes here so a foreman/supervisor
+          walking the floor can see "who's been in this room today"
+          alongside the deficiencies + sign-offs context. Read-only;
+          re-assignment lives on the Crew screen (More → Crew). */}
+      {renderCrew}
 
       {/* Sprint 53A — Notes section. Mounted as the LAST piece of content
           per user request 2026-04-25: chat can grow long, primary actions

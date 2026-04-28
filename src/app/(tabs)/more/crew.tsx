@@ -3,15 +3,20 @@ import { Alert, Pressable, ScrollView, Text, View, ActivityIndicator } from 'rea
 import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/features/auth/store/auth-store';
+import { useProjectStore } from '@/features/projects/store/project-store';
 import { useCrew } from '@/features/crew/hooks/useCrew';
 import { useCertAlerts } from '@/features/crew/hooks/useCertAlerts';
+import { useStaleEntries } from '@/features/crew/hooks/useStaleEntries';
 import { WorkerCard } from '@/features/crew/components/WorkerCard';
 import { AreaPicker } from '@/features/crew/components/AreaPicker';
+import { CrewHistoryView } from '@/features/crew/components/CrewHistoryView';
 
 type Step = 'workers' | 'area';
+type Tab = 'today' | 'history';
 
 export default function CrewScreen() {
   const { profile } = useAuthStore();
+  const { activeProject } = useProjectStore();
   const {
     workers,
     areas,
@@ -23,11 +28,30 @@ export default function CrewScreen() {
     getAreaWorkers,
   } = useCrew();
   const { getCertSummary, hasExpiredCerts } = useCertAlerts(profile?.organization_id);
+  const stale = useStaleEntries(activeProject?.id ?? null);
 
+  const [tab, setTab] = useState<Tab>('today');
   const [step, setStep] = useState<Step>('workers');
   const [selectedWorkers, setSelectedWorkers] = useState<string[]>([]);
   const [selectedArea, setSelectedArea] = useState<string | null>(null);
   const [assigning, setAssigning] = useState(false);
+
+  const handleCloseStale = () => {
+    Alert.alert(
+      'Close stale entries',
+      `${stale.count} ${stale.count === 1 ? 'entry' : 'entries'} from before today will be capped at 8pm of the day they started. This is a one-time cleanup — proper end-of-day cron is a Web team follow-up.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Close all',
+          style: 'destructive',
+          onPress: () => {
+            stale.closeAll();
+          },
+        },
+      ],
+    );
+  };
 
   const toggleWorker = (id: string) => {
     setSelectedWorkers((prev) =>
@@ -112,41 +136,90 @@ export default function CrewScreen() {
         }}
       />
       <View className="flex-1 bg-background">
-        {/* Summary bar */}
-        <View className="flex-row items-center justify-between border-b border-border px-4 py-3">
-          <View className="flex-row items-center">
-            <Ionicons name="people" size={18} color="#F97316" />
-            <Text className="ml-2 text-base font-medium text-white">
-              {assignments.length} assigned
-            </Text>
-          </View>
-          <View className="flex-row items-center">
-            <Ionicons name="time" size={18} color="#22C55E" />
-            <Text className="ml-2 text-base font-medium text-white">
-              {todayHours.toFixed(1)}h today
-            </Text>
-          </View>
-        </View>
-
-        {/* Step indicator */}
+        {/* Top tabs — Today (workspace) / History (reporting) */}
         <View className="flex-row border-b border-border">
           <Pressable
-            onPress={() => setStep('workers')}
-            className={`flex-1 items-center py-3 ${step === 'workers' ? 'border-b-2 border-brand-orange' : ''}`}
+            onPress={() => setTab('today')}
+            className={`flex-1 items-center py-3 ${tab === 'today' ? 'border-b-2 border-brand-orange' : ''}`}
           >
-            <Text className={`text-base font-medium ${step === 'workers' ? 'text-brand-orange' : 'text-slate-400'}`}>
-              1. Select Workers
+            <Text className={`text-base font-bold ${tab === 'today' ? 'text-brand-orange' : 'text-slate-400'}`}>
+              Today
             </Text>
           </Pressable>
           <Pressable
-            onPress={() => selectedWorkers.length > 0 && setStep('area')}
-            className={`flex-1 items-center py-3 ${step === 'area' ? 'border-b-2 border-brand-orange' : ''}`}
+            onPress={() => setTab('history')}
+            className={`flex-1 items-center py-3 ${tab === 'history' ? 'border-b-2 border-brand-orange' : ''}`}
           >
-            <Text className={`text-base font-medium ${step === 'area' ? 'text-brand-orange' : 'text-slate-400'}`}>
-              2. Pick Area
+            <Text className={`text-base font-bold ${tab === 'history' ? 'text-brand-orange' : 'text-slate-400'}`}>
+              History
             </Text>
           </Pressable>
         </View>
+
+        {/* Stale entries banner — visible from both tabs (cross-cutting concern) */}
+        {stale.count > 0 ? (
+          <View className="border-b border-amber-500/40 bg-amber-500/10 px-4 py-3">
+            <View className="flex-row items-center">
+              <Ionicons name="alert-circle" size={18} color="#F59E0B" />
+              <Text className="ml-2 flex-1 text-sm font-bold text-amber-500">
+                {stale.count} {stale.count === 1 ? 'entry' : 'entries'} not closed from {stale.dayCount === 1 ? 'a previous day' : `${stale.dayCount} previous days`}
+              </Text>
+              <Pressable
+                onPress={handleCloseStale}
+                disabled={stale.closing}
+                className="rounded-lg bg-amber-500 px-3 py-1.5 active:opacity-80"
+                style={{ opacity: stale.closing ? 0.5 : 1 }}
+              >
+                <Text className="text-xs font-bold text-black">
+                  {stale.closing ? 'Closing…' : 'Close all'}
+                </Text>
+              </Pressable>
+            </View>
+            <Text className="ml-6 mt-1 text-[11px] text-amber-300">
+              Each will be capped at 8pm of the day it started.
+            </Text>
+          </View>
+        ) : null}
+
+        {tab === 'history' ? (
+          <CrewHistoryView />
+        ) : (
+          <>
+            {/* Today summary bar */}
+            <View className="flex-row items-center justify-between border-b border-border px-4 py-3">
+              <View className="flex-row items-center">
+                <Ionicons name="people" size={18} color="#F97316" />
+                <Text className="ml-2 text-base font-medium text-white">
+                  {assignments.length} assigned
+                </Text>
+              </View>
+              <View className="flex-row items-center">
+                <Ionicons name="time" size={18} color="#22C55E" />
+                <Text className="ml-2 text-base font-medium text-white">
+                  {todayHours.toFixed(1)}h today
+                </Text>
+              </View>
+            </View>
+
+            {/* Step indicator */}
+            <View className="flex-row border-b border-border">
+              <Pressable
+                onPress={() => setStep('workers')}
+                className={`flex-1 items-center py-3 ${step === 'workers' ? 'border-b-2 border-brand-orange' : ''}`}
+              >
+                <Text className={`text-base font-medium ${step === 'workers' ? 'text-brand-orange' : 'text-slate-400'}`}>
+                  1. Select Workers
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => selectedWorkers.length > 0 && setStep('area')}
+                className={`flex-1 items-center py-3 ${step === 'area' ? 'border-b-2 border-brand-orange' : ''}`}
+              >
+                <Text className={`text-base font-medium ${step === 'area' ? 'text-brand-orange' : 'text-slate-400'}`}>
+                  2. Pick Area
+                </Text>
+              </Pressable>
+            </View>
 
         {/* Content */}
         <ScrollView className="flex-1 px-4 pt-4">
@@ -233,6 +306,8 @@ export default function CrewScreen() {
             </Pressable>
           )}
         </View>
+          </>
+        )}
       </View>
     </>
   );
