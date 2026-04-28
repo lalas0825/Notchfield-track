@@ -208,6 +208,13 @@ export async function localUpdateWhere(
  * Use this for reads instead of `supabase.from(...).select(...)` when the
  * data is in a synced PowerSync table — it works fully offline and is much
  * faster than a network round-trip.
+ *
+ * Cold-start safety: PowerSync's `init()` opens the local SQLite file
+ * asynchronously. If a hook fires `localQuery` before init resolves,
+ * `getAll` would hang waiting for the DB. We gate on `ps.ready` /
+ * `waitForReady()` instead — the timeout is on the INIT (rare cold-start
+ * stall, capped at 15s), not the query itself. Once ready=true, the
+ * `if` short-circuits and successive queries run with zero overhead.
  */
 export async function localQuery<T = Record<string, unknown>>(
   sql: string,
@@ -216,13 +223,18 @@ export async function localQuery<T = Record<string, unknown>>(
   const ps = getPowerSync();
   if (!ps) return null;
   try {
-    // 3-second timeout — if PowerSync isn't ready, fall back to Supabase
-    const result = await Promise.race([
-      ps.getAll(sql, params),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('localQuery timeout')), 3000),
-      ),
-    ]);
+    if (!ps.ready) {
+      await Promise.race([
+        ps.waitForReady(),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error('localQuery: PowerSync init timeout (15s)')),
+            15000,
+          ),
+        ),
+      ]);
+    }
+    const result = await ps.getAll(sql, params);
     return result as T[];
   } catch (err) {
     console.warn('[localQuery] error:', err);
