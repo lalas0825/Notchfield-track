@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { RefreshControl, ScrollView, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,6 +31,14 @@ import { TodayHeaderIcon } from '@/features/todos/components/TodayHeaderIcon';
 export default function HomeScreen() {
   const { t } = useTranslation();
   const router = useRouter();
+  // Home is the only tab whose inner Stack hides its header (intentional —
+  // the visual is a profile card + cards, not a header bar). With the
+  // outer Tabs header now also off (commit 96411b8), there's nothing
+  // pushing content below the device's status bar — pilot reported the
+  // greeting + project switcher overlapping with the time/battery icons.
+  // Pull the top inset from SafeAreaProvider (expo-router includes one
+  // by default) and add it to the ScrollView's contentContainerStyle.
+  const insets = useSafeAreaInsets();
   const profile = useAuthStore((s) => s.profile);
   const { activeProject, geofence } = useProjectStore();
   const { workers, assignments, timeEntries } = useCrewStore();
@@ -148,7 +157,8 @@ export default function HomeScreen() {
 
   return (
     <ScrollView
-      className="flex-1 bg-background px-4 pt-4"
+      className="flex-1 bg-background px-4"
+      contentContainerStyle={{ paddingTop: insets.top + 16 }}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#F97316" />
       }
