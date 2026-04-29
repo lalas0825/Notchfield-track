@@ -6,6 +6,7 @@ import { useAuthStore } from '@/features/auth/store/auth-store';
 import { useTrackPermissions } from '@/shared/lib/permissions/TrackPermissionsContext';
 import { normalizeTrackRole, type TrackFeature } from '@/shared/lib/permissions/trackPermissions';
 import { FeedbackModal } from '@/shared/components/FeedbackModal';
+import { Avatar } from '@/shared/components/Avatar';
 
 type MenuItem = {
   icon: keyof typeof Ionicons.glyphMap;
@@ -114,6 +115,16 @@ export default function MoreScreen() {
       route: '/(tabs)/more/my-reports',
       color: '#A855F7',
     },
+    // Smart construction calculator — mixed-unit parser + 17 helpers
+    // (grout, thinset, sealer, area, geometry, time). Universal across
+    // roles. Also reachable as a floating button on the Plans tab.
+    {
+      icon: 'calculator',
+      label: 'Calculator',
+      subtitle: 'Mixed units + grout / thinset / area helpers',
+      route: '/(tabs)/more/calculator',
+      color: '#F97316',
+    },
     {
       icon: 'settings',
       label: 'Settings',
@@ -152,13 +163,13 @@ export default function MoreScreen() {
     <>
     <Stack.Screen options={{ title: 'More' }} />
     <ScrollView className="flex-1 bg-background px-4 pt-4">
-      {/* Profile card */}
+      {/* Profile card — Sprint 73B avatar replaces hardcoded initials */}
       <View className="mb-6 items-center rounded-2xl border border-border bg-card px-4 py-5">
-        <View className="h-16 w-16 items-center justify-center rounded-full bg-brand-orange">
-          <Text className="text-2xl font-bold text-white">
-            {profile?.full_name?.charAt(0)?.toUpperCase() ?? '?'}
-          </Text>
-        </View>
+        <Avatar
+          name={profile?.full_name ?? '?'}
+          imageUrl={profile?.avatar_url}
+          size="lg"
+        />
         <Text className="mt-3 text-lg font-bold text-white">
           {profile?.full_name ?? 'User'}
         </Text>

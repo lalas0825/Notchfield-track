@@ -14,16 +14,72 @@ import { Stack, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { deleteMyAccount } from '@/features/account/services/account-service';
+import { Avatar } from '@/shared/components/Avatar';
+import {
+  pickAndUploadAvatar,
+  removeAvatar,
+  avatarErrorMessage,
+} from '@/features/auth/services/avatar-service';
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { profile, user, signOut } = useAuthStore();
+  const { profile, user, signOut, fetchProfile } = useAuthStore();
   const [showDelete, setShowDelete] = useState(false);
   const [confirmText, setConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [avatarBusy, setAvatarBusy] = useState(false);
 
   const CONFIRM_PHRASE = 'DELETE';
   const canConfirm = confirmText.trim() === CONFIRM_PHRASE;
+
+  const handleChangeAvatar = async () => {
+    if (!user || avatarBusy) return;
+    setAvatarBusy(true);
+    try {
+      const result = await pickAndUploadAvatar(user.id);
+      if (!result.success) {
+        const msg = avatarErrorMessage(result.error);
+        if (msg) Alert.alert('Could not update photo', msg);
+        return;
+      }
+      // Refresh profile so the new avatar_url propagates to all
+      // mounted <Avatar> instances (top-bar, More card, etc).
+      await fetchProfile(user.id);
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
+
+  const handleRemoveAvatar = () => {
+    if (!user || avatarBusy) return;
+    Alert.alert(
+      'Remove profile photo?',
+      'You\'ll go back to showing your initial.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            setAvatarBusy(true);
+            try {
+              const result = await removeAvatar(user.id);
+              if (!result.success) {
+                Alert.alert(
+                  'Could not remove photo',
+                  avatarErrorMessage(result.error),
+                );
+                return;
+              }
+              await fetchProfile(user.id);
+            } finally {
+              setAvatarBusy(false);
+            }
+          },
+        },
+      ],
+    );
+  };
 
   const performDelete = async () => {
     if (!canConfirm || deleting) return;
@@ -62,6 +118,51 @@ export default function SettingsScreen() {
           <Text className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500">
             Profile
           </Text>
+
+          {/* Avatar block — Sprint 73B */}
+          <View className="mb-4 items-center">
+            <Avatar
+              name={profile?.full_name ?? '?'}
+              imageUrl={profile?.avatar_url}
+              size="xl"
+            />
+            <View className="mt-3 flex-row gap-2">
+              <Pressable
+                onPress={handleChangeAvatar}
+                disabled={avatarBusy}
+                className="h-9 flex-row items-center rounded-lg border border-border bg-background px-3 active:opacity-80"
+                style={{ opacity: avatarBusy ? 0.5 : 1 }}
+              >
+                {avatarBusy ? (
+                  <ActivityIndicator color="#94A3B8" size="small" />
+                ) : (
+                  <>
+                    <Ionicons name="camera" size={14} color="#F97316" />
+                    <Text className="ml-1.5 text-sm font-medium text-white">
+                      {profile?.avatar_url ? 'Change photo' : 'Upload photo'}
+                    </Text>
+                  </>
+                )}
+              </Pressable>
+              {profile?.avatar_url ? (
+                <Pressable
+                  onPress={handleRemoveAvatar}
+                  disabled={avatarBusy}
+                  className="h-9 flex-row items-center rounded-lg border border-border bg-background px-3 active:opacity-80"
+                  style={{ opacity: avatarBusy ? 0.5 : 1 }}
+                >
+                  <Ionicons name="trash-outline" size={14} color="#EF4444" />
+                  <Text className="ml-1.5 text-sm font-medium text-danger">
+                    Remove
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
+            <Text className="mt-2 text-xs text-slate-500">
+              JPG, PNG or WebP. Max 5 MB.
+            </Text>
+          </View>
+
           <Row label="Name" value={profile?.full_name ?? '—'} />
           <Row label="Email" value={user?.email ?? '—'} />
           <Row label="Role" value={profile?.role ?? '—'} capitalize />
