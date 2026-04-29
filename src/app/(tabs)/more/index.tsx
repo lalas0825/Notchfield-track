@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { useTrackPermissions } from '@/shared/lib/permissions/TrackPermissionsContext';
@@ -139,6 +139,7 @@ export default function MoreScreen() {
 
   return (
     <>
+    <Stack.Screen options={{ title: 'More' }} />
     <ScrollView className="flex-1 bg-background px-4 pt-4">
       {/* Profile card */}
       <View className="mb-6 items-center rounded-2xl border border-border bg-card px-4 py-5">

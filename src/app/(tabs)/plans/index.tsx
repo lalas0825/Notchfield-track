@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useDrawings, type Drawing } from '@/features/plans/hooks/useDrawings';
 
@@ -37,6 +37,7 @@ export default function PlansScreen() {
 
   return (
     <View className="flex-1 bg-background">
+      <Stack.Screen options={{ title: 'Plans' }} />
       {/* Header */}
       <View className="border-b border-border px-4 pb-3 pt-2">
         <Text className="text-sm text-slate-400">

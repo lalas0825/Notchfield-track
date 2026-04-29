@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafetyDocs } from '@/features/safety/hooks/useSafetyDocs';
 import { DOC_TYPE_LABELS } from '@/features/safety/types/schemas';
@@ -32,6 +32,7 @@ export default function DocsScreen() {
 
   return (
     <View className="flex-1 bg-background">
+      <Stack.Screen options={{ title: 'Safety' }} />
       {loading ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color="#F97316" />

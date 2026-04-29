@@ -32,6 +32,15 @@ export default function TabsLayout() {
         tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
         headerStyle: { backgroundColor: '#0F172A' },
         headerTintColor: '#F8FAFC',
+        // Each tab folder ships its own Stack (board/_layout.tsx,
+        // more/_layout.tsx, etc.) which manages headers + back buttons
+        // for nested screens. The outer Tabs header rendering at the
+        // same time was double-stacking and visually swallowing the
+        // Stack's back arrow on More — pilot reported "si estoy dentro
+        // de un tab no tengo como regresar" 2026-04-29. Hide the outer
+        // Tabs header globally; let each Stack's headers be the sole
+        // source of titles + back navigation.
+        headerShown: false,
       }}
     >
       <Tabs.Screen
