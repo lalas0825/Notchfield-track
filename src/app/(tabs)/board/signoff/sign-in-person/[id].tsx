@@ -33,6 +33,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SignaturePad } from '@/features/safety/components/SignaturePad';
 import { localQuery } from '@/shared/lib/powersync/write';
 import { signInPersonViaWeb } from '@/features/signoffs/services/signoffApiClient';
+import { logger } from '@/shared/lib/logger';
 import { rowToSignoff } from '@/features/signoffs/hooks/useOrgSignoffs';
 import type { SignoffDocument } from '@/features/signoffs/types';
 import { haptic } from '@/shared/lib/haptics';
@@ -122,7 +123,19 @@ export default function SignSignoffInPersonScreen() {
         ],
       );
     } catch (err) {
-      const msg = (err as Error).message ?? 'Unknown error';
+      // Surface the full error chain to logs so we can debug pilot reports
+      // — the inline `Alert.alert(msg)` only shows the user-facing message,
+      // but the underlying status code + URL + detail are on the err object
+      // (added by signoffApiClient.postJson).
+      const e = err as Error & { status?: number; detail?: string; url?: string };
+      logger.warn('[signoff:sign-in-person] submit failed', {
+        message: e.message,
+        status: e.status,
+        url: e.url,
+        detail: e.detail,
+      });
+
+      const msg = e.message ?? 'Unknown error';
       if (
         msg.toLowerCase().includes('network') ||
         msg.toLowerCase().includes('failed to fetch') ||
@@ -133,7 +146,10 @@ export default function SignSignoffInPersonScreen() {
           'Signing requires an active internet connection to upload the signature. Please reconnect and try again.',
         );
       } else {
-        Alert.alert('Signing failed', msg);
+        // Include status code in the alert so pilots can copy/paste
+        // it when reporting bugs — saves a debug round-trip.
+        const title = e.status ? `Signing failed (${e.status})` : 'Signing failed';
+        Alert.alert(title, msg);
       }
     } finally {
       setSubmitting(false);

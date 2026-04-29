@@ -28,7 +28,6 @@ import { localQuery } from '@/shared/lib/powersync/write';
 import { rowToSignoff } from '@/features/signoffs/hooks/useOrgSignoffs';
 import { useSignoffAreas } from '@/features/signoffs/hooks/useSignoffAreas';
 import { SendForSignatureModal } from '@/features/signoffs/components/SendForSignatureModal';
-import { WEB_API_URL } from '@/shared/config/urls';
 import type { SignoffDocStatus, SignoffDocument } from '@/features/signoffs/types';
 
 const STATUS_COLOR: Record<SignoffDocStatus, string> = {
@@ -116,25 +115,20 @@ export default function SignoffDetailScreen() {
     if (signoff.pdf_url) await Linking.openURL(signoff.pdf_url);
   };
   /**
-   * Polish R2 — Preview formal PDF. The Web endpoint is token-gated:
-   *   GET /api/sign/signoff/{token}/preview-pdf
-   * The token is generated on send. For drafts (no token yet) we fall back
-   * to a friendly hint. After send, the token is on signoff but Track only
-   * has it via realtime — for now, link via the doc id and let the server
-   * resolve. If signoff is signed already, the endpoint redirects to the
-   * signed PDF URL automatically.
+   * Polish R2 Preview-formal-PDF removed for drafts/pending: the Web
+   * endpoint is `/api/sign/signoff/{token}/preview-pdf` which needs the
+   * public sign token (generated on Send and stored in document_signoffs
+   * — a table Track doesn't currently sync). Hardcoding the doc id as a
+   * token-position param produced a blank page (pilot reported
+   * 2026-04-29).
+   *
+   * For now: only show the signed PDF when status='signed' and pdf_url
+   * is populated. For drafts/pending, the Send button generates and
+   * emails the formal PDF directly; the foreman doesn't need a separate
+   * preview surface. Re-enable when Web ships either:
+   *   - A bearer-auth preview-by-doc-id endpoint, or
+   *   - A way to expose document_signoffs.token to Track (sync rule).
    */
-  const handlePreviewPdf = async () => {
-    if (signoff.pdf_url) {
-      await Linking.openURL(signoff.pdf_url);
-      return;
-    }
-    // No token surfaced to Track yet — defer. When Web exposes a Bearer-auth
-    // preview endpoint for creators (not just public-token), wire it here.
-    await Linking.openURL(
-      `${WEB_API_URL}/api/sign/signoff/${signoff.id}/preview-pdf`,
-    );
-  };
 
   return (
     <ScrollView style={ScreenWrap} contentContainerStyle={{ padding: 16 }}>
@@ -301,24 +295,14 @@ export default function SignoffDetailScreen() {
               <Ionicons name="create" size={20} color="#F97316" />
               <Text style={SecondaryBtnText}>Sign in Person</Text>
             </Pressable>
-            <Pressable onPress={handlePreviewPdf} style={GhostBtn}>
-              <Ionicons name="document-outline" size={18} color="#94A3B8" />
-              <Text style={GhostBtnText}>Preview formal PDF</Text>
-            </Pressable>
           </>
         ) : null}
 
         {signoff.status === 'pending_signature' ? (
-          <>
-            <Pressable onPress={handleSignInPerson} style={PrimaryBtn}>
-              <Ionicons name="create" size={20} color="#FFFFFF" />
-              <Text style={PrimaryBtnText}>Sign in Person</Text>
-            </Pressable>
-            <Pressable onPress={handlePreviewPdf} style={GhostBtn}>
-              <Ionicons name="document-outline" size={18} color="#94A3B8" />
-              <Text style={GhostBtnText}>Preview formal PDF</Text>
-            </Pressable>
-          </>
+          <Pressable onPress={handleSignInPerson} style={PrimaryBtn}>
+            <Ionicons name="create" size={20} color="#FFFFFF" />
+            <Text style={PrimaryBtnText}>Sign in Person</Text>
+          </Pressable>
         ) : null}
 
         {signoff.status === 'signed' && signoff.pdf_url ? (
@@ -444,21 +428,6 @@ const SecondaryBtnText = {
   color: '#F97316',
   fontSize: 16,
   fontWeight: '700' as const,
-};
-
-const GhostBtn = {
-  height: 44,
-  borderRadius: 10,
-  flexDirection: 'row' as const,
-  alignItems: 'center' as const,
-  justifyContent: 'center' as const,
-  gap: 6,
-};
-
-const GhostBtnText = {
-  color: '#94A3B8',
-  fontSize: 14,
-  fontWeight: '600' as const,
 };
 
 const InfoBox = {

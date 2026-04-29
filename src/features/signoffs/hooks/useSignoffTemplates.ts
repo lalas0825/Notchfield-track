@@ -148,6 +148,28 @@ export function useSignoffTemplates() {
       if (!byId.has(t.id)) byId.set(t.id, t);
     }
 
+    // Fallback: if local SQLite has zero rows (PowerSync sync rules
+    // for signoff_templates / signoff_templates_global may not be
+    // deployed in this env yet, OR the user signed in for the first
+    // time and the bucket hasn't downloaded), fetch direct from
+    // Supabase. Pilot reported "library is empty" 2026-04-29 — most
+    // likely cause was the Sprint 72 sync rules not deployed to Prod.
+    if (byId.size === 0) {
+      const { data, error } = await supabase
+        .from('signoff_templates')
+        .select('*')
+        .eq('active', true)
+        .or(`organization_id.eq.${orgId},organization_id.is.null`)
+        .order('trade')
+        .order('name');
+      if (!error && data) {
+        for (const row of data) {
+          const t = rowToTemplate(row as RawRow);
+          if (!byId.has(t.id)) byId.set(t.id, t);
+        }
+      }
+    }
+
     if (mountedRef.current) {
       setTemplates([...byId.values()]);
       setPrimaryTrades(primary);
