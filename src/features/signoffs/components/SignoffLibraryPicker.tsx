@@ -63,7 +63,7 @@ const STATUS_AFTER_LABEL: Record<string, string> = {
 };
 
 export function SignoffLibraryPicker({ visible, onClose, onPick }: Props) {
-  const { byTrade, loading } = useSignoffTemplates();
+  const { byTrade, loading, error, source, reload } = useSignoffTemplates();
   const [query, setQuery] = useState('');
 
   const filteredByTrade = useMemo(() => {
@@ -188,8 +188,57 @@ export function SignoffLibraryPicker({ visible, onClose, onPick }: Props) {
                 >
                   {query
                     ? 'No templates match your search.'
-                    : 'No sign-off templates available for your trades.'}
+                    : 'No templates loaded yet.'}
                 </Text>
+                {!query ? (
+                  <>
+                    <Text
+                      style={{
+                        color: '#64748B',
+                        marginTop: 8,
+                        fontSize: 12,
+                        textAlign: 'center',
+                      }}
+                    >
+                      Tap Retry to refetch from the server. If still empty,
+                      sign out and back in to refresh local data.
+                    </Text>
+                    {error ? (
+                      <Text
+                        style={{
+                          color: '#FCA5A5',
+                          marginTop: 12,
+                          fontSize: 11,
+                          textAlign: 'center',
+                        }}
+                        numberOfLines={3}
+                      >
+                        Error: {error}
+                      </Text>
+                    ) : null}
+                    <Pressable
+                      onPress={() => {
+                        reload();
+                      }}
+                      style={{
+                        marginTop: 16,
+                        paddingHorizontal: 18,
+                        paddingVertical: 10,
+                        borderRadius: 10,
+                        borderWidth: 1,
+                        borderColor: '#F97316',
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 6,
+                      }}
+                    >
+                      <Ionicons name="refresh" size={16} color="#F97316" />
+                      <Text style={{ color: '#F97316', fontSize: 14, fontWeight: '700' }}>
+                        Retry
+                      </Text>
+                    </Pressable>
+                  </>
+                ) : null}
               </View>
             ) : (
               trades.map((trade) => (

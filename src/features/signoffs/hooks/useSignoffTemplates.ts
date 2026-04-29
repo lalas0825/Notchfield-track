@@ -16,6 +16,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { localQuery } from '@/shared/lib/powersync/write';
 import { supabase } from '@/shared/lib/supabase/client';
+import { logger } from '@/shared/lib/logger';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import {
   filterTemplatesByPrimaryTrades,
@@ -100,6 +101,8 @@ export function useSignoffTemplates() {
   const [templates, setTemplates] = useState<SignoffTemplate[]>([]);
   const [primaryTrades, setPrimaryTrades] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [source, setSource] = useState<'local' | 'supabase' | 'empty'>('empty');
 
   const mountedRef = useRef(true);
   useEffect(() => {
@@ -115,9 +118,13 @@ export function useSignoffTemplates() {
         setTemplates([]);
         setPrimaryTrades([]);
         setLoading(false);
+        setError(null);
+        setSource('empty');
       }
       return;
     }
+
+    setError(null);
 
     const [orgRows, globalRows, primary] = await Promise.all([
       localQuery<RawRow>(
@@ -148,31 +155,57 @@ export function useSignoffTemplates() {
       if (!byId.has(t.id)) byId.set(t.id, t);
     }
 
+    let dataSource: 'local' | 'supabase' | 'empty' = byId.size > 0 ? 'local' : 'empty';
+
     // Fallback: if local SQLite has zero rows (PowerSync sync rules
     // for signoff_templates / signoff_templates_global may not be
     // deployed in this env yet, OR the user signed in for the first
     // time and the bucket hasn't downloaded), fetch direct from
     // Supabase. Pilot reported "library is empty" 2026-04-29 — most
-    // likely cause was the Sprint 72 sync rules not deployed to Prod.
+    // likely cause was the user's local SQLite missing the new schema
+    // after Sprint 72 (PowerSync doesn't auto-create tables on schema
+    // updates, only on fresh init). Sign-out + sign-in is the proper
+    // fix; this fallback is the unblock-pilot escape hatch.
     if (byId.size === 0) {
-      const { data, error } = await supabase
-        .from('signoff_templates')
-        .select('*')
-        .eq('active', true)
-        .or(`organization_id.eq.${orgId},organization_id.is.null`)
-        .order('trade')
-        .order('name');
-      if (!error && data) {
-        for (const row of data) {
+      logger.warn('[useSignoffTemplates] local empty, falling back to Supabase');
+      try {
+        // Use TWO separate queries instead of .or — avoids any quirky
+        // PostgREST string parsing on UUID values inside the .or filter.
+        const [orgRes, globalRes] = await Promise.all([
+          supabase
+            .from('signoff_templates')
+            .select('*')
+            .eq('active', true)
+            .eq('organization_id', orgId),
+          supabase
+            .from('signoff_templates')
+            .select('*')
+            .eq('active', true)
+            .is('organization_id', null),
+        ]);
+        if (orgRes.error) throw orgRes.error;
+        if (globalRes.error) throw globalRes.error;
+        for (const row of [...(orgRes.data ?? []), ...(globalRes.data ?? [])]) {
           const t = rowToTemplate(row as RawRow);
           if (!byId.has(t.id)) byId.set(t.id, t);
         }
+        if (byId.size > 0) {
+          dataSource = 'supabase';
+          logger.warn('[useSignoffTemplates] Supabase fallback returned', byId.size);
+        } else {
+          logger.warn('[useSignoffTemplates] Supabase fallback also returned empty');
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'unknown';
+        logger.warn('[useSignoffTemplates] Supabase fallback failed', msg);
+        if (mountedRef.current) setError(msg);
       }
     }
 
     if (mountedRef.current) {
       setTemplates([...byId.values()]);
       setPrimaryTrades(primary);
+      setSource(dataSource);
       setLoading(false);
     }
   }, [orgId]);
@@ -213,6 +246,8 @@ export function useSignoffTemplates() {
     primaryTrades,
     byTrade,
     loading,
+    error,
+    source,
     reload,
   };
 }
