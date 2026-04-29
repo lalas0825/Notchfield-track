@@ -28,9 +28,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
-  KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   Text,
@@ -271,7 +269,17 @@ export function CreateSignoffModal({
         onPick={onPickTemplate}
       />
 
-      {/* Step 2+ — main modal */}
+      {/* Step 2+ — main modal.
+          KeyboardAvoidingView removed 2026-04-29 after pilot reported the
+          screen flickering on keyboard dismiss. Root cause: KAV with
+          behavior='height' on Android shrinks its container by keyboard
+          height during keyboard animation. The sheet's `height: '92%'`
+          recomputed against the live-shrinking KAV parent, oscillating
+          per frame. Same bug at maxHeight too — any percentage-based
+          sheet height inside a KAV-managed parent will thrash.
+          ScrollView with keyboardShouldPersistTaps='handled' handles
+          input visibility natively (cursor stays visible above keyboard
+          via Android's softInput resize behavior). */}
       <Modal
         visible={visible && mode !== 'pick'}
         transparent
@@ -279,18 +287,14 @@ export function CreateSignoffModal({
         onRequestClose={closeIfNotBusy}
         statusBarTranslucent
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={{ flex: 1 }}
+        <Pressable
+          onPress={closeIfNotBusy}
+          style={{
+            flex: 1,
+            justifyContent: 'flex-end',
+            backgroundColor: 'rgba(0,0,0,0.6)',
+          }}
         >
-          <Pressable
-            onPress={closeIfNotBusy}
-            style={{
-              flex: 1,
-              justifyContent: 'flex-end',
-              backgroundColor: 'rgba(0,0,0,0.6)',
-            }}
-          >
             <Pressable
               onPress={() => {}}
               style={{
@@ -299,14 +303,6 @@ export function CreateSignoffModal({
                 borderTopRightRadius: 24,
                 borderTopWidth: 1,
                 borderColor: '#334155',
-                // Fixed height instead of maxHeight: with maxHeight + KAV
-                // behavior='height' on Android, the sheet recalculated its
-                // size against KAV's shrinking parent during keyboard
-                // animations and oscillated rapidly when the keyboard
-                // dismissed. Pilot reported "screen flickering fast".
-                // Fixed height locks the sheet; the inner ScrollView
-                // handles overflow and KAV's padding behavior pushes
-                // content above the keyboard without resizing the sheet.
                 height: '92%',
               }}
             >
@@ -355,8 +351,7 @@ export function CreateSignoffModal({
                 )}
               </ScrollView>
             </Pressable>
-          </Pressable>
-        </KeyboardAvoidingView>
+        </Pressable>
       </Modal>
     </>
   );
