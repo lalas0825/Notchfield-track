@@ -26,7 +26,7 @@ export default function CrewScreen() {
     assignments,
     todayHours,
     assignWorker,
-    endDay,
+    endShift,
     getWorkerAssignment,
     getAreaWorkers,
   } = useCrew();
@@ -137,17 +137,25 @@ export default function CrewScreen() {
     runAssignLoop();
   };
 
-  const handleEndDay = () => {
+  /**
+   * Sprint 73 Payroll Ask #1 — "End Shift" foreman-scoped close.
+   * Renamed from "End Day" + switched from project-wide to foreman-scoped:
+   * closes only THIS foreman's open entries + assignments. Lets multi-
+   * foreman projects co-exist without one foreman accidentally closing
+   * another's crew. Critical for clean payroll data — see
+   * SPRINT_TRACK_PAYROLL.md Ask #1.
+   */
+  const handleEndShift = () => {
     Alert.alert(
-      'End Day',
-      'Close all time entries and clear assignments? This cannot be undone.',
+      'End Shift',
+      "Close all your crew's open time entries for today? Each worker's hours are saved to payroll. This cannot be undone.",
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'End Day',
+          text: 'End Shift',
           style: 'destructive',
           onPress: async () => {
-            await endDay();
+            await endShift();
           },
         },
       ],
@@ -333,11 +341,11 @@ export default function CrewScreen() {
 
           {step === 'workers' && selectedWorkers.length === 0 && assignments.length > 0 && (
             <Pressable
-              onPress={handleEndDay}
+              onPress={handleEndShift}
               className="h-14 flex-row items-center justify-center rounded-xl border border-danger active:opacity-80"
             >
               <Ionicons name="moon" size={20} color="#EF4444" />
-              <Text className="ml-2 text-lg font-bold text-danger">End Day</Text>
+              <Text className="ml-2 text-lg font-bold text-danger">End Shift</Text>
             </Pressable>
           )}
         </View>

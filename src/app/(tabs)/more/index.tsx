@@ -80,6 +80,17 @@ export default function MoreScreen() {
       color: '#3B82F6',
       supervisorOnly: true,
     },
+    // Sprint 73 Payroll Ask #4 — Foreman Weekly Timesheet. Replaces the
+    // paper sheet workflow at end of week. Saturday 8AM push from Web
+    // also deep-links here. Available to all foremen (and supervisors,
+    // who may want to review their own crew's hours if they pitched in).
+    {
+      icon: 'time',
+      label: 'Weekly Timesheet',
+      subtitle: 'Review + submit your crew\'s hours',
+      route: '/(tabs)/more/timesheet',
+      color: '#22C55E',
+    },
     // Sprint 72 — Sign-Offs: formal GC-signed acceptance docs across the
     // org. PM/Supervisor primary surface — list view with status filter
     // pills, tap row → detail with Send / In-Person / Preview PDF actions.

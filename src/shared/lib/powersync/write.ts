@@ -163,25 +163,47 @@ export async function localDeleteWhere(
 
 /**
  * Update rows matching a WHERE clause (for batch updates like end-of-day).
+ *
+ * `extraWhere` accepts either:
+ *   - `{ column, isNull: true }` for a `column IS NULL` predicate (legacy shape)
+ *   - `{ column, equals: value }` for a `column = value` predicate (Sprint 73 —
+ *     foreman-scoped end-shift needs `assigned_by = foremanUserId` on top of
+ *     `project_id = X` and `ended_at IS NULL`)
+ *
+ * Multiple `extraWhere` clauses can be passed as an array.
  */
+type ExtraWhere =
+  | { column: string; isNull: true }
+  | { column: string; equals: unknown };
+
 export async function localUpdateWhere(
   table: string,
   data: Record<string, unknown>,
   whereColumn: string,
   whereValue: unknown,
-  extraWhere?: { column: string; isNull: boolean },
+  extraWhere?: ExtraWhere | ExtraWhere[],
 ): Promise<{ success: boolean; error?: string }> {
   const ps = getPowerSync();
   if (ps) {
     try {
       const entries = Object.entries(data).filter(([_, v]) => v !== undefined);
       const setClause = entries.map(([k]) => `${k} = ?`).join(', ');
-      const values = entries.map(([_, v]) => v ?? null);
+      const values: unknown[] = entries.map(([_, v]) => v ?? null);
       values.push(whereValue as any);
 
       let sql = `UPDATE ${table} SET ${setClause} WHERE ${whereColumn} = ?`;
-      if (extraWhere?.isNull) {
-        sql += ` AND ${extraWhere.column} IS NULL`;
+      const extras = extraWhere
+        ? Array.isArray(extraWhere)
+          ? extraWhere
+          : [extraWhere]
+        : [];
+      for (const w of extras) {
+        if ('isNull' in w && w.isNull) {
+          sql += ` AND ${w.column} IS NULL`;
+        } else if ('equals' in w) {
+          sql += ` AND ${w.column} = ?`;
+          values.push(w.equals);
+        }
       }
 
       await ps.execute(sql, values);
@@ -193,8 +215,17 @@ export async function localUpdateWhere(
 
   // Web fallback
   let query = supabase.from(table).update(data).eq(whereColumn, whereValue as string);
-  if (extraWhere?.isNull) {
-    query = query.is(extraWhere.column, null);
+  const extras = extraWhere
+    ? Array.isArray(extraWhere)
+      ? extraWhere
+      : [extraWhere]
+    : [];
+  for (const w of extras) {
+    if ('isNull' in w && w.isNull) {
+      query = query.is(w.column, null);
+    } else if ('equals' in w) {
+      query = query.eq(w.column, w.equals as string);
+    }
   }
   const { error } = await query;
   if (error) return { success: false, error: error.message };

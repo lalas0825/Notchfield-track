@@ -43,6 +43,7 @@ export function useCrew() {
   const fetchTodayTimeEntries = useCrewStore((s) => s.fetchTodayTimeEntries);
   const storeAssignWorker = useCrewStore((s) => s.assignWorker);
   const storeEndDay = useCrewStore((s) => s.endDay);
+  const storeEndShift = useCrewStore((s) => s.endShift);
   const getWorkerAssignment = useCrewStore((s) => s.getWorkerAssignment);
   const getAreaWorkers = useCrewStore((s) => s.getAreaWorkers);
 
@@ -89,6 +90,14 @@ export function useCrew() {
     await storeEndDay(activeProject.id, profile.organization_id, user.id);
   }, [user, profile, activeProject, storeEndDay]);
 
+  /** Sprint 73 Payroll Ask #1 — foreman-scoped close. Closes only this
+   * foreman's open entries + assignments on the active project. Use this
+   * for the "End Shift" button instead of endDay (which is project-wide). */
+  const endShift = useCallback(async () => {
+    if (!user || !profile || !activeProject) return;
+    await storeEndShift(activeProject.id, profile.organization_id, user.id);
+  }, [user, profile, activeProject, storeEndShift]);
+
   // Calculate today's total hours — memoized so it doesn't recompute on
   // unrelated re-renders. Recalc when timeEntries changes.
   const todayHours = useMemo(
@@ -113,6 +122,7 @@ export function useCrew() {
     loading,
     assignWorker,
     endDay,
+    endShift,
     reload,
     todayHours,
     getWorkerAssignment,

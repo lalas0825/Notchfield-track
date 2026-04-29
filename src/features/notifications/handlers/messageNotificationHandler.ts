@@ -123,6 +123,21 @@ export function handleNotificationResponse(response: NotificationResponse) {
     return;
   }
 
+  // Sprint 73 Payroll Ask #4 — Saturday 8AM push from Web's Friday 23:59
+  // cron ("Confirma horas de la semana"). Drops the foreman directly on
+  // their weekly timesheet for review + submit. Web's notification kind
+  // is `payroll_weekly_due` per the handoff spec.
+  if (data.kind === 'payroll_weekly_due' || data.entity_type === 'foreman_submission') {
+    setTimeout(() => {
+      try {
+        router.push('/(tabs)/more/timesheet' as any);
+      } catch (e) {
+        logger.warn('[Push] timesheet deep-link failed', e);
+      }
+    }, 50);
+    return;
+  }
+
   // Generic entity fallback (mirrors deficiency case above).
   if (data.entity_type === 'signoff' && data.entity_id) {
     setTimeout(() => {

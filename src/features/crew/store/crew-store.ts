@@ -59,6 +59,12 @@ type CrewActions = {
     workerRole?: string;
   }) => Promise<{ success: boolean; error?: string }>;
   endDay: (projectId: string, organizationId: string, closedBy: string) => Promise<void>;
+  /** Sprint 73 Payroll Ask #1 — foreman-scoped close. Sets ended_at=now()
+   * on all open area_time_entries where assigned_by = foremanUserId (i.e.
+   * only this foreman's crew, not the whole project). Used for the
+   * "End Shift" button so a foreman doesn't accidentally close another
+   * foreman's open entries on multi-foreman projects. */
+  endShift: (projectId: string, organizationId: string, foremanUserId: string) => Promise<void>;
   getWorkerAssignment: (workerId: string) => Assignment | undefined;
   getAreaWorkers: (areaId: string) => Worker[];
 };
@@ -284,6 +290,57 @@ export const useCrewStore = create<CrewState & CrewActions>((set, get) => ({
 
     haptic.heavy();
     logger.info('[Crew] Day ended — all entries closed');
+  },
+
+  /**
+   * Sprint 73 Payroll Ask #1 — foreman-scoped end-of-shift close.
+   * Closes only entries assigned by the calling foreman, not the entire
+   * project. Lets multi-foreman projects safely have each foreman close
+   * their own crew without stepping on others. Also clears the foreman's
+   * own assignments (so the Today tab reflects the day done) but leaves
+   * other foremen's assignments untouched.
+   */
+  endShift: async (projectId, organizationId, foremanUserId) => {
+    const now = new Date().toISOString();
+
+    // Close foreman's own open time entries on this project. This is the
+    // EXACT SQL the SPRINT_TRACK_PAYROLL handoff doc requested:
+    //   UPDATE area_time_entries
+    //     SET ended_at = now()
+    //   WHERE ended_at IS NULL
+    //     AND assigned_by = <foreman>
+    //     AND project_id = <project>
+    await localUpdateWhere(
+      'area_time_entries',
+      { ended_at: now },
+      'project_id',
+      projectId,
+      [
+        { column: 'ended_at', isNull: true },
+        { column: 'assigned_by', equals: foremanUserId },
+      ],
+    );
+
+    // Clear foreman's own crew_assignments rows; keep other foremen's.
+    // localDeleteWhere only takes one filter, so fetch matching ids
+    // (filtered by assigned_by + project_id + organization_id) and
+    // delete by id. Cheap — foreman typically has 1-10 active rows.
+    const myRows = await localQuery<{ id: string }>(
+      `SELECT id FROM crew_assignments
+         WHERE project_id = ?
+           AND organization_id = ?
+           AND assigned_by = ?`,
+      [projectId, organizationId, foremanUserId],
+    );
+    for (const row of myRows ?? []) {
+      await localDelete('crew_assignments', row.id);
+    }
+
+    await get().fetchAssignments(projectId, organizationId);
+    await get().fetchTodayTimeEntries(projectId, organizationId);
+
+    haptic.heavy();
+    logger.info(`[Crew] Shift ended — closed ${myRows?.length ?? 0} of foreman's entries`);
   },
 
   getWorkerAssignment: (workerId) => {
