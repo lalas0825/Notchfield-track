@@ -8,7 +8,9 @@
  * Offline-first: all reads via PowerSync localQuery, writes via localUpdate.
  */
 
+import * as LegacyFileSystem from 'expo-file-system/legacy';
 import { supabase } from '@/shared/lib/supabase/client';
+import { logger } from '@/shared/lib/logger';
 import { localQuery, localUpdate } from '@/shared/lib/powersync/write';
 
 export type GcPunchStatus = 'open' | 'in_progress' | 'ready_for_review' | 'closed';
@@ -175,22 +177,38 @@ export async function uploadResolutionPhoto(params: {
 }): Promise<string> {
   const { localUri, organizationId, itemId } = params;
   try {
-    const ext = localUri.split('.').pop() ?? 'jpg';
+    const ext = (localUri.split('.').pop() ?? 'jpg').toLowerCase();
     const filename = `${organizationId}/punch/${itemId}/${Date.now()}.${ext}`;
 
-    const response = await fetch(localUri);
-    const blob = await response.blob();
+    // 2026-04-29 — Switched off `fetch(localUri).blob()` to base64 +
+    // ArrayBuffer per photo-worker.ts:140 pattern. fetch+blob produced
+    // empty/zero-byte uploads silently on Android RN with cache:// URIs.
+    // Same fix in signoffPhotos + deficiencyPhotos.
+    const base64 = await LegacyFileSystem.readAsStringAsync(localUri, {
+      encoding: LegacyFileSystem.EncodingType.Base64,
+    });
+    const binaryString = atob(base64);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
 
     const { data, error } = await supabase.storage
       .from('field-photos')
-      .upload(filename, blob, { contentType: 'image/jpeg', upsert: false });
+      .upload(filename, bytes.buffer, {
+        contentType: ext === 'png' ? 'image/png' : 'image/jpeg',
+        upsert: false,
+      });
 
-    if (error || !data) return localUri;
+    if (error || !data) {
+      logger.warn('[gc-punch] resolution photo upload failed, using localUri', error);
+      return localUri;
+    }
 
     const { data: urlData } = supabase.storage.from('field-photos').getPublicUrl(filename);
     return urlData.publicUrl;
-  } catch {
-    // Offline — return local URI; server will handle upload on push
+  } catch (e) {
+    logger.warn('[gc-punch] resolution photo upload exception, using localUri', e);
     return localUri;
   }
 }

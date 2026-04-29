@@ -18,6 +18,7 @@
  *     bucket folder.
  */
 
+import * as LegacyFileSystem from 'expo-file-system/legacy';
 import { supabase } from '@/shared/lib/supabase/client';
 import { generateUUID } from '@/shared/lib/powersync/write';
 import { logger } from '@/shared/lib/logger';
@@ -44,12 +45,24 @@ export async function uploadDeficiencyPhoto(
     const ext = (localUri.split('.').pop() ?? 'jpg').toLowerCase();
     const filename = `${organizationId}/deficiencies/${deficiencyId}/${Date.now()}.${ext}`;
 
-    const response = await fetch(localUri);
-    const blob = await response.blob();
+    // 2026-04-29 — Switched off `fetch(localUri).blob()` to base64 +
+    // ArrayBuffer per photo-worker.ts:140 pattern. The fetch path
+    // silently produces empty blobs on Android RN with cache:// URIs;
+    // pilot's deficiency rows had `file:///` literals stored as URLs
+    // because the upload "succeeded" with 0 bytes and the fallback
+    // returned localUri. Same fix in signoffPhotos + gc-punch-service.
+    const base64 = await LegacyFileSystem.readAsStringAsync(localUri, {
+      encoding: LegacyFileSystem.EncodingType.Base64,
+    });
+    const binaryString = atob(base64);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
 
     const { data, error } = await supabase.storage
       .from('field-photos')
-      .upload(filename, blob, {
+      .upload(filename, bytes.buffer, {
         contentType: ext === 'png' ? 'image/png' : 'image/jpeg',
         upsert: false,
       });

@@ -1,20 +1,23 @@
 /**
  * Sprint 72 — Sign-Off photo upload helper.
  *
- * Mirrors deficiencyPhotos.ts exactly — same field-photos bucket, same
- * org-first path convention (Sprint 53A.1 RLS lesson). The only difference
- * is the second folder: `signoffs/{YYYY-MM-DD}/...` instead of
- * `deficiencies/{id}/...`. Web spec §5 specifies date-based folder so PMs
- * can browse the Storage UI by day.
- *
  * Path shape: `{organizationId}/signoffs/{YYYY-MM-DD}/{uuid}.{ext}`
  *
- * Pre-create phase: signoff doesn't exist yet, so we don't have an id to
- * scope the folder. Web's spec uses date-bucketed folders instead — the
- * URL goes into the create endpoint's `evidence[]` payload and gets stored
- * verbatim in `signoff_documents.evidence_photos[]`.
+ * 2026-04-29 — Switched off `fetch(localUri).blob()` to base64 + ArrayBuffer
+ * pattern from photo-worker.ts. The `fetch(file://...)` approach is
+ * broken on Android RN: blob conversion silently produces empty/zero
+ * data, the upload "succeeds" with 0 bytes, OR fetch errors and the
+ * fallback returns the local URI. Pilot reported sign-off PDFs +
+ * public sign pages showing broken images — DB inspection showed
+ * `evidence_photos[].url` literally as `file:///data/user/0/...`.
+ *
+ * The same bug affects deficiencyPhotos + gc-punch-service — fixed in
+ * the same commit. The reliable pattern is documented in
+ * photo-worker.ts:140-170 and has been working in field-photos
+ * background sync for months.
  */
 
+import * as LegacyFileSystem from 'expo-file-system/legacy';
 import { supabase } from '@/shared/lib/supabase/client';
 import { generateUUID } from '@/shared/lib/powersync/write';
 import { logger } from '@/shared/lib/logger';
@@ -35,9 +38,10 @@ function todayBucket(): string {
 
 /**
  * Upload one photo to field-photos/signoffs/. Returns the public URL on
- * success, or the original localUri on offline failure (the create
- * endpoint will reject local file:// URIs, but the local URI is enough
- * for the in-memory preview while offline).
+ * success, or the original localUri on offline/error fallback (the
+ * create endpoint will reject local file:// URIs server-side, surfacing
+ * the failure to the caller — preferable to silently inserting unusable
+ * URLs into evidence_photos).
  */
 export async function uploadSignoffPhoto(
   params: UploadSignoffPhotoParams,
@@ -47,12 +51,20 @@ export async function uploadSignoffPhoto(
     const ext = (localUri.split('.').pop() ?? 'jpg').toLowerCase();
     const filename = `${organizationId}/signoffs/${todayBucket()}/${generateUUID()}.${ext}`;
 
-    const response = await fetch(localUri);
-    const blob = await response.blob();
+    // Read file as base64 → ArrayBuffer. The fetch(localUri).blob() path
+    // is broken on Android RN for cache:// URIs (silent empty blob).
+    const base64 = await LegacyFileSystem.readAsStringAsync(localUri, {
+      encoding: LegacyFileSystem.EncodingType.Base64,
+    });
+    const binaryString = atob(base64);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
 
     const { data, error } = await supabase.storage
       .from('field-photos')
-      .upload(filename, blob, {
+      .upload(filename, bytes.buffer, {
         contentType: ext === 'png' ? 'image/png' : 'image/jpeg',
         upsert: false,
       });
