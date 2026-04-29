@@ -270,10 +270,15 @@ export function SignoffLibraryPicker({ visible, onClose, onPick }: Props) {
                   {filteredByTrade[trade].map((t) => (
                     <Pressable
                       key={t.id}
-                      onPress={() => {
-                        onPick(t);
-                        onClose();
-                      }}
+                      // Pilot 2026-04-29: don't call onClose() after
+                      // onPick(t) — the parent's onClose handler reads
+                      // `template` via closure, but setTemplate(t) is
+                      // async so the guard `if (template === null) close()`
+                      // saw the stale null value and dismissed the whole
+                      // modal instead of advancing to Step 2. Parent
+                      // already flips visibility via mode change in
+                      // onPickTemplate, so the picker hides automatically.
+                      onPress={() => onPick(t)}
                       android_ripple={{ color: '#0F172A' }}
                       style={{
                         paddingVertical: 12,
