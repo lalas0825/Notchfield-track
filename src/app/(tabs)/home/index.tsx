@@ -24,6 +24,7 @@ import { AlertsList, type Alert } from '@/features/home/components/AlertsList';
 import { ProjectSwitcher } from '@/features/projects/components/ProjectSwitcher';
 import { MorningPtpCard } from '@/features/safety/ptp/components/MorningPtpCard';
 import { WeeklyToolboxCard } from '@/features/safety/toolbox/components/WeeklyToolboxCard';
+import { WeeklyTimesheetCard } from '@/features/payroll/components/WeeklyTimesheetCard';
 import { ProjectNotesIcon } from '@/features/messages/components/ProjectNotesIcon';
 import { NotificationBell } from '@/features/notifications/components/NotificationBell';
 import { TodayHeaderIcon } from '@/features/todos/components/TodayHeaderIcon';
@@ -196,6 +197,11 @@ export default function HomeScreen() {
 
       {/* Weekly Toolbox Talk — Monday ritual, 1-tap from Home */}
       <WeeklyToolboxCard />
+
+      {/* Weekly Timesheet — Sprint 73 Payroll. Foreman-only, contextual:
+          shows running totals mid-week, urges submit Sat-Mon, locks
+          when submitted, prompts re-submit when supervisor disputes. */}
+      <WeeklyTimesheetCard />
 
       {/* PENDING — dynamic */}
       {alerts.length > 0 ? (
