@@ -20,6 +20,7 @@ import { Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAreaCrew, type AreaCrewEntry } from '../hooks/useAreaCrew';
 import { WorkerTimelineModal } from './WorkerTimelineModal';
+import { CollapsibleSection } from '@/shared/components/CollapsibleSection';
 
 type Props = {
   areaId: string;
@@ -70,107 +71,97 @@ export function AreaCrewTile({ areaId }: Props) {
 
   const hasAnyToday = currentWorkers.length > 0 || todayWorkers.length > 0;
 
-  return (
+  // Smart auto-expand: open when there are workers actively here right
+  // now (foreman walking the floor wants to see who's in the room).
+  // Closed entries from earlier today stay collapsed by default — they're
+  // historical context, not live action.
+  const shouldAutoExpand = currentWorkers.length > 0;
+
+  const header = (
     <View
       style={{
-        marginBottom: 16,
-        padding: 12,
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: '#1E293B',
-        backgroundColor: '#0F172A',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
       }}
     >
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: 10,
-          paddingHorizontal: 4,
-        }}
-      >
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Ionicons name="people" size={18} color="#3B82F6" />
-          <Text
-            style={{ color: '#F8FAFC', fontSize: 16, fontWeight: '700' }}
-          >
-            Crew
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <Ionicons name="people" size={18} color="#3B82F6" />
+        <Text style={{ color: '#F8FAFC', fontSize: 16, fontWeight: '700' }}>
+          Crew
+        </Text>
+        {!loading && hasAnyToday ? (
+          <Text style={{ color: '#64748B', fontSize: 13 }}>
+            {fmtHours(totalHoursToday)} today
           </Text>
-          {!loading && hasAnyToday ? (
-            <Text style={{ color: '#64748B', fontSize: 13 }}>
-              {fmtHours(totalHoursToday)} today
-            </Text>
-          ) : null}
-        </View>
-        {currentWorkers.length > 0 ? (
-          <View
-            style={{
-              paddingHorizontal: 8,
-              paddingVertical: 3,
-              borderRadius: 6,
-              backgroundColor: '#22C55E20',
-              borderWidth: 1,
-              borderColor: '#22C55E',
-            }}
-          >
-            <Text
-              style={{ color: '#22C55E', fontSize: 11, fontWeight: '700' }}
-            >
-              {currentWorkers.length} active
-            </Text>
-          </View>
         ) : null}
       </View>
-
-      {loading ? (
+      {currentWorkers.length > 0 ? (
         <View
           style={{
-            paddingVertical: 16,
-            alignItems: 'center',
-          }}
-        >
-          <Text style={{ color: '#64748B', fontSize: 13 }}>Loading…</Text>
-        </View>
-      ) : !hasAnyToday ? (
-        <View
-          style={{
-            paddingVertical: 16,
             paddingHorizontal: 8,
-            alignItems: 'center',
+            paddingVertical: 3,
+            borderRadius: 6,
+            backgroundColor: '#22C55E20',
+            borderWidth: 1,
+            borderColor: '#22C55E',
           }}
         >
-          <Text style={{ color: '#64748B', fontSize: 13 }}>
-            No workers logged here today.
+          <Text style={{ color: '#22C55E', fontSize: 11, fontWeight: '700' }}>
+            {currentWorkers.length} active
           </Text>
         </View>
-      ) : (
-        <>
-          {currentWorkers.length > 0 ? (
-            <SectionLabel text="Currently here" color="#22C55E" />
-          ) : null}
-          {currentWorkers.map((entry) => (
-            <CrewRow
-              key={entry.id}
-              entry={entry}
-              live
-              onPress={() => onPressEntry(entry)}
-            />
-          ))}
+      ) : null}
+    </View>
+  );
 
-          {todayWorkers.length > 0 ? (
-            <SectionLabel text="Worked here today" color="#94A3B8" />
-          ) : null}
-          {todayWorkers.map((entry) => (
-            <CrewRow
-              key={entry.id}
-              entry={entry}
-              live={false}
-              onPress={() => onPressEntry(entry)}
-            />
-          ))}
-        </>
-      )}
+  return (
+    <>
+      <CollapsibleSection header={header} defaultExpanded={shouldAutoExpand}>
+        {loading ? (
+          <View style={{ paddingVertical: 12, alignItems: 'center' }}>
+            <Text style={{ color: '#64748B', fontSize: 13 }}>Loading…</Text>
+          </View>
+        ) : !hasAnyToday ? (
+          <View
+            style={{
+              paddingVertical: 12,
+              paddingHorizontal: 4,
+              alignItems: 'center',
+            }}
+          >
+            <Text style={{ color: '#64748B', fontSize: 13 }}>
+              No workers logged here today.
+            </Text>
+          </View>
+        ) : (
+          <>
+            {currentWorkers.length > 0 ? (
+              <SectionLabel text="Currently here" color="#22C55E" />
+            ) : null}
+            {currentWorkers.map((entry) => (
+              <CrewRow
+                key={entry.id}
+                entry={entry}
+                live
+                onPress={() => onPressEntry(entry)}
+              />
+            ))}
+
+            {todayWorkers.length > 0 ? (
+              <SectionLabel text="Worked here today" color="#94A3B8" />
+            ) : null}
+            {todayWorkers.map((entry) => (
+              <CrewRow
+                key={entry.id}
+                entry={entry}
+                live={false}
+                onPress={() => onPressEntry(entry)}
+              />
+            ))}
+          </>
+        )}
+      </CollapsibleSection>
 
       <WorkerTimelineModal
         visible={picked !== null}
@@ -178,7 +169,7 @@ export function AreaCrewTile({ areaId }: Props) {
         workerId={picked?.workerId ?? null}
         workerName={picked?.workerName ?? null}
       />
-    </View>
+    </>
   );
 }
 

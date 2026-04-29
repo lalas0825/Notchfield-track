@@ -21,6 +21,7 @@ import { useRouter } from 'expo-router';
 import { useAreaDeficiencies } from '../hooks/useAreaDeficiencies';
 import { DeficiencyListItem } from './DeficiencyListItem';
 import { ReportDeficiencyModal } from './ReportDeficiencyModal';
+import { CollapsibleSection } from '@/shared/components/CollapsibleSection';
 import { SEVERITY_COLOR } from '../types';
 import type { Deficiency } from '../types';
 
@@ -43,115 +44,109 @@ export function AreaDeficienciesSection({
     router.push(`/(tabs)/board/deficiency/${d.id}` as any);
   };
 
-  return (
+  // Smart auto-expand: open if there are unresolved items the foreman/
+  // supervisor needs to act on. Collapsed if everything's verified/closed.
+  const shouldAutoExpand = counts.openTotal > 0;
+
+  const header = (
     <View
       style={{
-        marginBottom: 16,
-        padding: 12,
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: '#1E293B',
-        backgroundColor: '#0F172A',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
       }}
     >
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: 10,
-          paddingHorizontal: 4,
-        }}
-      >
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Ionicons name="warning" size={18} color="#F59E0B" />
-          <Text style={{ color: '#F8FAFC', fontSize: 16, fontWeight: '700' }}>
-            Deficiencies
-          </Text>
-          <Text style={{ color: '#64748B', fontSize: 13 }}>
-            {counts.openTotal === 0
-              ? 'None'
-              : `${counts.openTotal} open`}
-          </Text>
-        </View>
-        {/* Severity dots */}
-        {counts.openTotal > 0 ? (
-          <View style={{ flexDirection: 'row', gap: 4 }}>
-            {(['critical', 'major', 'minor', 'cosmetic'] as const).map((s) =>
-              counts[s] > 0 ? (
-                <View
-                  key={s}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <Ionicons name="warning" size={18} color="#F59E0B" />
+        <Text style={{ color: '#F8FAFC', fontSize: 16, fontWeight: '700' }}>
+          Deficiencies
+        </Text>
+        <Text style={{ color: '#64748B', fontSize: 13 }}>
+          {counts.openTotal === 0 ? 'None' : `${counts.openTotal} open`}
+        </Text>
+      </View>
+      {counts.openTotal > 0 ? (
+        <View style={{ flexDirection: 'row', gap: 4 }}>
+          {(['critical', 'major', 'minor', 'cosmetic'] as const).map((s) =>
+            counts[s] > 0 ? (
+              <View
+                key={s}
+                style={{
+                  paddingHorizontal: 6,
+                  paddingVertical: 2,
+                  borderRadius: 4,
+                  backgroundColor: `${SEVERITY_COLOR[s]}20`,
+                  borderWidth: 1,
+                  borderColor: SEVERITY_COLOR[s],
+                }}
+              >
+                <Text
                   style={{
-                    paddingHorizontal: 6,
-                    paddingVertical: 2,
-                    borderRadius: 4,
-                    backgroundColor: `${SEVERITY_COLOR[s]}20`,
-                    borderWidth: 1,
-                    borderColor: SEVERITY_COLOR[s],
+                    color: SEVERITY_COLOR[s],
+                    fontSize: 10,
+                    fontWeight: '700',
                   }}
                 >
-                  <Text
-                    style={{
-                      color: SEVERITY_COLOR[s],
-                      fontSize: 10,
-                      fontWeight: '700',
-                    }}
-                  >
-                    {counts[s]}
-                  </Text>
-                </View>
-              ) : null,
-            )}
-          </View>
-        ) : null}
-      </View>
-
-      {deficiencies.length === 0 ? (
-        <View
-          style={{
-            paddingVertical: 16,
-            paddingHorizontal: 8,
-            alignItems: 'center',
-          }}
-        >
-          <Text style={{ color: '#64748B', fontSize: 13 }}>
-            No deficiencies reported for this area.
-          </Text>
+                  {counts[s]}
+                </Text>
+              </View>
+            ) : null,
+          )}
         </View>
-      ) : (
-        deficiencies.map((d) => (
-          <DeficiencyListItem key={d.id} deficiency={d} onPress={onPress} />
-        ))
-      )}
+      ) : null}
+    </View>
+  );
 
-      <Pressable
-        onPress={() => setModalOpen(true)}
-        style={{
-          marginTop: 8,
-          height: 44,
-          borderRadius: 10,
-          borderWidth: 1,
-          borderColor: '#F59E0B',
-          backgroundColor: 'rgba(245, 158, 11, 0.08)',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexDirection: 'row',
-          gap: 8,
-        }}
-        accessibilityRole="button"
-        accessibilityLabel="Report new deficiency"
-      >
-        <Ionicons name="add-circle" size={18} color="#F59E0B" />
-        <Text
+  return (
+    <>
+      <CollapsibleSection header={header} defaultExpanded={shouldAutoExpand}>
+        {deficiencies.length === 0 ? (
+          <View
+            style={{
+              paddingVertical: 12,
+              paddingHorizontal: 4,
+              alignItems: 'center',
+            }}
+          >
+            <Text style={{ color: '#64748B', fontSize: 13 }}>
+              No deficiencies reported for this area.
+            </Text>
+          </View>
+        ) : (
+          deficiencies.map((d) => (
+            <DeficiencyListItem key={d.id} deficiency={d} onPress={onPress} />
+          ))
+        )}
+
+        <Pressable
+          onPress={() => setModalOpen(true)}
           style={{
-            color: '#F59E0B',
-            fontSize: 14,
-            fontWeight: '700',
+            marginTop: 8,
+            height: 44,
+            borderRadius: 10,
+            borderWidth: 1,
+            borderColor: '#F59E0B',
+            backgroundColor: 'rgba(245, 158, 11, 0.08)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexDirection: 'row',
+            gap: 8,
           }}
+          accessibilityRole="button"
+          accessibilityLabel="Report new deficiency"
         >
-          Report Deficiency
-        </Text>
-      </Pressable>
+          <Ionicons name="add-circle" size={18} color="#F59E0B" />
+          <Text
+            style={{
+              color: '#F59E0B',
+              fontSize: 14,
+              fontWeight: '700',
+            }}
+          >
+            Report Deficiency
+          </Text>
+        </Pressable>
+      </CollapsibleSection>
 
       <ReportDeficiencyModal
         visible={modalOpen}
@@ -161,6 +156,6 @@ export function AreaDeficienciesSection({
         onClose={() => setModalOpen(false)}
         onCreated={reload}
       />
-    </View>
+    </>
   );
 }

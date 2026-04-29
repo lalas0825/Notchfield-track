@@ -159,19 +159,11 @@ export function PhaseChecklist({ areaId, templateId, userId }: Props) {
 
   if (loading) return null;
 
-  if (phases.length === 0) {
-    return (
-      <View className="mb-4 rounded-2xl border border-border bg-card px-4 py-4">
-        <View className="flex-row items-center mb-2">
-          <Ionicons name="layers-outline" size={16} color="#94A3B8" />
-          <Text className="ml-2 text-sm font-bold uppercase text-slate-400">Phases</Text>
-        </View>
-        <Text className="text-sm text-slate-500">
-          No phases assigned. PM needs to assign a template in Takeoff.
-        </Text>
-      </View>
-    );
-  }
+  // 2026-04-29 — Hide entirely when no phases have been assigned/started
+  // for this area. Pilot feedback: the empty-state placeholder ("No phases
+  // assigned…") was just visual noise on areas without a template. The
+  // foreman doesn't act on that message; PM-side concern.
+  if (phases.length === 0) return null;
 
   const progress = calculateProgress(phases);
   const progressPct = Math.round(progress * 100);

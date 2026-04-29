@@ -19,6 +19,7 @@ import { useRouter } from 'expo-router';
 import { useAreaSignoffs } from '../hooks/useAreaSignoffs';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { normalizeTrackRole } from '@/shared/lib/permissions/trackPermissions';
+import { CollapsibleSection } from '@/shared/components/CollapsibleSection';
 import { CreateSignoffModal } from './CreateSignoffModal';
 import { SignoffListItem } from './SignoffListItem';
 import type { SignoffDocument } from '../types';
@@ -47,89 +48,85 @@ export function AreaSignoffsSection({ areaId, areaLabel, projectId }: Props) {
   ).length;
   const signedCount = signoffs.filter((s) => s.status === 'signed').length;
 
-  return (
+  // Smart auto-expand: open if there's a draft or pending_signature
+  // (action items the foreman/supervisor can move forward). Collapsed
+  // when only signed/historical entries exist OR when section is empty.
+  const shouldAutoExpand = openCount > 0;
+
+  const header = (
     <View
       style={{
-        marginBottom: 16,
-        padding: 12,
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: '#1E293B',
-        backgroundColor: '#0F172A',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
       }}
     >
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: 10,
-          paddingHorizontal: 4,
-        }}
-      >
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Ionicons name="document-text" size={18} color="#3B82F6" />
-          <Text style={{ color: '#F8FAFC', fontSize: 16, fontWeight: '700' }}>
-            Sign-Offs
-          </Text>
-          <Text style={{ color: '#64748B', fontSize: 13 }}>
-            {signoffs.length === 0
-              ? 'None'
-              : `${signoffs.length} total`}
-          </Text>
-        </View>
-        {signoffs.length > 0 ? (
-          <View style={{ flexDirection: 'row', gap: 4 }}>
-            {openCount > 0 ? <Chip color="#F59E0B" label={`${openCount} open`} /> : null}
-            {signedCount > 0 ? <Chip color="#22C55E" label={`${signedCount} signed`} /> : null}
-          </View>
-        ) : null}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <Ionicons name="document-text" size={18} color="#3B82F6" />
+        <Text style={{ color: '#F8FAFC', fontSize: 16, fontWeight: '700' }}>
+          Sign-Offs
+        </Text>
+        <Text style={{ color: '#64748B', fontSize: 13 }}>
+          {signoffs.length === 0 ? 'None' : `${signoffs.length} total`}
+        </Text>
       </View>
-
-      {signoffs.length === 0 ? (
-        <View
-          style={{
-            paddingVertical: 16,
-            paddingHorizontal: 8,
-            alignItems: 'center',
-          }}
-        >
-          <Text style={{ color: '#64748B', fontSize: 13 }}>
-            No sign-offs for this area.
-          </Text>
+      {signoffs.length > 0 ? (
+        <View style={{ flexDirection: 'row', gap: 4 }}>
+          {openCount > 0 ? <Chip color="#F59E0B" label={`${openCount} open`} /> : null}
+          {signedCount > 0 ? <Chip color="#22C55E" label={`${signedCount} signed`} /> : null}
         </View>
-      ) : (
-        signoffs.map((s) => (
-          <SignoffListItem key={s.id} signoff={s} onPress={onPress} />
-        ))
-      )}
-
-      {canCreate ? (
-        <Pressable
-          onPress={() => setModalOpen(true)}
-          style={{
-            marginTop: 8,
-            height: 44,
-            borderRadius: 10,
-            borderWidth: 1,
-            borderColor: '#3B82F6',
-            backgroundColor: 'rgba(59, 130, 246, 0.08)',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexDirection: 'row',
-            gap: 8,
-          }}
-          accessibilityRole="button"
-          accessibilityLabel="Create new sign-off"
-        >
-          <Ionicons name="add-circle" size={18} color="#3B82F6" />
-          <Text
-            style={{ color: '#3B82F6', fontSize: 14, fontWeight: '700' }}
-          >
-            New Sign-Off
-          </Text>
-        </Pressable>
       ) : null}
+    </View>
+  );
+
+  return (
+    <>
+      <CollapsibleSection header={header} defaultExpanded={shouldAutoExpand}>
+        {signoffs.length === 0 ? (
+          <View
+            style={{
+              paddingVertical: 12,
+              paddingHorizontal: 4,
+              alignItems: 'center',
+            }}
+          >
+            <Text style={{ color: '#64748B', fontSize: 13 }}>
+              No sign-offs for this area.
+            </Text>
+          </View>
+        ) : (
+          signoffs.map((s) => (
+            <SignoffListItem key={s.id} signoff={s} onPress={onPress} />
+          ))
+        )}
+
+        {canCreate ? (
+          <Pressable
+            onPress={() => setModalOpen(true)}
+            style={{
+              marginTop: 8,
+              height: 44,
+              borderRadius: 10,
+              borderWidth: 1,
+              borderColor: '#3B82F6',
+              backgroundColor: 'rgba(59, 130, 246, 0.08)',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexDirection: 'row',
+              gap: 8,
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Create new sign-off"
+          >
+            <Ionicons name="add-circle" size={18} color="#3B82F6" />
+            <Text
+              style={{ color: '#3B82F6', fontSize: 14, fontWeight: '700' }}
+            >
+              New Sign-Off
+            </Text>
+          </Pressable>
+        ) : null}
+      </CollapsibleSection>
 
       <CreateSignoffModal
         visible={modalOpen}
@@ -140,7 +137,7 @@ export function AreaSignoffsSection({ areaId, areaLabel, projectId }: Props) {
           reload();
         }}
       />
-    </View>
+    </>
   );
 }
 
