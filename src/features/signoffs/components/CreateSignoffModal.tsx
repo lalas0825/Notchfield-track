@@ -299,7 +299,15 @@ export function CreateSignoffModal({
                 borderTopRightRadius: 24,
                 borderTopWidth: 1,
                 borderColor: '#334155',
-                maxHeight: '92%',
+                // Fixed height instead of maxHeight: with maxHeight + KAV
+                // behavior='height' on Android, the sheet recalculated its
+                // size against KAV's shrinking parent during keyboard
+                // animations and oscillated rapidly when the keyboard
+                // dismissed. Pilot reported "screen flickering fast".
+                // Fixed height locks the sheet; the inner ScrollView
+                // handles overflow and KAV's padding behavior pushes
+                // content above the keyboard without resizing the sheet.
+                height: '92%',
               }}
             >
               <View style={{ alignItems: 'center', paddingVertical: 12 }}>
