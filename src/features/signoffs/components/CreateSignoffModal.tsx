@@ -210,10 +210,22 @@ export function CreateSignoffModal({
       // is the Polish R1 critical contract: server validates labels
       // against the rule labels char-for-char on `send`. If we put a
       // generic "Evidence 1" label here, the send call fails with 500.
+      //
+      // 2026-04-29 — Always stamp `type: 'photo'` for uploaded images,
+      // regardless of `slot.rule.type`. Some templates declare a slot as
+      // `type: 'numeric_reading'` (e.g. Heat Mat Approval's ohm reading)
+      // expecting a numeric value, but Track UI only exposes Camera/
+      // Gallery — user takes a photo OF the meter display. If we stamp
+      // `numeric_reading` on the evidence, Web's PDF/sign-page renderer
+      // hides it (only renders type='photo' as images). Pilot reported
+      // "solo adjunto una foto de dos" — second slot was numeric_reading
+      // type, photo was uploaded but never rendered.
+      // The label preserves the slot context. When Track UI grows a
+      // proper numeric input for numeric_reading slots, revisit this.
       const evidence: CreateSignoffEvidence[] = slotsWithPhotos.map(
         (slot, i) => ({
           url: uploadedUrls[i] ?? (slot.localUri as string),
-          type: slot.rule.type,
+          type: 'photo',
           label: slot.rule.label,
         }),
       );

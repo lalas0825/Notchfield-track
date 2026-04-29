@@ -21,9 +21,7 @@ import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   Text,
@@ -110,18 +108,19 @@ export function SendForSignatureModal({
       onRequestClose={closeIfNotBusy}
       statusBarTranslucent
     >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1 }}
+      {/* Same keyboard-flicker fix as CreateSignoffModal (commit 8e11f0b):
+          KAV with behavior='height' + percentage-based sheet height
+          oscillates per-frame on Android during keyboard dismiss. The
+          inner ScrollView's keyboardShouldPersistTaps='handled' covers
+          input visibility natively — no KAV needed. */}
+      <Pressable
+        onPress={closeIfNotBusy}
+        style={{
+          flex: 1,
+          justifyContent: 'flex-end',
+          backgroundColor: 'rgba(0,0,0,0.6)',
+        }}
       >
-        <Pressable
-          onPress={closeIfNotBusy}
-          style={{
-            flex: 1,
-            justifyContent: 'flex-end',
-            backgroundColor: 'rgba(0,0,0,0.6)',
-          }}
-        >
           <Pressable
             onPress={() => {}}
             style={{
@@ -130,7 +129,7 @@ export function SendForSignatureModal({
               borderTopRightRadius: 24,
               borderTopWidth: 1,
               borderColor: '#334155',
-              maxHeight: '92%',
+              height: '92%',
             }}
           >
             <View style={{ alignItems: 'center', paddingVertical: 12 }}>
@@ -260,8 +259,7 @@ export function SendForSignatureModal({
               )}
             </ScrollView>
           </Pressable>
-        </Pressable>
-      </KeyboardAvoidingView>
+      </Pressable>
     </Modal>
   );
 }
