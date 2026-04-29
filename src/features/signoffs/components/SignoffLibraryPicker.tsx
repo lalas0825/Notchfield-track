@@ -106,7 +106,12 @@ export function SignoffLibraryPicker({ visible, onClose, onPick }: Props) {
             borderTopRightRadius: 24,
             borderTopWidth: 1,
             borderColor: '#334155',
-            maxHeight: '85%',
+            // Use definite height instead of maxHeight so the ScrollView
+            // inside has room to render the empty state. With maxHeight,
+            // the sheet collapsed to its natural content size when the
+            // ScrollView was empty (no rows in signoff_templates locally),
+            // hiding the "No templates loaded" + Retry CTA.
+            height: '85%',
           }}
         >
           <View style={{ alignItems: 'center', paddingVertical: 12 }}>
