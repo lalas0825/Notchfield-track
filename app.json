@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.notchfield.track",
-      "buildNumber": "1",
+      "buildNumber": "2",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "NotchField Track uses your location for GPS check-in/out and to stamp photos with coordinates.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "NotchField Track uses background location for geofence auto check-in at job sites.",
@@ -24,7 +24,8 @@
         "UIBackgroundModes": [
           "location",
           "remote-notification"
-        ]
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
