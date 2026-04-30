@@ -36,6 +36,7 @@ import { PunchPinOverlay } from '@/features/punch/components/PunchPinOverlay';
 import { AddPunchSheet } from '@/features/punch/components/AddPunchSheet';
 import { useDrawingPunchItems } from '@/features/punch/hooks/useDrawingPunchItems';
 import { haptic } from '@/shared/lib/haptics';
+import { CalculatorFab } from '@/features/calculator/CalculatorFab';
 
 /**
  * Sprint 71 — Internal punch_items deprecated. Plans-tab UI surfaces
@@ -635,6 +636,14 @@ export default function PlanViewerScreen() {
               <Ionicons name="add" size={28} color="#FFFFFF" />
             </Pressable>
           </>
+        )}
+
+        {/* Calculator FAB (left side) — universal across roles, scope per
+            SPRINT_TRACK_CALCULATOR.md is "Plans tab only". Sits at the
+            same vertical position as the right-side Pin FAB. Opens the
+            full calculator (input + 17 helpers) as a modal — no nav. */}
+        {pdfUri && !downloading && (
+          <CalculatorFab bottomOffset={siblings.length > 0 ? 74 : 24} />
         )}
 
         {/* Pin detail */}
